@@ -7,4 +7,5 @@
 #
 
 install(FILES
-    sage_cltuFramer.block.yml DESTINATION share/gnuradio/grc/blocks)
+    sage_cltuFramer.block.yml
+    sage_bchEncoder.block.yml DESTINATION share/gnuradio/grc/blocks)
