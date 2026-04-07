@@ -4,7 +4,7 @@ category: '[sage]'
 
 templates:
   imports: from gnuradio import sage
-  make: sage.cltuFramer(${startSequence})
+  make: sage.cltuFramer(${startSequence}, ${tailSequence})
 
 #  Make one 'parameters' list entry for every parameter you want settable from the GUI.
 #     Keys include:
@@ -16,11 +16,11 @@ parameters:
 - id: startSequence
   label: Start Sequence
   dtype: int
-  default: The byte combination, which is prepended at the beginning of the CLTU.
+  default: 0xEB90
 - id: tailSequence
   label: Tail Sequence
   dtype: int
-  default: The byte combination, which is appended at the end of the CLTU.
+  default: 0xC5C5C5C5C5C5C579
 
 #  Make one 'inputs' list entry per input and one 'outputs' list entry per output.
 #  Keys include:
@@ -30,18 +30,14 @@ parameters:
 #      * vlen (optional - data stream vector length. Default is 1)
 #      * optional (optional - set to 1 for optional inputs. Default is 0)
 inputs:
-#- label: ...
-#  domain: ...
-#  dtype: ...
-#  vlen: ...
-#  optional: ...
+- label: pdu_in
+  domain: message
+  optional: 0
 
 outputs:
-#- label: ...
-#  domain: ...
-#  dtype: ...
-#  vlen: ...
-#  optional: ...
+- label: pdu_out
+  domain: message
+  optional: 0
 
 #  'file_format' specifies the version of the GRC yml format used in the file
 #  and should usually not be changed.
