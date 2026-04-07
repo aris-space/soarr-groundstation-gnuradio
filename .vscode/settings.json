@@ -1,5 +1,17 @@
 {
     "python-envs.defaultEnvManager": "ms-python.python:conda",
     "python-envs.defaultPackageManager": "ms-python.python:conda",
-    "cmake.sourceDirectory": "C:/ARIS/sage-groundstation-gnuradio/gr-sage"
+    "cmake.sourceDirectory": "C:/ARIS/sage-groundstation-gnuradio/gr-sage",
+    "cmake.buildDirectory": "C:/ARIS/sage-groundstation-gnuradio/gr-sage/build",
+    "cmake.generator": "Visual Studio 17 2022",
+    "cmake.platform": "x64",
+    "cmake.configureEnvironment": {
+        "CMAKE_PREFIX_PATH": "C:/Users/yanni/anaconda3/envs/radioconda/Library"
+    },
+    "cmake.configureArgs": [
+        "-DGnuradio_DIR=C:/Users/yanni/anaconda3/envs/radioconda/Library/lib/cmake/gnuradio",
+        "-DMPIR_INCLUDE_DIR=C:/Users/yanni/anaconda3/envs/radioconda/Library/include",
+        "-DMPIR_LIBRARY=C:/Users/yanni/anaconda3/envs/radioconda/Library/lib/mpir.lib",
+        "-DMPIRXX_LIBRARY=C:/Users/yanni/anaconda3/envs/radioconda/Library/lib/mpirxx_static.lib"
+    ]
 }
