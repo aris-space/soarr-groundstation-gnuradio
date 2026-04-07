@@ -22,4 +22,5 @@ except ModuleNotFoundError:
 # import any pure python here
 from .cltuFramer import cltuFramer
 from .bchEncoder import bchEncoder
+from .lfsrScrambler import lfsrScrambler
 #

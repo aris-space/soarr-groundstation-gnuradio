@@ -21,7 +21,8 @@ add_subdirectory(bindings)
 ########################################################################
 gr_python_install(FILES __init__.py
     cltuFramer.py
-    bchEncoder.py DESTINATION ${GR_PYTHON_DIR}/gnuradio/sage)
+    bchEncoder.py
+    lfsrScrambler.py DESTINATION ${GR_PYTHON_DIR}/gnuradio/sage)
 
 ########################################################################
 # Handle the unit tests
@@ -38,3 +39,4 @@ add_custom_target(
             ${PROJECT_BINARY_DIR}/test_modules/gnuradio/sage/)
 GR_ADD_TEST(qa_cltuFramer ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_cltuFramer.py)
 GR_ADD_TEST(qa_bchEncoder ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_bchEncoder.py)
+GR_ADD_TEST(qa_lfsrScrambler ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_lfsrScrambler.py)
