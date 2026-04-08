@@ -10,8 +10,13 @@ import struct
 import logging
 import pmt
 
+try:
+    from sage import cltuFramer
+except ModuleNotFoundError:
+    # Allows direct execution: python qa_cltuFramer.py from this folder.
+    from cltuFramer import cltuFramer
+
 from gnuradio import gr_unittest
-from sage import cltuFramer
 
 Log = logging.getLogger("qa_cltuFramer")
 

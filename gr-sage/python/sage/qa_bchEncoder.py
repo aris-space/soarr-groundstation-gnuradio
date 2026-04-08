@@ -7,7 +7,13 @@
 #
 
 from gnuradio import gr, gr_unittest
-from sage import bchEncoder
+
+try:
+    from sage import bchEncoder
+except ModuleNotFoundError:
+    # Allows direct execution: python bchEncoder.py from this folder.
+    from bchEncoder import bchEncoder 
+
 import pmt
 
 class qa_bchEncoder(gr_unittest.TestCase):
