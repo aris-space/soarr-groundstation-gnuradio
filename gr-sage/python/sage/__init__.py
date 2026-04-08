@@ -23,4 +23,5 @@ except ModuleNotFoundError:
 from .cltuFramer import cltuFramer
 from .bchEncoder import bchEncoder
 from .lfsrScrambler import lfsrScrambler
+from .tcPrimaryHeader import tcPrimaryHeader
 #
