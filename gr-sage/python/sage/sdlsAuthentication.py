@@ -32,10 +32,12 @@ class sdlsAuthentication(gr.basic_block):
         self.logger = logging.getLogger("gnuradio.sage.sdlsAuthentication")
 
         self.state = state
+
         if not isinstance(nonce, (bytes, bytearray)):
             raise TypeError("nonce must be bytes-like")
         if len(nonce) != NONCE_LEN:
             raise ValueError("nonce must be exactly 14 bytes")
+
         self.nonce = bytes(nonce)
 
         # Message ports
@@ -129,6 +131,10 @@ class sdlsAuthentication(gr.basic_block):
         
 
         # Expecting a PDU with a dict containing 'auth_key' and 'counter', and a u8vector payload.
+
+        if not pmt.is_pair(msg):
+            self.logger.warning(f"Received non-PDU message: {msg}")
+            return # Early exit if message is not a pair (dict, payload)
 
         dict_msg = pmt.car(msg)
         payload_u8vector = pmt.cdr(msg)
