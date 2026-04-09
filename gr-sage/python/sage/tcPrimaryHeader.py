@@ -7,7 +7,6 @@
 #
 
 import logging
-from collections import deque
 
 from gnuradio import gr
 import pmt
@@ -43,8 +42,7 @@ class tcPrimaryHeader(gr.basic_block):
 
     Flow:
     - Receive a PDU on `pdu_in`
-    - Emit DB request on `tc_query` with keys `vcid`, `frame_sequence_number`
-    - Receive DB response on `tc_callback` with `frame_sequence_number`
+    - Read frame fields (including `frame_sequence_number`) directly from metadata
     - Build header and emit final frame on `pdu_out`
     """
 
@@ -64,21 +62,17 @@ class tcPrimaryHeader(gr.basic_block):
         self.reserved = 0b00
         self.scid = scid
         self.vcid = vcid
-        self._pending = deque()
 
         if TC_PRIMARY_HEADER_STRUCT is None:
             self.logger.warning("construct not installed; using manual header packing fallback.")
 
         # Message ports
         self.message_port_register_in(pmt.intern("pdu_in"))
-        self.message_port_register_in(pmt.intern("tc_callback"))
 
         self.message_port_register_out(pmt.intern("pdu_out"))
-        self.message_port_register_out(pmt.intern("tc_query"))
 
         # Handlers
-        self.set_msg_handler(pmt.intern("pdu_in"), self.call_db)
-        self.set_msg_handler(pmt.intern("tc_callback"), self.build_header)
+        self.set_msg_handler(pmt.intern("pdu_in"), self.build_header)
 
     def _pmt_dict_get_int(self, meta, key, default=None):
         if not pmt.is_dict(meta):
@@ -114,6 +108,10 @@ class tcPrimaryHeader(gr.basic_block):
         return header_value.to_bytes(5, byteorder="big")
 
     def call_db(self, msg):
+        # Backward-compatible alias for older tests/callers.
+        self.build_header(msg)
+
+    def build_header(self, msg):
         meta = pmt.car(msg)
         body = pmt.cdr(msg)
 
@@ -122,6 +120,11 @@ class tcPrimaryHeader(gr.basic_block):
             return
 
         payload_bytes = bytes(pmt.u8vector_elements(body))
+
+        frame_sequence_number = self._pmt_dict_get_int(meta, "frame_sequence_number", None)
+        if frame_sequence_number is None:
+            self.logger.error("Metadata did not include frame_sequence_number.")
+            return
 
         # Use PDU values when present, otherwise block defaults.
         vcid = self._pmt_dict_get_int(meta, "vcid", self.vcid) & 0x3F
@@ -139,55 +142,23 @@ class tcPrimaryHeader(gr.basic_block):
 
         frame_length = self._pmt_dict_get_int(meta, "frame_length", len(payload_bytes) + 5 - 1)
 
-        self._pending.append(
-            {
-                "meta": meta,
-                "payload": payload_bytes,
-                "scid": scid,
-                "vcid": vcid,
-                "bypass": bypass,
-                "control": control,
-                "frame_length": frame_length & 0x3FF,
-            }
-        )
-
-        # TC query payload: vcid is filled, frame_sequence_number is left empty.
-        db_meta = pmt.make_dict()
-        db_meta = pmt.dict_add(db_meta, pmt.intern("vcid"), pmt.from_long(vcid))
-        db_meta = pmt.dict_add(db_meta, pmt.intern("frame_sequence_number"), pmt.PMT_NIL)
-        db_request = pmt.cons(db_meta, pmt.init_u8vector(0, []))
-        self.message_port_pub(pmt.intern("tc_query"), db_request)
-
-    def build_header(self, msg):
-        if not self._pending:
-            self.logger.error("Received tc_callback but there is no pending frame context.")
-            return
-
-        callback_meta = pmt.car(msg)
-        frame_sequence_number = self._pmt_dict_get_int(callback_meta, "frame_sequence_number", None)
-        if frame_sequence_number is None:
-            self.logger.error("tc_callback did not include frame_sequence_number.")
-            return
-
-        pending = self._pending.popleft()
-
         fields = {
             "tfvn": self.tfvn,
-            "bypass": pending["bypass"],
-            "control": pending["control"],
+            "bypass": bypass,
+            "control": control,
             "reserved": self.reserved,
-            "scid": pending["scid"],
-            "vcid": pending["vcid"],
-            "frame_length": pending["frame_length"],
+            "scid": scid,
+            "vcid": vcid,
+            "frame_length": frame_length & 0x3FF,
             "frame_sequence_number": frame_sequence_number & 0xFF,
         }
         header = self._pack_header(fields)
 
-        frame = header + pending["payload"]
+        frame = header + payload_bytes
 
-        out_meta = pending["meta"] if pmt.is_dict(pending["meta"]) else pmt.make_dict()
-        out_meta = pmt.dict_add(out_meta, pmt.intern("scid"), pmt.from_long(pending["scid"]))
-        out_meta = pmt.dict_add(out_meta, pmt.intern("vcid"), pmt.from_long(pending["vcid"]))
+        out_meta = meta if pmt.is_dict(meta) else pmt.make_dict()
+        out_meta = pmt.dict_add(out_meta, pmt.intern("scid"), pmt.from_long(scid))
+        out_meta = pmt.dict_add(out_meta, pmt.intern("vcid"), pmt.from_long(vcid))
         out_meta = pmt.dict_add(
             out_meta, pmt.intern("frame_sequence_number"), pmt.from_long(frame_sequence_number & 0xFF)
         )

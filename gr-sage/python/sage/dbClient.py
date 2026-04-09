@@ -16,8 +16,12 @@ try:
 except ImportError:
     yaml = None
 
+# SDLS counter is modeled as uint32.
+SDLS_COUNTER_MAX = 0xFFFFFFFF
+VCID_COUNTER_MAX = 0xFF
+
 class dbClient(gr.basic_block):
-    """Database client for TC counter and SDLS material lookup.
+    """Database client for unified SDLS/TC material lookup.
 
     Modes:
     - type=0: in-memory dummy database with fixed defaults (fast testing)
@@ -47,14 +51,11 @@ class dbClient(gr.basic_block):
         self._db = {}
         self._init_database()
 
-        # Dedicated ports.
-        self.message_port_register_in(pmt.intern("tc_query"))
-        self.message_port_register_in(pmt.intern("sdls_query"))
-        self.message_port_register_out(pmt.intern("tc_callback"))
-        self.message_port_register_out(pmt.intern("sdls_callback"))
+        # Unified DB lookup ports.
+        self.message_port_register_in(pmt.intern("db_call"))
+        self.message_port_register_out(pmt.intern("db_callback"))
 
-        self.set_msg_handler(pmt.intern("tc_query"), self.make_tc_call)
-        self.set_msg_handler(pmt.intern("sdls_query"), self.make_sdls_call)
+        self.set_msg_handler(pmt.intern("db_call"), self.make_db_call)
 
     def _init_database(self):
         if self.type == 0:
@@ -81,8 +82,8 @@ class dbClient(gr.basic_block):
                 "SCID": 0x155,
                 "SPI": 1,
                 "VCID": 0x12,
-                "encryption_key": "00112233445566778899AABBCCDDEEFF",
-                "authentication_key": "FFEEDDCCBBAA99887766554433221100",
+                "crypt_key": "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF",
+                "auth_key": "FFEEDDCCBBAA99887766554433221100FFEEDDCCBBAA99887766554433221100",
                 "sdls_counter": 0,
                 "vcid_counter": 0,
                 "key_state": {
@@ -134,8 +135,8 @@ class dbClient(gr.basic_block):
                 "SCID": self._to_int(item.get("SCID"), default=0),
                 "SPI": self._to_int(item.get("SPI"), default=0),
                 "VCID": vcid_val,
-                "encryption_key": str(item.get("encryption_key", "")),
-                "authentication_key": str(item.get("authentication_key", "")),
+                "crypt_key": str(item.get("crypt_key", item.get("encryption_key", ""))),
+                "auth_key": str(item.get("auth_key", item.get("authentication_key", ""))),
                 "sdls_counter": self._to_int(item.get("sdls_counter"), default=0),
                 "vcid_counter": self._to_int(item.get("vcid_counter"), default=0),
                 "key_state": item.get("key_state", {}),
@@ -170,81 +171,79 @@ class dbClient(gr.basic_block):
         except Exception:
             return default
 
-    def _entry_from_meta(self, meta):
-        vcid = self._pmt_dict_get_int(meta, "vcid", None)
-        if vcid is None:
+    def _entry_from_scid_spi(self, meta):
+        scid = self._pmt_dict_get_int(meta, "scid", None)
+        spi = self._pmt_dict_get_int(meta, "spi", None)
+        if scid is None or spi is None:
             return None
-        return self._db.get(str(vcid))
+
+        for entry in self._db.values():
+            if int(entry.get("SCID", -1)) == scid and int(entry.get("SPI", -1)) == spi:
+                return entry
+        return None
 
     def _publish(self, port_name, response_meta):
         out_msg = pmt.cons(response_meta, pmt.PMT_NIL)
         self.message_port_pub(pmt.intern(port_name), out_msg)
 
-    def make_tc_call(self, msg):
-        """Handle TC counter lookup/update requests (VCID counter path)."""
+    def _checked_increment(self, value, max_value, counter_name):
+        if value >= max_value:
+            raise OverflowError(f"{counter_name} reached max value {max_value}; cannot increment")
+        return value + 1
+
+    def _validate_counter(self, value, max_value, counter_name):
+        ivalue = int(value)
+        if ivalue < 0 or ivalue > max_value:
+            raise OverflowError(f"{counter_name} out of range [0, {max_value}]: {ivalue}")
+        return ivalue
+
+    def make_db_call(self, msg):
+        """Handle unified DB lookup/update by SCID/SPI.
+
+        Input metadata keys:
+        - scid
+        - spi
+
+        Output metadata keys:
+        - vcid
+        - crypt_key
+        - auth_key
+        - sdls_counter
+        - vcid_counter
+        """
         meta = pmt.car(msg)
         if not pmt.is_dict(meta):
-            self.logger.error("TC query metadata is not a dictionary.")
+            self.logger.error("DB query metadata is not a dictionary.")
             return
 
-        entry = self._entry_from_meta(meta)
+        entry = self._entry_from_scid_spi(meta)
         if entry is None:
-            self.logger.error("TC query missing or unknown VCID.")
+            self.logger.error("DB query missing or unknown SCID/SPI.")
             return
 
-        # Return current counter and then increment for next frame allocation.
-        frame_seq_num = int(entry.get("vcid_counter", 0)) & 0xFF
-        entry["vcid_counter"] = (frame_seq_num + 1) & 0xFF
+        try:
+            sdls_counter = self._validate_counter(entry.get("sdls_counter", 0), SDLS_COUNTER_MAX, "sdls_counter")
+            vcid_counter = self._validate_counter(entry.get("vcid_counter", 0), VCID_COUNTER_MAX, "vcid_counter")
+        except (TypeError, ValueError, OverflowError) as exc:
+            self.logger.error("Invalid counter value: %s", exc)
+            return
 
         response_meta = pmt.make_dict()
         response_meta = pmt.dict_add(response_meta, pmt.intern("vcid"), pmt.from_long(int(entry.get("VCID", 0))))
-        response_meta = pmt.dict_add(response_meta, pmt.intern("scid"), pmt.from_long(int(entry.get("SCID", 0))))
-        response_meta = pmt.dict_add(response_meta, pmt.intern("spi"), pmt.from_long(int(entry.get("SPI", 0))))
-        response_meta = pmt.dict_add(
-            response_meta, pmt.intern("frame_sequence_number"), pmt.from_long(frame_seq_num)
-        )
-        response_meta = pmt.dict_add(response_meta, pmt.intern("vcid_counter"), pmt.from_long(frame_seq_num))
+        response_meta = pmt.dict_add(response_meta, pmt.intern("crypt_key"), pmt.intern(str(entry.get("crypt_key", ""))))
+        response_meta = pmt.dict_add(response_meta, pmt.intern("auth_key"), pmt.intern(str(entry.get("auth_key", ""))))
+        response_meta = pmt.dict_add(response_meta, pmt.intern("sdls_counter"), pmt.from_uint64(sdls_counter))
+        response_meta = pmt.dict_add(response_meta, pmt.intern("vcid_counter"), pmt.from_long(vcid_counter))
 
-        self._publish("tc_callback", response_meta)
+        self._publish("db_callback", response_meta)
 
-    def make_sdls_call(self, msg):
-        """Handle SDLS context requests (keys, key state, SDLS counter)."""
-        meta = pmt.car(msg)
-        if not pmt.is_dict(meta):
-            self.logger.error("SDLS query metadata is not a dictionary.")
-            return
+        # Increase counters only after giving out current values.
+        try:
+            entry["sdls_counter"] = self._checked_increment(sdls_counter, SDLS_COUNTER_MAX, "sdls_counter")
+            entry["vcid_counter"] = self._checked_increment(vcid_counter, VCID_COUNTER_MAX, "vcid_counter")
+        except OverflowError as exc:
+            self.logger.error("Counter increment aborted: %s", exc)
 
-        entry = self._entry_from_meta(meta)
-        if entry is None:
-            self.logger.error("SDLS query missing or unknown VCID.")
-            return
 
-        sdls_counter = int(entry.get("sdls_counter", 0)) & 0xFFFFFFFF
-
-        response_meta = pmt.make_dict()
-        response_meta = pmt.dict_add(response_meta, pmt.intern("vcid"), pmt.from_long(int(entry.get("VCID", 0))))
-        response_meta = pmt.dict_add(response_meta, pmt.intern("scid"), pmt.from_long(int(entry.get("SCID", 0))))
-        response_meta = pmt.dict_add(response_meta, pmt.intern("spi"), pmt.from_long(int(entry.get("SPI", 0))))
-        response_meta = pmt.dict_add(response_meta, pmt.intern("sdls_counter"), pmt.from_long(sdls_counter))
-        response_meta = pmt.dict_add(
-            response_meta,
-            pmt.intern("encryption_key"),
-            pmt.intern(str(entry.get("encryption_key", ""))),
-        )
-        response_meta = pmt.dict_add(
-            response_meta,
-            pmt.intern("authentication_key"),
-            pmt.intern(str(entry.get("authentication_key", ""))),
-        )
-        response_meta = pmt.dict_add(
-            response_meta,
-            pmt.intern("key_state"),
-            pmt.intern(str(entry.get("key_state", {}))),
-        )
-
-        # Bump counter after handing out current value.
-        entry["sdls_counter"] = (sdls_counter + 1) & 0xFFFFFFFF
-
-        self._publish("sdls_callback", response_meta)
 
 

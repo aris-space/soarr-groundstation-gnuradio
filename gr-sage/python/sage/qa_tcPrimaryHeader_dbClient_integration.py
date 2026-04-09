@@ -6,70 +6,32 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-"""Integration test for tcPrimaryHeader and dbClient working together."""
+"""Integration test for tcPrimaryHeader with upstream metadata provider."""
 
 import pmt
 from gnuradio import gr_unittest
-from gnuradio.sage import tcPrimaryHeader, dbClient
+from gnuradio.sage import tcPrimaryHeader
 
 
 class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
-    """Test tcPrimaryHeader and dbClient message flow integration."""
+    """Test tcPrimaryHeader integration when metadata is pre-populated upstream."""
 
     def setUp(self):
-        """Create instances and capture message flows."""
+        """Create instance and capture output messages."""
         self.header_block = tcPrimaryHeader(scid=0x155, vcid=0x12)
-        self.db_block = dbClient(type=0)
         self.captured_output = []
 
     def tearDown(self):
         """Clean up."""
         self.header_block = None
-        self.db_block = None
         self.captured_output = []
 
-    def _integrate_flow(self, payload_bytes, pdu_meta=None):
+    def _integrate_flow(self, payload_bytes, pdu_meta):
         """
-        Execute the integrated flow: PDU → tcPrimaryHeader → dbClient → tcPrimaryHeader → output.
+        Execute the integrated flow: PDU (with metadata) → tcPrimaryHeader → output.
         Returns the final output message (port, msg).
         """
-        if pdu_meta is None:
-            pdu_meta = pmt.make_dict()
-
-        # Capture query from tcPrimaryHeader
-        db_query_messages = []
-        original_header_pub = self.header_block.message_port_pub
-
-        def _capture_query(port, msg):
-            if pmt.eqv(port, pmt.intern("tc_query")):
-                db_query_messages.append(msg)
-
-        self.header_block.message_port_pub = _capture_query
-
-        # Send PDU to tcPrimaryHeader
-        pdu = pmt.cons(pdu_meta, pmt.init_u8vector(len(payload_bytes), list(payload_bytes)))
-        self.header_block.call_db(pdu)
-
-        # Restore header pub and verify we got a query
-        self.header_block.message_port_pub = original_header_pub
-        self.assertEqual(len(db_query_messages), 1, "tcPrimaryHeader should emit one tc_query")
-
-        # Feed query to dbClient and capture response
-        db_responses = []
-        original_db_pub = self.db_block.message_port_pub
-
-        def _capture_response(port, msg):
-            if pmt.eqv(port, pmt.intern("tc_callback")):
-                db_responses.append(msg)
-
-        self.db_block.message_port_pub = _capture_response
-        self.db_block.make_tc_call(db_query_messages[0])
-
-        # Restore db pub and verify response
-        self.db_block.message_port_pub = original_db_pub
-        self.assertEqual(len(db_responses), 1, "dbClient should emit one tc_callback")
-
-        # Feed response back to tcPrimaryHeader and capture output
+        # Capture pdu_out from tcPrimaryHeader.
         final_outputs = []
         original_header_pub = self.header_block.message_port_pub
 
@@ -78,7 +40,10 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
                 final_outputs.append((port, msg))
 
         self.header_block.message_port_pub = _capture_output
-        self.header_block.build_header(db_responses[0])
+
+        # Send PDU to tcPrimaryHeader
+        pdu = pmt.cons(pdu_meta, pmt.init_u8vector(len(payload_bytes), list(payload_bytes)))
+        self.header_block.build_header(pdu)
 
         # Restore all
         self.header_block.message_port_pub = original_header_pub
@@ -100,10 +65,12 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
             "frame_sequence_number": value & 0xFF,
         }
 
-    def test_001_integration_flow_with_defaults(self):
-        """Test complete flow: PDU in → tcPrimaryHeader → db query → db callback → header out."""
+    def test_001_integration_flow_with_defaults_and_sequence(self):
+        """Test complete flow with upstream-provided sequence metadata."""
         payload = bytes([0x10, 0x20, 0x30, 0x40])
-        port, out_msg = self._integrate_flow(payload)
+        meta = pmt.make_dict()
+        meta = pmt.dict_add(meta, pmt.intern("frame_sequence_number"), pmt.from_long(0))
+        port, out_msg = self._integrate_flow(payload, meta)
 
         # Verify output port is pdu_out
         self.assertTrue(pmt.eqv(port, pmt.intern("pdu_out")))
@@ -120,21 +87,22 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
         # Decode header fields
         fields = self._decode_header_fields(out_bytes[:5])
 
-        # Verify fields: defaults from tcPrimaryHeader + FSN from dbClient
+        # Verify fields: defaults from tcPrimaryHeader + FSN from upstream metadata
         self.assertEqual(fields["tfvn"], 0b00)
         self.assertEqual(fields["bypass"], 0)
         self.assertEqual(fields["control"], 0)
         self.assertEqual(fields["reserved"], 0)
         self.assertEqual(fields["scid"], 0x155)  # tcPrimaryHeader default
         self.assertEqual(fields["vcid"], 0x12)   # tcPrimaryHeader default
-        self.assertEqual(fields["frame_sequence_number"], 0)  # First from dummy db
+        self.assertEqual(fields["frame_sequence_number"], 0)
         self.assertEqual(fields["frame_length"], len(payload) + 5 - 1)
 
     def test_002_integration_with_pdu_overrides(self):
         """Test that PDU-provided SCID/VCID override block defaults."""
-        # Create PDU with custom SCID (but keep VCID=0x12 which exists in dummy db)
+        # Create PDU with custom SCID and sequence metadata.
         meta = pmt.make_dict()
         meta = pmt.dict_add(meta, pmt.intern("scid"), pmt.from_long(0x2AB))
+        meta = pmt.dict_add(meta, pmt.intern("frame_sequence_number"), pmt.from_long(0x7F))
         meta = pmt.dict_add(meta, pmt.intern("bypass"), pmt.from_long(1))
         meta = pmt.dict_add(meta, pmt.intern("control"), pmt.from_long(1))
 
@@ -151,110 +119,46 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
         self.assertEqual(fields["vcid"], 0x12)  # Default from tcPrimaryHeader
         self.assertEqual(fields["bypass"], 1)
         self.assertEqual(fields["control"], 1)
+        self.assertEqual(fields["frame_sequence_number"], 0x7F)
 
-    def test_003_integration_multiple_frames_increments_sequence(self):
-        """Test that multiple frames use incrementing sequence numbers from dbClient."""
+    def test_003_integration_multiple_frames_with_upstream_sequence(self):
+        """Test multiple frames when upstream provides explicit sequence numbers."""
         sequence_numbers = []
 
-        # Send three frames, tracking their sequence numbers
+        # Send three frames with explicit FSN values from upstream dict provider.
         for i in range(3):
             payload = bytes([0x11 + i, 0x22 + i])
-            port, out_msg = self._integrate_flow(payload)
+            meta = pmt.make_dict()
+            meta = pmt.dict_add(meta, pmt.intern("frame_sequence_number"), pmt.from_long(i))
+            port, out_msg = self._integrate_flow(payload, meta)
 
             out_body = pmt.cdr(out_msg)
             out_bytes = bytes(pmt.u8vector_elements(out_body))
             fields = self._decode_header_fields(out_bytes[:5])
             sequence_numbers.append(fields["frame_sequence_number"])
 
-        # Verify incrementing sequence from dummy db
+        # Verify sequence values are copied from upstream metadata.
         self.assertEqual(sequence_numbers, [0, 1, 2])
 
-    def test_004_integration_with_yaml_db(self):
-        """Test integration with YAML-backed dbClient."""
-        import tempfile
-        from pathlib import Path
+    def test_004_missing_sequence_in_metadata_no_output(self):
+        meta = pmt.make_dict()
+        payload = bytes([0x12, 0x34])
+        pdu = pmt.cons(meta, pmt.init_u8vector(len(payload), list(payload)))
 
-        yaml_content = """
-entries:
-  "46":
-    SCID: 683
-    SPI: 7
-    VCID: 46
-    encryption_key: "AAAA"
-    authentication_key: "BBBB"
-    sdls_counter: 0
-    vcid_counter: 100
-"""
+        original_header_pub = self.header_block.message_port_pub
+        final_outputs = []
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            yaml_path = Path(tmp_dir) / "db.yaml"
-            yaml_path.write_text(yaml_content, encoding="utf-8")
+        def _cap_output(port, msg):
+            if pmt.eqv(port, pmt.intern("pdu_out")):
+                final_outputs.append((port, msg))
 
-            db_yaml = dbClient(type=1, yaml_path=str(yaml_path))
-            header = tcPrimaryHeader(scid=0x155, vcid=0x2E)
+        self.header_block.message_port_pub = _cap_output
+        try:
+            self.header_block.build_header(pdu)
+        finally:
+            self.header_block.message_port_pub = original_header_pub
 
-            # Capture query phase
-            db_queries = []
-            original_header_pub = header.message_port_pub
-
-            def _cap_query(port, msg):
-                if pmt.eqv(port, pmt.intern("tc_query")):
-                    db_queries.append(msg)
-
-            header.message_port_pub = _cap_query
-
-            # Send PDU with VCID and SCID matching YAML, override block defaults
-            meta = pmt.make_dict()
-            meta = pmt.dict_add(meta, pmt.intern("vcid"), pmt.from_long(46))
-            meta = pmt.dict_add(meta, pmt.intern("scid"), pmt.from_long(683))
-            payload = bytes([0x12, 0x34])
-            pdu = pmt.cons(meta, pmt.init_u8vector(len(payload), list(payload)))
-            header.call_db(pdu)
-
-            header.message_port_pub = original_header_pub
-            self.assertEqual(len(db_queries), 1)
-
-            # Capture response phase
-            db_responses = []
-            original_db_pub = db_yaml.message_port_pub
-
-            def _cap_response(port, msg):
-                if pmt.eqv(port, pmt.intern("tc_callback")):
-                    db_responses.append(msg)
-
-            db_yaml.message_port_pub = _cap_response
-            db_yaml.make_tc_call(db_queries[0])
-
-            db_yaml.message_port_pub = original_db_pub
-            self.assertEqual(len(db_responses), 1)
-
-            # Final output phase
-            final_outputs = []
-            original_header_pub = header.message_port_pub
-
-            def _cap_output(port, msg):
-                if pmt.eqv(port, pmt.intern("pdu_out")):
-                    final_outputs.append((port, msg))
-
-            header.message_port_pub = _cap_output
-            header.build_header(db_responses[0])
-
-            header.message_port_pub = original_header_pub
-            self.assertEqual(len(final_outputs), 1)
-
-            port, out_msg = final_outputs[0]
-            self.assertTrue(pmt.eqv(port, pmt.intern("pdu_out")))
-
-            out_body = pmt.cdr(out_msg)
-            out_bytes = bytes(pmt.u8vector_elements(out_body))
-
-            fields = self._decode_header_fields(out_bytes[:5])
-
-            # Verify YAML db data appears in header and counter from YAML (100) is used
-            self.assertEqual(fields["scid"], 683)
-            self.assertEqual(fields["vcid"], 46)
-            # Sequence should be the vcid_counter from YAML (100)
-            self.assertEqual(fields["frame_sequence_number"], 100 & 0xFF)
+        self.assertEqual(len(final_outputs), 0)
 
 
 if __name__ == '__main__':
