@@ -24,7 +24,8 @@ gr_python_install(FILES __init__.py
     bchEncoder.py
     lfsrScrambler.py
     tcPrimaryHeader.py
-    dbClient.py DESTINATION ${GR_PYTHON_DIR}/gnuradio/sage)
+    dbClient.py
+    sdlsAuthentication.py DESTINATION ${GR_PYTHON_DIR}/gnuradio/sage)
 
 ########################################################################
 # Handle the unit tests
@@ -47,3 +48,4 @@ GR_ADD_TEST(qa_lfsr_cltu_bch_chain ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_D
 GR_ADD_TEST(qa_tcPrimaryHeader ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tcPrimaryHeader.py)
 GR_ADD_TEST(qa_dbClient ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_dbClient.py)
 GR_ADD_TEST(qa_tcPrimaryHeader_dbClient_integration ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tcPrimaryHeader_dbClient_integration.py)
+GR_ADD_TEST(qa_sdlsAuthentication ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_sdlsAuthentication.py)

@@ -11,4 +11,5 @@ install(FILES
     sage_bchEncoder.block.yml
     sage_lfsrScrambler.block.yml
     sage_tcPrimaryHeader.block.yml
-    sage_dbClient.block.yml DESTINATION share/gnuradio/grc/blocks)
+    sage_dbClient.block.yml
+    sage_sdlsAuthentication.block.yml DESTINATION share/gnuradio/grc/blocks)

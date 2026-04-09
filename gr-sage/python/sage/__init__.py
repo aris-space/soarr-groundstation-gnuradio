@@ -25,4 +25,5 @@ from .bchEncoder import bchEncoder
 from .lfsrScrambler import lfsrScrambler
 from .tcPrimaryHeader import tcPrimaryHeader
 from .dbClient import dbClient
+from .sdlsAuthentication import sdlsAuthentication
 #
