@@ -36,7 +36,7 @@ inputs:
 - label: pdu_in
   domain: message
   optional: 0
-- label: db_callback
+- label: tc_callback
   domain: message
   optional: 0
 
@@ -44,7 +44,7 @@ outputs:
 - label: pdu_out
   domain: message
   optional: 0
-- label: db_call
+- label: tc_query
   domain: message
   optional: 0
 
