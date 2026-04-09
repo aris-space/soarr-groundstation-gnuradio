@@ -26,4 +26,5 @@ from .lfsrScrambler import lfsrScrambler
 from .tcPrimaryHeader import tcPrimaryHeader
 from .dbClient import dbClient
 from .sdlsAuthentication import sdlsAuthentication
+from .sdlsEncryption import sdlsEncryption
 #
