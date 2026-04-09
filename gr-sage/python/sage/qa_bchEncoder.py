@@ -8,11 +8,7 @@
 
 from gnuradio import gr, gr_unittest
 
-try:
-    from sage import bchEncoder
-except ModuleNotFoundError:
-    # Allows direct execution: python bchEncoder.py from this folder.
-    from bchEncoder import bchEncoder 
+from gnuradio.sage import bchEncoder
 
 import pmt
 

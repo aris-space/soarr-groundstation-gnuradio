@@ -10,12 +10,7 @@ import struct
 import pmt
 from gnuradio import gr_unittest
 
-try:
-    from sage import lfsrScrambler, cltuFramer, bchEncoder
-except ModuleNotFoundError:
-    from lfsrScrambler import lfsrScrambler
-    from cltuFramer import cltuFramer
-    from bchEncoder import bchEncoder
+from gnuradio.sage import lfsrScrambler, cltuFramer, bchEncoder
 
 
 class qa_lfsr_cltu_bch_chain(gr_unittest.TestCase):

@@ -8,11 +8,7 @@
 
 from gnuradio import gr_unittest
 
-try:
-    from sage import lfsrScrambler
-except ModuleNotFoundError:
-    # Allows direct execution: python qa_lfsrScrambler.py from this folder.
-    from lfsrScrambler import lfsrScrambler
+from gnuradio.sage import lfsrScrambler
 import pmt
 
 class qa_lfsrScrambler(gr_unittest.TestCase):

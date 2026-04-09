@@ -9,10 +9,7 @@
 from gnuradio import gr_unittest
 import pmt
 
-try:
-    from sage import tcPrimaryHeader
-except ModuleNotFoundError:
-    from tcPrimaryHeader import tcPrimaryHeader
+from gnuradio.sage import tcPrimaryHeader
 
 
 class qa_tcPrimaryHeader(gr_unittest.TestCase):
@@ -59,9 +56,9 @@ class qa_tcPrimaryHeader(gr_unittest.TestCase):
         instance = tcPrimaryHeader()
         self.assertIsNotNone(instance)
 
-    def test_001_db_call_contains_vcid_and_empty_sequence(self):
+    def test_001_tc_query_contains_vcid_and_empty_sequence(self):
         # call_db should forward VCID and request sequence assignment from DB.
-        # The outbound db_call metadata must contain VCID and an empty FSN.
+        # The outbound tc_query metadata must contain VCID and an empty FSN.
         meta = pmt.make_dict()
         meta = pmt.dict_add(meta, pmt.intern("vcid"), pmt.from_long(0x05))
         payload = pmt.init_u8vector(3, [1, 2, 3])
@@ -75,7 +72,7 @@ class qa_tcPrimaryHeader(gr_unittest.TestCase):
 
         self.assertEqual(len(self.published), 1)
         out_port, out_msg = self.published[0]
-        self.assertTrue(pmt.eqv(out_port, pmt.intern("db_call")))
+        self.assertTrue(pmt.eqv(out_port, pmt.intern("tc_query")))
 
         out_meta = pmt.car(out_msg)
         vcid_val = pmt.dict_ref(out_meta, pmt.intern("vcid"), pmt.PMT_NIL)
