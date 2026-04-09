@@ -10,4 +10,5 @@ install(FILES
     sage_cltuFramer.block.yml
     sage_bchEncoder.block.yml
     sage_lfsrScrambler.block.yml
-    sage_tcPrimaryHeader.block.yml DESTINATION share/gnuradio/grc/blocks)
+    sage_tcPrimaryHeader.block.yml
+    sage_dbClient.block.yml DESTINATION share/gnuradio/grc/blocks)
