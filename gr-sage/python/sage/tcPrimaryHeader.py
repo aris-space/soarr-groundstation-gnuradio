@@ -76,10 +76,12 @@ class tcPrimaryHeader(gr.basic_block):
 
     def _pmt_dict_get_int(self, meta, key, default=None):
         if not pmt.is_dict(meta):
+            self.logger.warning(f"Expected metadata to be a dict, but got: {meta}")
             return default
 
         pmt_key = pmt.intern(key)
         if not pmt.dict_has_key(meta, pmt_key):
+            self.logger.warning(f"Metadata missing expected key '{key}': {meta}")
             return default
 
         value = pmt.dict_ref(meta, pmt_key, pmt.PMT_NIL)
@@ -89,6 +91,7 @@ class tcPrimaryHeader(gr.basic_block):
         try:
             return int(pmt.to_long(value))
         except Exception:
+            self.logger.warning(f"Failed to convert metadata key '{key}' to integer: {meta}")
             return default
 
     def _pack_header(self, fields):
@@ -130,14 +133,18 @@ class tcPrimaryHeader(gr.basic_block):
         vcid = self._pmt_dict_get_int(meta, "vcid", self.vcid) & 0x3F
         scid = self._pmt_dict_get_int(meta, "scid", self.scid) & 0x3FF
 
-        bypass = self._pmt_dict_get_int(meta, "bypass", int(self.bypass))
+        bypass = self._pmt_dict_get_int(meta, "bypass", None)
         if bypass is None:
-            bypass = self._pmt_dict_get_int(meta, "bypass_flag", int(self.bypass))
+            bypass = self._pmt_dict_get_int(meta, "bypass_flag", None)
+        if bypass is None:
+            bypass = int(self.bypass)
         bypass = int(bool(bypass))
 
-        control = self._pmt_dict_get_int(meta, "control", int(self.control))
+        control = self._pmt_dict_get_int(meta, "control", None)
         if control is None:
-            control = self._pmt_dict_get_int(meta, "control_flag", int(self.control))
+            control = self._pmt_dict_get_int(meta, "control_flag", None)
+        if control is None:
+            control = int(self.control)
         control = int(bool(control))
 
         frame_length = self._pmt_dict_get_int(meta, "frame_length", len(payload_bytes) + 5 - 1)
