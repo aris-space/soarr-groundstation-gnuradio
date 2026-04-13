@@ -35,6 +35,15 @@ def _build_tc_primary_header_struct():
 
 TC_PRIMARY_HEADER_STRUCT = _build_tc_primary_header_struct()
 
+TFVN_MASK = 0b11  # 2 bits
+BYPASS_MASK = 0b1  # 1 bit
+CONTROL_MASK = 0b1  # 1 bit
+RESERVED_MASK = 0b11  # 2 bits
+SCID_MASK = 0b11_1111_1111  # 10 bits
+VCID_MASK = 0b11_1111  # 6 bits
+FRAME_LENGTH_MASK = 0b11_1111_1111  # 10 bits for frame length
+FRAME_SEQUENCE_NUMBER_MASK = 0b1111_1111  # 8 bits
+
 
 class tcPrimaryHeader(gr.basic_block):
     """
@@ -56,6 +65,7 @@ class tcPrimaryHeader(gr.basic_block):
 
         self.logger = logging.getLogger("gnuradio.sage.tcPrimaryHeader")
 
+        # Default field values
         self.tfvn = 0b00
         self.bypass = False
         self.control = False
@@ -68,11 +78,11 @@ class tcPrimaryHeader(gr.basic_block):
 
         # Message ports
         self.message_port_register_in(pmt.intern("pdu_in"))
-
         self.message_port_register_out(pmt.intern("pdu_out"))
 
         # Handlers
         self.set_msg_handler(pmt.intern("pdu_in"), self.build_header)
+
 
     def _pmt_dict_get_int(self, meta, key, default=None):
         if not pmt.is_dict(meta):
@@ -99,55 +109,60 @@ class tcPrimaryHeader(gr.basic_block):
             return TC_PRIMARY_HEADER_STRUCT.build(fields)
 
         header_value = (
-            ((fields["tfvn"] & 0x3) << 38)
-            | ((fields["bypass"] & 0x1) << 37)
-            | ((fields["control"] & 0x1) << 36)
-            | ((fields["reserved"] & 0x3) << 34)
-            | ((fields["scid"] & 0x3FF) << 24)
-            | ((fields["vcid"] & 0x3F) << 18)
-            | ((fields["frame_length"] & 0x3FF) << 8)
-            | (fields["frame_sequence_number"] & 0xFF)
+            ((fields["tfvn"] & TFVN_MASK) << 38)
+            | ((fields["bypass"] & BYPASS_MASK) << 37)
+            | ((fields["control"] & CONTROL_MASK) << 36)
+            | ((fields["reserved"] & RESERVED_MASK) << 34)
+            | ((fields["scid"] & SCID_MASK) << 24)
+            | ((fields["vcid"] & VCID_MASK) << 18)
+            | ((fields["frame_length"] & FRAME_LENGTH_MASK) << 8)
+            | (fields["frame_sequence_number"] & FRAME_SEQUENCE_NUMBER_MASK)
         )
         return header_value.to_bytes(5, byteorder="big")
 
-    def call_db(self, msg):
-        # Backward-compatible alias for older tests/callers.
-        self.build_header(msg)
-
     def build_header(self, msg):
-        meta = pmt.car(msg)
-        body = pmt.cdr(msg)
 
-        if not pmt.is_u8vector(body):
-            self.logger.error("Input message body is not a PDU (u8vector).")
+        if not pmt.is_pair(msg):
+            self.logger.error("Input message is not a pair.")
+            return
+        
+
+        dict_msg = pmt.car(msg)
+        payload = pmt.cdr(msg)
+
+        if not pmt.is_dict(dict_msg):
+            self.logger.error("Input message metadata is not a dict.")
             return
 
-        payload_bytes = bytes(pmt.u8vector_elements(body))
+        if not pmt.is_u8vector(payload):
+            self.logger.error("Input message body is not a PDU (u8vector).")
+            return
+        
+        payload_bytes = bytes(pmt.u8vector_elements(payload))
 
-        frame_sequence_number = self._pmt_dict_get_int(meta, "frame_sequence_number", None)
+        # Check for VCID
+        vcid = self._pmt_dict_get_int(dict_msg, "vcid", self.vcid)
+
+        # Check for SCID
+        scid = self._pmt_dict_get_int(dict_msg, "scid", self.scid)
+
+        # Check for bypass flag
+        bypass = self._pmt_dict_get_int(dict_msg, "bypass", int(self.bypass))
+
+        # Check for control flag
+        control = self._pmt_dict_get_int(dict_msg, "control", int(self.control))
+
+        # Check for frame_length
+        frame_length = self._pmt_dict_get_int(dict_msg, "frame_length", None)
+        if frame_length is None:
+            self.logger.warning(f"Metadata missing 'frame_length' key; using payload length: {len(payload_bytes) + 5 - 1}")
+            frame_length = len(payload_bytes) + 5 - 1
+
+        # Extract frame_sequence_number (required)
+        frame_sequence_number = self._pmt_dict_get_int(dict_msg, "frame_sequence_number", None)
         if frame_sequence_number is None:
             self.logger.error("Metadata did not include frame_sequence_number.")
             return
-
-        # Use PDU values when present, otherwise block defaults.
-        vcid = self._pmt_dict_get_int(meta, "vcid", self.vcid) & 0x3F
-        scid = self._pmt_dict_get_int(meta, "scid", self.scid) & 0x3FF
-
-        bypass = self._pmt_dict_get_int(meta, "bypass", None)
-        if bypass is None:
-            bypass = self._pmt_dict_get_int(meta, "bypass_flag", None)
-        if bypass is None:
-            bypass = int(self.bypass)
-        bypass = int(bool(bypass))
-
-        control = self._pmt_dict_get_int(meta, "control", None)
-        if control is None:
-            control = self._pmt_dict_get_int(meta, "control_flag", None)
-        if control is None:
-            control = int(self.control)
-        control = int(bool(control))
-
-        frame_length = self._pmt_dict_get_int(meta, "frame_length", len(payload_bytes) + 5 - 1)
 
         fields = {
             "tfvn": self.tfvn,
@@ -156,19 +171,19 @@ class tcPrimaryHeader(gr.basic_block):
             "reserved": self.reserved,
             "scid": scid,
             "vcid": vcid,
-            "frame_length": frame_length & 0x3FF,
-            "frame_sequence_number": frame_sequence_number & 0xFF,
+            "frame_length": frame_length & FRAME_LENGTH_MASK,
+            "frame_sequence_number": frame_sequence_number & FRAME_SEQUENCE_NUMBER_MASK,
         }
         header = self._pack_header(fields)
 
+        # Remove the used keys from the dict to avoid confusion downstream.
+        pmt.dict_delete(dict_msg, pmt.intern("bypass"))
+        pmt.dict_delete(dict_msg, pmt.intern("control"))
+        pmt.dict_delete(dict_msg, pmt.intern("frame_length"))
+        pmt.dict_delete(dict_msg, pmt.intern("frame_sequence_number"))
+
+        # VCID, SCID & frame_sequence_number are used in future blocks (not deleted)
+
         frame = header + payload_bytes
-
-        out_meta = meta if pmt.is_dict(meta) else pmt.make_dict()
-        out_meta = pmt.dict_add(out_meta, pmt.intern("scid"), pmt.from_long(scid))
-        out_meta = pmt.dict_add(out_meta, pmt.intern("vcid"), pmt.from_long(vcid))
-        out_meta = pmt.dict_add(
-            out_meta, pmt.intern("frame_sequence_number"), pmt.from_long(frame_sequence_number & 0xFF)
-        )
-
-        out_msg = pmt.cons(out_meta, pmt.init_u8vector(len(frame), list(frame)))
+        out_msg = pmt.cons(dict_msg, pmt.init_u8vector(len(frame), list(frame)))
         self.message_port_pub(pmt.intern("pdu_out"), out_msg)
