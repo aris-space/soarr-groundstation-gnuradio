@@ -141,10 +141,18 @@ class tcPrimaryHeader(gr.basic_block):
         payload_bytes = bytes(pmt.u8vector_elements(payload))
 
         # Check for VCID
-        vcid = self._pmt_dict_get_int(dict_msg, "vcid", self.vcid)
+        vcid = self._pmt_dict_get_int(dict_msg, "vcid", None)
+        if vcid is None:
+            # VCID is not proviced in metadata; write default value to metadata for downstream blocks to use
+            vcid = self.vcid
+            dict_msg = pmt.dict_add(dict_msg, pmt.intern("vcid"), pmt.from_long(vcid))
 
         # Check for SCID
-        scid = self._pmt_dict_get_int(dict_msg, "scid", self.scid)
+        scid = self._pmt_dict_get_int(dict_msg, "scid", None)
+        if scid is None:
+            # SCID is not proviced in metadata; write default value to metadata for downstream blocks to use
+            scid = self.scid
+            dict_msg = pmt.dict_add(dict_msg, pmt.intern("scid"), pmt.from_long(scid))
 
         # Check for bypass flag
         bypass = self._pmt_dict_get_int(dict_msg, "bypass", int(self.bypass))
@@ -177,10 +185,9 @@ class tcPrimaryHeader(gr.basic_block):
         header = self._pack_header(fields)
 
         # Remove the used keys from the dict to avoid confusion downstream.
-        pmt.dict_delete(dict_msg, pmt.intern("bypass"))
-        pmt.dict_delete(dict_msg, pmt.intern("control"))
-        pmt.dict_delete(dict_msg, pmt.intern("frame_length"))
-        pmt.dict_delete(dict_msg, pmt.intern("frame_sequence_number"))
+        dict_msg = pmt.dict_delete(dict_msg, pmt.intern("bypass"))
+        dict_msg = pmt.dict_delete(dict_msg, pmt.intern("control"))
+        dict_msg = pmt.dict_delete(dict_msg, pmt.intern("frame_length"))
 
         # VCID, SCID & frame_sequence_number are used in future blocks (not deleted)
 
