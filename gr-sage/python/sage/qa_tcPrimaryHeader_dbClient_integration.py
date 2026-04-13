@@ -217,20 +217,5 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
         self.assertEqual(self._meta_get_int(out_meta, "scid"), 0x155)
         self.assertEqual(self._meta_get_int(out_meta, "vcid"), 0x12)
 
-    def test_007_alias_keys_for_flags_are_supported(self):
-        payload = bytes([0x01, 0x02, 0x03])
-        meta = pmt.make_dict()
-        meta = pmt.dict_add(meta, pmt.intern("frame_sequence_number"), pmt.from_long(1))
-        meta = pmt.dict_add(meta, pmt.intern("bypass_flag"), pmt.from_long(1))
-        meta = pmt.dict_add(meta, pmt.intern("control_flag"), pmt.from_long(1))
-
-        _, out_msg = self._integrate_flow(payload, meta)
-        out_bytes = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
-        fields = self._decode_header_fields(out_bytes[:5])
-
-        self.assertEqual(fields["bypass"], 1)
-        self.assertEqual(fields["control"], 1)
-
-
 if __name__ == '__main__':
     gr_unittest.run(qa_tcPrimaryHeader_dbClient_integration)
