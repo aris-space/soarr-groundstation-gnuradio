@@ -1,6 +1,6 @@
 id: sage_Injectdb
-label: Injectdb
-category: '[sage]'
+label: Inject DB
+category: '[sage]/Database'
 
 templates:
   imports: from gnuradio import sage

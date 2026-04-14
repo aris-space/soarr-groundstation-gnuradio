@@ -1,6 +1,6 @@
 id: sage_dbClient
-label: dbClient
-category: '[sage]'
+label: DB Client
+category: '[sage]/Database'
 
 templates:
   imports: from gnuradio import sage
@@ -28,9 +28,10 @@ parameters:
   dtype: int
   default: 80
 - id: yaml_path
-  label: Local YAML Path (mode=1)
+  label: Local YAML Path
   dtype: string
   default: ""
+  optional: '1'
 
 #  Make one 'inputs' list entry per input and one 'outputs' list entry per output.
 #  Keys include:
@@ -39,6 +40,12 @@ parameters:
 #      * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
 #      * vlen (optional - data stream vector length. Default is 1)
 #      * optional (optional - set to 1 for optional inputs. Default is 0)
+
+asserts:
+- ${ type == '0' or type == '1' or type == '2' }
+
+
+
 inputs:
 - label: db_call
   domain: message

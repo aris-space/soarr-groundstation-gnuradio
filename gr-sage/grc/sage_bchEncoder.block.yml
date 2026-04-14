@@ -1,6 +1,6 @@
 id: sage_bchEncoder
-label: bchEncoder
-category: '[sage]'
+label: BCH Encoder
+category: '[sage]/CLTU'
 
 templates:
   imports: from gnuradio import sage

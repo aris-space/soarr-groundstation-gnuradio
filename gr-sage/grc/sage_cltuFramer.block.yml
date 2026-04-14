@@ -1,6 +1,6 @@
 id: sage_cltuFramer
-label: cltuFramer
-category: '[sage]'
+label: CLTU Framer
+category: '[sage]/CLTU'
 
 templates:
   imports: from gnuradio import sage

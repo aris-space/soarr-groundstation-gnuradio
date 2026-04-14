@@ -1,6 +1,6 @@
 id: sage_sdlsHeader
-label: sdlsHeader
-category: '[sage]'
+label: SDLS Header
+category: '[sage]/SDLS'
 
 templates:
   imports: from gnuradio import sage
@@ -28,6 +28,11 @@ parameters:
 #      * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
 #      * vlen (optional - data stream vector length. Default is 1)
 #      * optional (optional - set to 1 for optional inputs. Default is 0)
+
+asserts:
+- ${ iv_length_bytes >= 0 and iv_length_bytes <= 16 }
+
+
 inputs:
 - label: in
   domain: message

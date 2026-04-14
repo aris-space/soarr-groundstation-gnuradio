@@ -1,6 +1,6 @@
 id: sage_encapsulationHeader
-label: encapsulationHeader
-category: '[sage]'
+label: Encapsulation Header
+category: '[sage]/Encapsulation'
 
 templates:
   imports: from gnuradio import sage
@@ -14,9 +14,10 @@ templates:
 #     * default
 parameters:
 - id: user_defined_field
-  label: User Defined Field (4-bit)
+  label: User Defined Field
   dtype: int
-  default: 0
+  default: 0b0000
+  optional: '1'
 #- id: ...
 #  label: ...
 #  dtype: ...
@@ -28,6 +29,10 @@ parameters:
 #      * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
 #      * vlen (optional - data stream vector length. Default is 1)
 #      * optional (optional - set to 1 for optional inputs. Default is 0)
+
+asserts:
+- ${ user_defined_field >= 0 and user_defined_field <= 0b1111 }
+
 inputs:
 - label: in
   domain: message

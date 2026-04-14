@@ -1,6 +1,6 @@
 id: sage_lfsrScrambler
-label: lfsrScrambler
-category: '[sage]'
+label: LFSR Scrambler
+category: '[sage]/LFSR'
 
 templates:
   imports: from gnuradio import sage

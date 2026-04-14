@@ -1,10 +1,10 @@
 id: sage_sdlsEncryption
-label: sdlsEncryption
-category: '[sage]'
+label: SDLS Encryption
+category: '[sage]/SDLS'
 
 templates:
   imports: from gnuradio import sage
-  make: sage.sdlsEncryption(${state}, bytes.fromhex(${nonce_hex}))
+  make: sage.sdlsEncryption(${state}, bytes.fromhex('{:028x}'.format(${nonce_hex})))
 
 #  Make one 'parameters' list entry for every parameter you want settable from the GUI.
 #     Keys include:
@@ -20,9 +20,9 @@ parameters:
   option_labels: [Enabled, Disabled]
   default: 'True'
 - id: nonce_hex
-  label: Nonce Hex (exactly 28 hex chars = 14 bytes)
-  dtype: string
-  default: "0000000000000000000000000000"
+  label: Nonce
+  dtype: int
+  default: 0
 
 #  Make one 'inputs' list entry per input and one 'outputs' list entry per output.
 #  Keys include:
@@ -31,6 +31,10 @@ parameters:
 #      * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
 #      * vlen (optional - data stream vector length. Default is 1)
 #      * optional (optional - set to 1 for optional inputs. Default is 0)
+
+asserts:
+- ${ nonce_hex >= 0 and nonce_hex <= 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF }
+
 inputs:
 - label: in
   domain: message

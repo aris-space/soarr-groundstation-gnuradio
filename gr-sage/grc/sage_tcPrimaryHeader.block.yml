@@ -1,6 +1,6 @@
 id: sage_tcPrimaryHeader
-label: tcPrimaryHeader
-category: '[sage]'
+label: TC Primary Header
+category: '[sage]/Telecommand'
 
 templates:
   imports: from gnuradio import sage
@@ -32,6 +32,14 @@ parameters:
 #      * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
 #      * vlen (optional - data stream vector length. Default is 1)
 #      * optional (optional - set to 1 for optional inputs. Default is 0)
+
+asserts:
+- ${ scid >= 0 and scid <= 0x3FF }
+- ${ vcid >= 0 and vcid <= 0x3F }
+
+
+
+
 inputs:
 - label: pdu_in
   domain: message
