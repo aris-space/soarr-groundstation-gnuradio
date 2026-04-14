@@ -29,4 +29,5 @@ from .sdlsAuthentication import sdlsAuthentication
 from .sdlsEncryption import sdlsEncryption
 from .Injectdb import Injectdb
 from .sdlsHeader import sdlsHeader
+from .encapsulationHeader import encapsulationHeader
 #
