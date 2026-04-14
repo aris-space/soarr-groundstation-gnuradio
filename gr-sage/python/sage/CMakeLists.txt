@@ -27,7 +27,8 @@ gr_python_install(FILES __init__.py
     dbClient.py
     sdlsAuthentication.py
     sdlsEncryption.py
-    Injectdb.py DESTINATION ${GR_PYTHON_DIR}/gnuradio/sage)
+    Injectdb.py
+    sdlsHeader.py DESTINATION ${GR_PYTHON_DIR}/gnuradio/sage)
 
 ########################################################################
 # Handle the unit tests
@@ -53,3 +54,4 @@ GR_ADD_TEST(qa_tcPrimaryHeader_dbClient_integration ${PYTHON_EXECUTABLE} ${CMAKE
 GR_ADD_TEST(qa_sdlsAuthentication ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_sdlsAuthentication.py)
 GR_ADD_TEST(qa_sdlsEncryption ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_sdlsEncryption.py)
 GR_ADD_TEST(qa_Injectdb ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_Injectdb.py)
+GR_ADD_TEST(qa_sdlsHeader ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_sdlsHeader.py)

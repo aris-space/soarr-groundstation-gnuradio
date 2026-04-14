@@ -14,4 +14,5 @@ install(FILES
     sage_dbClient.block.yml
     sage_sdlsAuthentication.block.yml
     sage_sdlsEncryption.block.yml
-    sage_Injectdb.block.yml DESTINATION share/gnuradio/grc/blocks)
+    sage_Injectdb.block.yml
+    sage_sdlsHeader.block.yml DESTINATION share/gnuradio/grc/blocks)
