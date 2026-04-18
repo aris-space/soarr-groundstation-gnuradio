@@ -47,7 +47,7 @@ class dbClient(gr.basic_block):
         # Optional path for local YAML mode.
         self.yaml_path = str(yaml_path) if yaml_path else ""
 
-        # In-memory structure indexed by VCID string key.
+        # In-memory structure indexed as: {"<SCID>": {"<SPI>": entry}}
         self._db = {}
         self._init_database()
 
@@ -76,21 +76,58 @@ class dbClient(gr.basic_block):
         self._db = self._dummy_db()
 
     def _dummy_db(self):
-        # Default single VCID entry for rapid integration testing.
+        # Default single SCID with multiple SPI entries for rapid testing.
         return {
-            "18": {
-                "SCID": 0x155,
-                "SPI": 1,
-                "VCID": 0x12,
-                "crypt_key": "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF",
-                "auth_key": "FFEEDDCCBBAA99887766554433221100FFEEDDCCBBAA99887766554433221100",
-                "sdls_counter": 0,
-                "vcid_counter": 0,
-                "key_state": {
-                    "enc": "active",
-                    "auth": "active",
+            str(0x155): {
+                "1": {
+                    "SCID": 0x155,
+                    "SPI": 1,
+                    "VCID": 0x12,
+                    "crypt_key": "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF",
+                    "auth_key": "FFEEDDCCBBAA99887766554433221100FFEEDDCCBBAA99887766554433221100",
+                    "sdls_counter": 0,
+                    "vcid_counter": 0,
+                    "key_state": {
+                        "enc": "active",
+                        "auth": "active",
+                    },
                 },
+                "2": {
+                    "SCID": 0x155,
+                    "SPI": 2,
+                    "VCID": 0x12,
+                    "crypt_key": "11223344556677889900AABBCCDDEEFF11223344556677889900AABBCCDDEEFF",
+                    "auth_key": "00FFEEDDCCBBAA99887766554433221100FFEEDDCCBBAA998877665544332211",
+                    "sdls_counter": 100,
+                    "vcid_counter": 50,
+                    "key_state": {
+                        "enc": "standby",
+                        "auth": "active",
+                    },
+                }
             }
+        }
+
+    def _normalize_entry(self, item, fallback_scid=None, fallback_spi=None, fallback_vcid=0):
+        if not isinstance(item, dict):
+            return None
+
+        scid_val = self._to_int(item.get("SCID", fallback_scid), default=-1)
+        spi_val = self._to_int(item.get("SPI", fallback_spi), default=-1)
+        vcid_val = self._to_int(item.get("VCID", fallback_vcid), default=0)
+
+        if scid_val < 0 or spi_val < 0:
+            return None
+
+        return {
+            "SCID": scid_val,
+            "SPI": spi_val,
+            "VCID": vcid_val,
+            "crypt_key": str(item.get("crypt_key", item.get("encryption_key", ""))),
+            "auth_key": str(item.get("auth_key", item.get("authentication_key", ""))),
+            "sdls_counter": self._to_int(item.get("sdls_counter"), default=0),
+            "vcid_counter": self._to_int(item.get("vcid_counter"), default=0),
+            "key_state": item.get("key_state", {}),
         }
 
     def _load_yaml_db(self):
@@ -127,20 +164,35 @@ class dbClient(gr.basic_block):
             return self._dummy_db()
 
         normalized = {}
+
+        # Accepted entry forms:
+        # - Flat: entries: {"id": {SCID, SPI, ...}, ...}
+        # - Nested by SCID: entries: {"341": {"1": {...}, "2": {...}}}
         for key, item in entries.items():
             if not isinstance(item, dict):
                 continue
-            vcid_val = self._to_int(item.get("VCID", key), default=0)
-            normalized[str(vcid_val)] = {
-                "SCID": self._to_int(item.get("SCID"), default=0),
-                "SPI": self._to_int(item.get("SPI"), default=0),
-                "VCID": vcid_val,
-                "crypt_key": str(item.get("crypt_key", item.get("encryption_key", ""))),
-                "auth_key": str(item.get("auth_key", item.get("authentication_key", ""))),
-                "sdls_counter": self._to_int(item.get("sdls_counter"), default=0),
-                "vcid_counter": self._to_int(item.get("vcid_counter"), default=0),
-                "key_state": item.get("key_state", {}),
-            }
+
+            if "SCID" in item and "SPI" in item:
+                entry = self._normalize_entry(item)
+                if entry is None:
+                    continue
+                normalized.setdefault(str(entry["SCID"]), {})[str(entry["SPI"])] = entry
+                continue
+
+            # Try nested SCID->SPI layout.
+            outer_scid = self._to_int(key, default=-1)
+            if outer_scid < 0:
+                continue
+
+            for inner_key, inner_item in item.items():
+                entry = self._normalize_entry(
+                    inner_item,
+                    fallback_scid=outer_scid,
+                    fallback_spi=self._to_int(inner_key, default=-1),
+                )
+                if entry is None:
+                    continue
+                normalized.setdefault(str(entry["SCID"]), {})[str(entry["SPI"])] = entry
 
         if not normalized:
             self.logger.error("No valid entries found in YAML database. Falling back to dummy DB.")
@@ -177,10 +229,7 @@ class dbClient(gr.basic_block):
         if scid is None or spi is None:
             return None
 
-        for entry in self._db.values():
-            if int(entry.get("SCID", -1)) == scid and int(entry.get("SPI", -1)) == spi:
-                return entry
-        return None
+        return self._db.get(str(scid), {}).get(str(spi))
 
     def _publish(self, port_name, response_meta):
         out_msg = pmt.cons(response_meta, pmt.PMT_NIL)
