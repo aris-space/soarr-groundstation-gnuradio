@@ -6,7 +6,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-from gnuradio import gr, gr_unittest
+from gnuradio import gr, gr_unittest, digital
 import pmt
 import time
 from types import MethodType
@@ -29,14 +29,25 @@ from gnuradio.sage import tcPrimaryHeader
 
 LAYOUT_DB_TYPE = 0
 LAYOUT_SDLS_ENABLED = True
-LAYOUT_TC_SCID = 0
-LAYOUT_TC_VCID = 0
+LAYOUT_TC_SCID = 0 # Default
+LAYOUT_TC_VCID = 0 # Default
 
 SCRAMBLER_MASK = 0xA9
 SCRAMBLER_SEED = 0xFF
+
 BCH_POLYNOMIAL = 0xC5
+
 CLTU_START_SEQUENCE = 0xEB90
 CLTU_TAIL_SEQUENCE = 0xC5C5C5C5C5C5C579
+
+CRC_APPEND_NUM_BITS = 32
+CRC_APPEND_POLYNOMIAL = 0x4C11DB7
+CRC_APPEND_INITIAL_VALUE = 0xFFFFFFFF
+CRC_APPEND_FINAL_XOR = 0xFFFFFFFF
+CRC_APPEND_INPUT_REFLECTED = True
+CRC_APPEND_RESULT_REFLECTED = True
+CRC_APPEND_SWAP_ENDIANNESS = False
+CRC_APPEND_SKIP_HEADER_BYTES = 0
 
 
 class layout(gr.top_block):
@@ -58,6 +69,16 @@ class layout(gr.top_block):
 
         # Row 3: TC framing path
         self.tc_primary_header = tcPrimaryHeader(scid=LAYOUT_TC_SCID, vcid=LAYOUT_TC_VCID)
+        self.crc_append = digital.crc_append(
+            CRC_APPEND_NUM_BITS,
+            CRC_APPEND_POLYNOMIAL,
+            CRC_APPEND_INITIAL_VALUE,
+            CRC_APPEND_FINAL_XOR,
+            CRC_APPEND_INPUT_REFLECTED,
+            CRC_APPEND_RESULT_REFLECTED,
+            CRC_APPEND_SWAP_ENDIANNESS,
+            CRC_APPEND_SKIP_HEADER_BYTES,
+        )
 
         # Row 4: Channel coding path
         self.lfsr_scrambler = lfsrScrambler(mask=SCRAMBLER_MASK, seed=SCRAMBLER_SEED, register_length=8)
@@ -74,7 +95,8 @@ class layout(gr.top_block):
         self.msg_connect((self.sdls_encryption, "out"), (self.sdls_authentication, "in"))
         self.msg_connect((self.sdls_authentication, "out"), (self.sdls_header, "in"))
         self.msg_connect((self.sdls_header, "out"), (self.tc_primary_header, "pdu_in"))
-        self.msg_connect((self.tc_primary_header, "pdu_out"), (self.lfsr_scrambler, "pdu_in"))
+        self.msg_connect((self.tc_primary_header, "pdu_out"), (self.crc_append, "in"))
+        self.msg_connect((self.crc_append, "out"), (self.lfsr_scrambler, "pdu_in"))
         self.msg_connect((self.lfsr_scrambler, "pdu_out"), (self.bch_encoder, "message"))
         self.msg_connect((self.bch_encoder, "codewords"), (self.cltu_framer, "pdu_in"))
 
@@ -104,6 +126,7 @@ class qa_layoutTest(gr_unittest.TestCase):
         self.assertIsNotNone(self.tb.sdls_authentication)
         self.assertIsNotNone(self.tb.sdls_header)
         self.assertIsNotNone(self.tb.tc_primary_header)
+        self.assertIsNotNone(self.tb.crc_append)
         self.assertIsNotNone(self.tb.lfsr_scrambler)
         self.assertIsNotNone(self.tb.bch_encoder)
         self.assertIsNotNone(self.tb.cltu_framer)
@@ -218,9 +241,17 @@ class qa_layoutTest(gr_unittest.TestCase):
         # Restore the original publisher for the final block to avoid side effects on other tests.
         self._restore_port(self.tb.cltu_framer, original_pub)
 
-        # Verify the captured message
+        # Verify the captured message. With the real GNU Radio CRC append block in the chain,
+        # payload should be the original payload plus a 4-byte CRC while metadata is preserved.
         self.assertEqual(len(captured), 1)
-        self.assertTrue(pmt.equal(captured[0], pdu_in))
+        out_msg = captured[0]
+        out_meta = pmt.car(out_msg)
+        out_body = pmt.cdr(out_msg)
+        out_bytes = bytes(pmt.u8vector_elements(out_body))
+
+        self.assertEqual(self._pmt_get_int(out_meta, "frame_sequence_number"), FRAME_SEQUENCE_NUMBER)
+        self.assertEqual(out_bytes[:len(PAYLOAD_BYTES)], PAYLOAD_BYTES)
+        self.assertEqual(len(out_bytes), len(PAYLOAD_BYTES) + 4)
 
 
     def test_003_dbclient_distinct_spi_entries_for_same_scid(self):
