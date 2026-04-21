@@ -19,7 +19,6 @@ parameters:
   default: '0'
   options: ['0', '1']
   option_labels: ['TC (Telecommand)', 'TM (Telemetry)']
-  widget: radio
 
 - id: sdls_type
   label: SDLS Security Type
@@ -27,13 +26,11 @@ parameters:
   default: '3'
   options: ['0', '1', '2', '3']
   option_labels: ['No SDLS', 'Encryption Only', 'Authentication Only', 'Both (Encryption + Auth)']
-  widget: radio
 
 - id: encapsulation_used
   label: Encapsulation Header
   dtype: bool
   default: True
-  widget: checkbox
 
 - id: data_type
   label: Data Type
@@ -41,7 +38,6 @@ parameters:
   default: '0'
   options: ['0', '1']
   option_labels: ['Raw', 'CSP (Cubesat Space Protocol)']
-  widget: radio
 
 #  Make one 'inputs' list entry per input and one 'outputs' list entry per output.
 #  Keys include:

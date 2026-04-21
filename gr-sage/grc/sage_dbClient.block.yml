@@ -31,7 +31,6 @@ parameters:
   label: Local YAML Path
   dtype: string
   default: ""
-  optional: '1'
 
 #  Make one 'inputs' list entry per input and one 'outputs' list entry per output.
 #  Keys include:
