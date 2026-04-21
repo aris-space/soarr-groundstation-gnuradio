@@ -30,7 +30,8 @@ gr_python_install(FILES __init__.py
     Injectdb.py
     sdlsHeader.py
     encapsulationHeader.py
-    ccsdsReader.py DESTINATION ${GR_PYTHON_DIR}/gnuradio/sage)
+    ccsdsReader.py
+    dataCreator.py DESTINATION ${GR_PYTHON_DIR}/gnuradio/sage)
 
 ########################################################################
 # Handle the unit tests
@@ -60,3 +61,4 @@ GR_ADD_TEST(qa_sdlsHeader ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_sd
 GR_ADD_TEST(qa_encapsulationHeader ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_encapsulationHeader.py)
 GR_ADD_TEST(qa_layoutTest ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_layoutTest.py)
 GR_ADD_TEST(qa_ccsdsReader ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_ccsdsReader.py)
+GR_ADD_TEST(qa_dataCreator ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_dataCreator.py)
