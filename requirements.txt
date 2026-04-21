@@ -1,0 +1,11 @@
+# Core runtime dependencies
+construct
+PyYAML
+pycryptodome
+
+# GNU Radio Python bindings/runtime
+# Prefer installing via conda/radioconda when possible.
+#gnuradio
+
+# Test dependency
+pytest
