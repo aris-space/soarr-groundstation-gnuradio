@@ -16,4 +16,5 @@ install(FILES
     sage_sdlsEncryption.block.yml
     sage_Injectdb.block.yml
     sage_sdlsHeader.block.yml
-    sage_encapsulationHeader.block.yml DESTINATION share/gnuradio/grc/blocks)
+    sage_encapsulationHeader.block.yml
+    sage_ccsdsReader.block.yml DESTINATION share/gnuradio/grc/blocks)
