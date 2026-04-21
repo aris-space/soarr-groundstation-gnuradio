@@ -153,13 +153,20 @@ entries:
 
     def test_005_counter_max_no_wraparound(self):
         block = dbClient(type=0)
+
+        VCID = 0x155
+        SPI = 1
+
+        SDLS_COUNTER_MAX = 0xFFFFFFFF
+        VCID_COUNTER_MAX = 0xFF
+
         # Force counters to maximum values.
-        block._db["18"]["sdls_counter"] = 0xFFFFFFFF
-        block._db["18"]["vcid_counter"] = 0xFF
+        block._db[str(VCID)][str(SPI)]["sdls_counter"] = SDLS_COUNTER_MAX
+        block._db[str(VCID)][str(SPI)]["vcid_counter"] = VCID_COUNTER_MAX
 
         original_pub, published = self._capture_pub(block)
         try:
-            block.make_db_call(self._build_query(0x155, 1))
+            block.make_db_call(self._build_query(VCID, SPI))
         finally:
             self._restore_pub(block, original_pub)
 
@@ -167,13 +174,14 @@ entries:
         out_port, out_msg = published[0]
         self.assertTrue(pmt.eqv(out_port, pmt.intern("db_callback")))
         out_meta = pmt.car(out_msg)
-        self.assertEqual(self._meta_int(out_meta, "sdls_counter"), 0xFFFFFFFF)
-        self.assertEqual(self._meta_int(out_meta, "vcid_counter"), 0xFF)
+
+        # Verify counters are at max values in the callback metadata.
+        self.assertEqual(self._meta_int(out_meta, "sdls_counter"), SDLS_COUNTER_MAX)
+        self.assertEqual(self._meta_int(out_meta, "vcid_counter"), VCID_COUNTER_MAX)
 
         # Ensure no wrap-around happened after callback publication.
-        self.assertEqual(block._db["18"]["sdls_counter"], 0xFFFFFFFF)
-        self.assertEqual(block._db["18"]["vcid_counter"], 0xFF)
-
+        self.assertEqual(block._db[str(VCID)][str(SPI)]["sdls_counter"], SDLS_COUNTER_MAX)
+        self.assertEqual(block._db[str(VCID)][str(SPI)]["vcid_counter"], VCID_COUNTER_MAX)
 
 if __name__ == '__main__':
     gr_unittest.run(qa_dbClient)
