@@ -2,11 +2,16 @@ title: The SAGE OOT Module
 version: 1.0
 brief: Short description of gr-sage
 tags: # Tags are arbitrary, but look at CGRAN what other authors are using
-  - sdr
+  - ccsds
+  - space
+  - satellite
+  - telecommand
+  - ARIS
+  - SAGE
 author:
-  - Author Name <authors@email.address>
+  - Yannick Kulli <yannick.kulli@aris-space.ch>
 copyright_owner:
-  - Copyright Owner 1
+  - Yannick Kulli
 license:
 gr_supported_version:
   - 3.X
