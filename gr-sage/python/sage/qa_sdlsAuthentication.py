@@ -40,7 +40,7 @@ class qa_sdlsAuthentication(gr_unittest.TestCase):
     def _make_pdu(self, payload_bytes, key_hex="00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF", counter=1):
         meta = pmt.make_dict()
         meta = pmt.dict_add(meta, pmt.intern("auth_key"), pmt.intern(key_hex))
-        meta = pmt.dict_add(meta, pmt.intern("counter"), pmt.from_long(counter))
+        meta = pmt.dict_add(meta, pmt.intern("sdls_counter"), pmt.from_long(counter))
         return pmt.cons(meta, pmt.init_u8vector(len(payload_bytes), list(payload_bytes)))
 
     def _make_pdu_from_parts(self, meta, payload_obj):
@@ -134,7 +134,7 @@ class qa_sdlsAuthentication(gr_unittest.TestCase):
     def test_005_missing_auth_key_no_output(self):
         self.block.state = True
         meta = pmt.make_dict()
-        meta = pmt.dict_add(meta, pmt.intern("counter"), pmt.from_long(1))
+        meta = pmt.dict_add(meta, pmt.intern("sdls_counter"), pmt.from_long(1))
         msg = self._make_pdu_from_parts(meta, pmt.init_u8vector(2, [1, 2]))
 
         original_pub = self._capture_pub()
@@ -183,7 +183,7 @@ class qa_sdlsAuthentication(gr_unittest.TestCase):
             pmt.intern("auth_key"),
             pmt.intern("00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"),
         )
-        meta = pmt.dict_add(meta, pmt.intern("counter"), pmt.from_long(1))
+        meta = pmt.dict_add(meta, pmt.intern("sdls_counter"), pmt.from_long(1))
         msg = self._make_pdu_from_parts(meta, pmt.from_long(123))
 
         original_pub = self._capture_pub()

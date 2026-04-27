@@ -78,23 +78,26 @@ class sdlsAuthentication(gr.basic_block):
         return secret
         
     def _extract_counter(self, dict_msg)->int|None:
-         # Extract and validate the counter value from dict
-        counter = pmt.dict_ref(dict_msg, pmt.intern("counter"), pmt.PMT_NIL)
+         # Extract and validate the SDLS counter value from dict.
+        counter = pmt.dict_ref(dict_msg, pmt.intern("sdls_counter"), pmt.PMT_NIL)
 
         if pmt.eqv(counter, pmt.PMT_NIL):
-            self.logger.warning(f"Received dict message with empty counter: {dict_msg}")
+            self.logger.warning(f"Received dict message with empty sdls_counter: {dict_msg}")
             return None # Early exit if counter is empty
 
-        if not pmt.is_integer(counter):
-            self.logger.warning("counter must be an integer PMT value.")
+        if not (pmt.is_integer(counter) or pmt.is_uint64(counter)):
+            self.logger.warning("sdls_counter must be an integer PMT value.")
             return None
 
         # Counter is an integer PMT
-        counter = int(pmt.to_long(counter))
+        if pmt.is_uint64(counter):
+            counter = int(pmt.to_uint64(counter))
+        else:
+            counter = int(pmt.to_long(counter))
 
         # Validate counter range
         if counter < COUNTER_MIN or counter > COUNTER_MAX:
-            self.logger.error("counter exceeds 2-byte range (0..65535); aborting message processing.")
+            self.logger.error("sdls_counter exceeds 2-byte range (0..65535); aborting message processing.")
             return None
         
         return counter
@@ -130,7 +133,7 @@ class sdlsAuthentication(gr.basic_block):
             return # Early exit if authentication is disabled
         
 
-        # Expecting a PDU with a dict containing 'auth_key' and 'counter', and a u8vector payload.
+        # Expecting a PDU with a dict containing 'auth_key' and 'sdls_counter', and a u8vector payload.
 
         if not pmt.is_pair(msg):
             self.logger.warning(f"Received non-PDU message: {msg}")
@@ -157,7 +160,7 @@ class sdlsAuthentication(gr.basic_block):
         # Extract the counter value from the message dict, with validation.
         counter = self._extract_counter(dict_msg)
         if counter is None:
-            self.logger.warning(f"Failed to extract valid counter from message: {dict_msg}")
+            self.logger.warning(f"Failed to extract valid sdls_counter from message: {dict_msg}")
             return
         
         # Compute the authentication tag (CMAC) over the nonce+counter and payload.
@@ -173,7 +176,7 @@ class sdlsAuthentication(gr.basic_block):
         # delete the auth_key from the dict since they are not needed anymore
         dict_msg = pmt.dict_delete(dict_msg, pmt.intern("auth_key"))
 
-        # counter is used for SDLS header, so we keep it in the dict for the next block to use
+        # sdls_counter is used for downstream SDLS processing, so we keep it in the dict.
 
         # emit the new PDU with the updated dict and payload
         new_msg = pmt.cons(dict_msg, payload)

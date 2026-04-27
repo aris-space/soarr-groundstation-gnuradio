@@ -408,7 +408,7 @@ class qa_layoutTest(gr_unittest.TestCase):
 
         meta = pmt.make_dict()
         meta = pmt.dict_add(meta, pmt.intern("crypt_key"), pmt.intern(KEY_BYTES.hex().upper()))
-        meta = pmt.dict_add(meta, pmt.intern("counter"), pmt.from_long(COUNTER))
+        meta = pmt.dict_add(meta, pmt.intern("sdls_counter"), pmt.from_long(COUNTER))
         meta = pmt.dict_add(meta, pmt.intern("frame_id"), pmt.from_long(FRAME_ID))
         msg = pmt.cons(meta, pmt.init_u8vector(len(PAYLOAD_BYTES), list(PAYLOAD_BYTES)))
 
@@ -424,10 +424,10 @@ class qa_layoutTest(gr_unittest.TestCase):
         out_body = pmt.cdr(out_msg)
         out_bytes = bytes(pmt.u8vector_elements(out_body))
 
-        self.assertTrue(pmt.dict_has_key(out_meta, pmt.intern("counter")))
+        self.assertTrue(pmt.dict_has_key(out_meta, pmt.intern("sdls_counter")))
         self.assertTrue(pmt.dict_has_key(out_meta, pmt.intern("frame_id")))
         self.assertFalse(pmt.dict_has_key(out_meta, pmt.intern("crypt_key")))
-        self.assertEqual(self._pmt_get_int(out_meta, "counter"), COUNTER)
+        self.assertEqual(self._pmt_get_int(out_meta, "sdls_counter"), COUNTER)
         self.assertEqual(out_bytes, expected_ciphertext)
 
     def test_007_sdls_authentication_real_handler(self):
@@ -448,7 +448,7 @@ class qa_layoutTest(gr_unittest.TestCase):
 
         meta = pmt.make_dict()
         meta = pmt.dict_add(meta, pmt.intern("auth_key"), pmt.intern(KEY_BYTES.hex().upper()))
-        meta = pmt.dict_add(meta, pmt.intern("counter"), pmt.from_long(COUNTER))
+        meta = pmt.dict_add(meta, pmt.intern("sdls_counter"), pmt.from_long(COUNTER))
         meta = pmt.dict_add(meta, pmt.intern("frame_id"), pmt.from_long(FRAME_ID))
         msg = pmt.cons(meta, pmt.init_u8vector(len(PAYLOAD_BYTES), list(PAYLOAD_BYTES)))
 
@@ -464,10 +464,10 @@ class qa_layoutTest(gr_unittest.TestCase):
         out_body = pmt.cdr(out_msg)
         out_bytes = bytes(pmt.u8vector_elements(out_body))
 
-        self.assertTrue(pmt.dict_has_key(out_meta, pmt.intern("counter")))
+        self.assertTrue(pmt.dict_has_key(out_meta, pmt.intern("sdls_counter")))
         self.assertTrue(pmt.dict_has_key(out_meta, pmt.intern("frame_id")))
         self.assertFalse(pmt.dict_has_key(out_meta, pmt.intern("auth_key")))
-        self.assertEqual(self._pmt_get_int(out_meta, "counter"), COUNTER)
+        self.assertEqual(self._pmt_get_int(out_meta, "sdls_counter"), COUNTER)
         self.assertEqual(out_bytes, PAYLOAD_BYTES + expected_tag_bytes)
 
     def test_008_encapsulation_header_real_handler(self):
