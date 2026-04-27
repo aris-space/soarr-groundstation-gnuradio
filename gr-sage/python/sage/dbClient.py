@@ -24,12 +24,27 @@ class dbClient(gr.basic_block):
     """Database client for unified SDLS/TC material lookup.
 
     Modes:
-    - type=0: in-memory dummy database with fixed defaults (fast testing)
+    - type=0: in-memory dummy database with configurable defaults
     - type=1: local YAML-backed database
     - type=2: remote real DB (stub, not implemented yet)
     """
 
-    def __init__(self, type:int=0x0, ip:int=0x0, port:int=80, yaml_path:str=""):
+    def __init__(
+        self,
+        type: int = 0x0,
+        ip: str = "127.0.0.1",
+        port: int = 80,
+        yaml_path: str = "",
+        scid: int = 0x155,
+        spi: int = 1,
+        vcid: int = 0x12,
+        crypt_key: str = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF",
+        auth_key: str = "FFEEDDCCBBAA99887766554433221100FFEEDDCCBBAA99887766554433221100",
+        sdls_counter: int = 0,
+        vcid_counter: int = 0,
+        key_state_enc: str = "active",
+        key_state_auth: str = "active",
+    ):
         gr.basic_block.__init__(self,
                 name="dbClient",
                 in_sig=None,
@@ -41,11 +56,22 @@ class dbClient(gr.basic_block):
         self.type = int(type)
 
         # Reserved for remote DB mode.
-        self.ip = ip
-        self.port = port
+        self.ip = str(ip)
+        self.port = int(port)
 
         # Optional path for local YAML mode.
         self.yaml_path = str(yaml_path) if yaml_path else ""
+
+        # Dummy-mode entry fields.
+        self.dummy_scid = self._to_int(scid, default=0x155)
+        self.dummy_spi = self._to_int(spi, default=1)
+        self.dummy_vcid = self._to_int(vcid, default=0x12)
+        self.dummy_crypt_key = str(crypt_key)
+        self.dummy_auth_key = str(auth_key)
+        self.dummy_sdls_counter = self._to_int(sdls_counter, default=0)
+        self.dummy_vcid_counter = self._to_int(vcid_counter, default=0)
+        self.dummy_key_state_enc = str(key_state_enc)
+        self.dummy_key_state_auth = str(key_state_auth)
 
         # In-memory structure indexed as: {"<SCID>": {"<SPI>": entry}}
         self._db = {}
@@ -76,33 +102,25 @@ class dbClient(gr.basic_block):
         self._db = self._dummy_db()
 
     def _dummy_db(self):
-        # Default single SCID with multiple SPI entries for rapid testing.
+        # Build a single configurable SCID/SPI dummy entry for rapid testing.
+        scid = self.dummy_scid
+        spi = self.dummy_spi
+        sdls_counter = max(0, min(self.dummy_sdls_counter, SDLS_COUNTER_MAX))
+        vcid_counter = max(0, min(self.dummy_vcid_counter, VCID_COUNTER_MAX))
+
         return {
-            str(0x155): {
-                "1": {
-                    "SCID": 0x155,
-                    "SPI": 1,
-                    "VCID": 0x12,
-                    "crypt_key": "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF",
-                    "auth_key": "FFEEDDCCBBAA99887766554433221100FFEEDDCCBBAA99887766554433221100",
-                    "sdls_counter": 0,
-                    "vcid_counter": 0,
+            str(scid): {
+                str(spi): {
+                    "SCID": scid,
+                    "SPI": spi,
+                    "VCID": self.dummy_vcid,
+                    "crypt_key": self.dummy_crypt_key,
+                    "auth_key": self.dummy_auth_key,
+                    "sdls_counter": sdls_counter,
+                    "vcid_counter": vcid_counter,
                     "key_state": {
-                        "enc": "active",
-                        "auth": "active",
-                    },
-                },
-                "2": {
-                    "SCID": 0x155,
-                    "SPI": 2,
-                    "VCID": 0x12,
-                    "crypt_key": "11223344556677889900AABBCCDDEEFF11223344556677889900AABBCCDDEEFF",
-                    "auth_key": "00FFEEDDCCBBAA99887766554433221100FFEEDDCCBBAA998877665544332211",
-                    "sdls_counter": 100,
-                    "vcid_counter": 50,
-                    "key_state": {
-                        "enc": "standby",
-                        "auth": "active",
+                        "enc": self.dummy_key_state_enc,
+                        "auth": self.dummy_key_state_auth,
                     },
                 }
             }

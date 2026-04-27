@@ -4,7 +4,7 @@ category: '[sage]/Database'
 
 templates:
   imports: from gnuradio import sage
-  make: sage.dbClient(${type}, ${ip}, ${port}, ${yaml_path})
+  make: sage.dbClient(${type}, ${ip}, ${port}, ${yaml_path}, ${scid}, ${spi}, ${vcid}, ${crypt_key}, ${auth_key}, ${sdls_counter}, ${vcid_counter}, ${key_state_enc}, ${key_state_auth})
 
 #  Make one 'parameters' list entry for every parameter you want settable from the GUI.
 #     Keys include:
@@ -23,14 +23,62 @@ parameters:
   label: Remote DB IP
   dtype: string
   default: 127.0.0.1
+  hide: ${ 'none' if type == '2' else 'all' }
 - id: port
   label: Remote DB Port
   dtype: int
   default: 80
+  hide: ${ 'none' if type == '2' else 'all' }
 - id: yaml_path
   label: Local YAML Path
   dtype: string
   default: ""
+  hide: ${ 'none' if type == '1' else 'all' }
+- id: scid
+  label: Dummy SCID
+  dtype: int
+  default: 341
+  hide: ${ 'none' if type == '0' else 'all' }
+- id: spi
+  label: Dummy SPI
+  dtype: int
+  default: 1
+  hide: ${ 'none' if type == '0' else 'all' }
+- id: vcid
+  label: Dummy VCID
+  dtype: int
+  default: 18
+  hide: ${ 'none' if type == '0' else 'all' }
+- id: crypt_key
+  label: Dummy Crypt Key
+  dtype: string
+  default: 00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF
+  hide: ${ 'none' if type == '0' else 'all' }
+- id: auth_key
+  label: Dummy Auth Key
+  dtype: string
+  default: FFEEDDCCBBAA99887766554433221100FFEEDDCCBBAA99887766554433221100
+  hide: ${ 'none' if type == '0' else 'all' }
+- id: sdls_counter
+  label: Dummy SDLS Counter
+  dtype: int
+  default: 0
+  hide: ${ 'none' if type == '0' else 'all' }
+- id: vcid_counter
+  label: Dummy VCID Counter
+  dtype: int
+  default: 0
+  hide: ${ 'none' if type == '0' else 'all' }
+- id: key_state_enc
+  label: Dummy Key State Enc
+  dtype: string
+  default: active
+  hide: ${ 'none' if type == '0' else 'all' }
+- id: key_state_auth
+  label: Dummy Key State Auth
+  dtype: string
+  default: active
+  hide: ${ 'none' if type == '0' else 'all' }
 
 #  Make one 'inputs' list entry per input and one 'outputs' list entry per output.
 #  Keys include:

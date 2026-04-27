@@ -13,6 +13,7 @@ from gnuradio import gr, gr_unittest
 import pmt
 
 from gnuradio.sage import dbClient
+from dbClient import dbClient
 
 class qa_dbClient(gr_unittest.TestCase):
 
@@ -182,6 +183,157 @@ entries:
         # Ensure no wrap-around happened after callback publication.
         self.assertEqual(block._db[str(VCID)][str(SPI)]["sdls_counter"], SDLS_COUNTER_MAX)
         self.assertEqual(block._db[str(VCID)][str(SPI)]["vcid_counter"], VCID_COUNTER_MAX)
+
+    def test_006_dummy_mode_configurable_scid_spi_vcid(self):
+        """Test Dummy mode with custom SCID, SPI, VCID parameters."""
+        custom_scid = int(0x200)
+        custom_spi = int(5)
+        custom_vcid = int(0x42)
+        
+        block = dbClient(
+            type=0,
+            scid=custom_scid,
+            spi=custom_spi,
+            vcid=custom_vcid,
+        )
+        original_pub, published = self._capture_pub(block)
+        
+        try:
+            block.make_db_call(self._build_query(custom_scid, custom_spi))
+        finally:
+            self._restore_pub(block, original_pub)
+        
+        self.assertEqual(len(published), 1)
+        out_port, out_msg = published[0]
+        self.assertTrue(pmt.eqv(out_port, pmt.intern("db_callback")))
+        out_meta = pmt.car(out_msg)
+        self.assertEqual(self._meta_int(out_meta, "vcid"), custom_vcid)
+
+    def test_007_dummy_mode_configurable_keys(self):
+        """Test Dummy mode with custom crypt_key and auth_key."""
+        custom_crypt = "DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF"
+        custom_auth = "CAFEBABECAFEBABECAFEBABECAFEBABECAFEBABECAFEBABECAFEBABECAFEBABE"
+        
+        block = dbClient(
+            type=0,
+            scid=0x155,
+            spi=1,
+            crypt_key=custom_crypt,
+            auth_key=custom_auth,
+        )
+        original_pub, published = self._capture_pub(block)
+        
+        try:
+            block.make_db_call(self._build_query(0x155, 1))
+        finally:
+            self._restore_pub(block, original_pub)
+        
+        self.assertEqual(len(published), 1)
+        out_port, out_msg = published[0]
+        out_meta = pmt.car(out_msg)
+        
+        returned_crypt = pmt.symbol_to_string(pmt.dict_ref(out_meta, pmt.intern("crypt_key"), pmt.PMT_NIL))
+        returned_auth = pmt.symbol_to_string(pmt.dict_ref(out_meta, pmt.intern("auth_key"), pmt.PMT_NIL))
+        
+        self.assertEqual(returned_crypt, custom_crypt)
+        self.assertEqual(returned_auth, custom_auth)
+
+    def test_008_dummy_mode_configurable_counters(self):
+        """Test Dummy mode with custom initial counter values."""
+        custom_sdls_counter = 123
+        custom_vcid_counter = 45
+        
+        block = dbClient(
+            type=0,
+            scid=0x155,
+            spi=1,
+            sdls_counter=custom_sdls_counter,
+            vcid_counter=custom_vcid_counter,
+        )
+        original_pub, published = self._capture_pub(block)
+        
+        try:
+            block.make_db_call(self._build_query(0x155, 1))
+            block.make_db_call(self._build_query(0x155, 1))
+        finally:
+            self._restore_pub(block, original_pub)
+        
+        self.assertEqual(len(published), 2)
+        
+        # First call should return initial values
+        out_meta_1 = pmt.car(published[0][1])
+        self.assertEqual(self._meta_int(out_meta_1, "sdls_counter"), custom_sdls_counter)
+        self.assertEqual(self._meta_int(out_meta_1, "vcid_counter"), custom_vcid_counter)
+        
+        # Second call should return incremented values
+        out_meta_2 = pmt.car(published[1][1])
+        self.assertEqual(self._meta_int(out_meta_2, "sdls_counter"), custom_sdls_counter + 1)
+        self.assertEqual(self._meta_int(out_meta_2, "vcid_counter"), custom_vcid_counter + 1)
+
+    def test_009_dummy_mode_configurable_key_states(self):
+        """Test Dummy mode with custom key state enc and auth."""
+        custom_enc = "standby"
+        custom_auth = "inactive"
+        custom_scid = int(0x155)
+        custom_spi = int(1)
+        
+        block = dbClient(
+            type=0,
+            scid=custom_scid,
+            spi=custom_spi,
+            key_state_enc=custom_enc,
+            key_state_auth=custom_auth,
+        )
+        
+        # Verify key states are stored in the DB
+        entry = block._db[str(custom_scid)][str(custom_spi)]
+        self.assertEqual(entry["key_state"]["enc"], custom_enc)
+        self.assertEqual(entry["key_state"]["auth"], custom_auth)
+
+    def test_010_dummy_mode_all_custom_parameters(self):
+        """Test Dummy mode with all custom parameters set simultaneously."""
+        custom_scid = int(0x333)
+        custom_spi = int(9)
+        custom_vcid = int(0x77)
+        custom_crypt = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        custom_auth = "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+        custom_sdls = 999
+        custom_vcid_counter = 88
+        
+        params = {
+            "type": 0,
+            "scid": custom_scid,
+            "spi": custom_spi,
+            "vcid": custom_vcid,
+            "crypt_key": custom_crypt,
+            "auth_key": custom_auth,
+            "sdls_counter": custom_sdls,
+            "vcid_counter": custom_vcid_counter,
+            "key_state_enc": "standby",
+            "key_state_auth": "active",
+        }
+        
+        block = dbClient(**params)
+        original_pub, published = self._capture_pub(block)
+        
+        try:
+            block.make_db_call(self._build_query(custom_scid, custom_spi))
+        finally:
+            self._restore_pub(block, original_pub)
+        
+        self.assertEqual(len(published), 1)
+        out_port, out_msg = published[0]
+        out_meta = pmt.car(out_msg)
+        
+        self.assertEqual(self._meta_int(out_meta, "vcid"), custom_vcid)
+        self.assertEqual(self._meta_int(out_meta, "sdls_counter"), custom_sdls)
+        self.assertEqual(self._meta_int(out_meta, "vcid_counter"), custom_vcid_counter)
+        
+        returned_crypt = pmt.symbol_to_string(pmt.dict_ref(out_meta, pmt.intern("crypt_key"), pmt.PMT_NIL))
+        returned_auth = pmt.symbol_to_string(pmt.dict_ref(out_meta, pmt.intern("auth_key"), pmt.PMT_NIL))
+        
+        self.assertEqual(returned_crypt, custom_crypt)
+        self.assertEqual(returned_auth, custom_auth)
 
 if __name__ == '__main__':
     gr_unittest.run(qa_dbClient)
