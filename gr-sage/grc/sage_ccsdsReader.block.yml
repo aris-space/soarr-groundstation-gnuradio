@@ -1,6 +1,6 @@
 id: sage_ccsdsReader
-label: ccsdsReader
-category: '[sage]'
+label: CCSDS Reader
+category: '[sage/Testing]'
 
 templates:
   imports: from gnuradio import sage
