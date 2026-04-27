@@ -30,8 +30,8 @@ parameters:
   default: 80
   hide: ${ 'none' if type == '2' else 'all' }
 - id: yaml_path
-  label: Local YAML Path
-  dtype: string
+  label: Local YAML File
+  dtype: file_open
   default: ""
   hide: ${ 'none' if type == '1' else 'all' }
 - id: scid
