@@ -57,8 +57,8 @@ class cltuFramer(gr.basic_block):
         payload_bytes = bytes(pmt.u8vector_elements(body_pmt))
 
         # Check payload size
-        if len(payload_bytes) != 7:
-            self.logger.error(f"Payload size is {len(payload_bytes)} bytes, expected 7 bytes")
+        if len(payload_bytes) != 8:
+            self.logger.error(f"Payload size is {len(payload_bytes)} bytes, expected 8 bytes")
             return
         
         # CLTU build: [Start] [BCH-Blocks] [Tail]

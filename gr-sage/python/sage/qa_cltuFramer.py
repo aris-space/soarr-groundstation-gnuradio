@@ -61,7 +61,7 @@ class qa_cltuFramer(gr_unittest.TestCase):
         dut = cltuFramer(startSequence=START, tailSequence=END)
         input_dict = pmt.make_dict()
         input_dict = pmt.dict_add(input_dict, pmt.intern("test_key"), pmt.from_long(777))
-        input_data = [i % 256 for i in range(1, 8)]
+        input_data = [i % 256 for i in range(1, 9)]
         input_pdu = self._make_pdu(input_data, input_dict)
 
         captured = self._run_and_capture(dut, input_pdu)
@@ -94,7 +94,7 @@ class qa_cltuFramer(gr_unittest.TestCase):
             captured = self._run_and_capture(dut, input_pdu)
 
         self.assertEqual(len(captured), 0)
-        self.assertTrue(any("Payload size is 3 bytes, expected 7 bytes" in s for s in cm.output))
+        self.assertTrue(any("Payload size is 3 bytes, expected 8 bytes" in s for s in cm.output))
 
     def test_004_non_u8vector_payload(self):
         dut = cltuFramer(startSequence=START, tailSequence=END)
@@ -111,7 +111,7 @@ class qa_cltuFramer(gr_unittest.TestCase):
         custom_end = 0xABCD_ABCD_ABCD_ABCD
         dut = cltuFramer(startSequence=custom_start, tailSequence=custom_end)
 
-        input_data = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77]
+        input_data = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]
         input_pdu = self._make_pdu(input_data)
 
         captured = self._run_and_capture(dut, input_pdu)
@@ -124,7 +124,7 @@ class qa_cltuFramer(gr_unittest.TestCase):
 
     def test_006_runtime_sequence_modification(self):
         dut = cltuFramer(startSequence=START, tailSequence=END)
-        input_data = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00]
+        input_data = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11]
 
         first_pdu = self._make_pdu(input_data)
         first_captured = self._run_and_capture(dut, first_pdu)
@@ -149,7 +149,7 @@ class qa_cltuFramer(gr_unittest.TestCase):
 
     def test_007_multiple_consecutive_messages(self):
         dut = cltuFramer(startSequence=START, tailSequence=END)
-        input_data = [0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE]
+        input_data = [0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0]
 
         captured = []
         original_pub = dut.message_port_pub
@@ -176,7 +176,7 @@ class qa_cltuFramer(gr_unittest.TestCase):
 
     def test_008_all_zero_payload(self):
         dut = cltuFramer(startSequence=START, tailSequence=END)
-        input_data = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+        input_data = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
         input_pdu = self._make_pdu(input_data)
 
         captured = self._run_and_capture(dut, input_pdu)
@@ -189,7 +189,7 @@ class qa_cltuFramer(gr_unittest.TestCase):
 
     def test_009_all_max_payload(self):
         dut = cltuFramer(startSequence=START, tailSequence=END)
-        input_data = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]
+        input_data = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]
         input_pdu = self._make_pdu(input_data)
 
         captured = self._run_and_capture(dut, input_pdu)
@@ -203,7 +203,7 @@ class qa_cltuFramer(gr_unittest.TestCase):
     def test_010_empty_metadata_dict(self):
         dut = cltuFramer(startSequence=START, tailSequence=END)
         input_dict = pmt.make_dict()
-        input_data = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
+        input_data = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
         input_pdu = self._make_pdu(input_data, input_dict)
 
         captured = self._run_and_capture(dut, input_pdu)
@@ -222,7 +222,7 @@ class qa_cltuFramer(gr_unittest.TestCase):
         input_dict = pmt.dict_add(input_dict, pmt.intern("timestamp"), pmt.from_double(1234567890.5))
         input_dict = pmt.dict_add(input_dict, pmt.intern("source"), pmt.intern("test_source"))
 
-        input_data = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11]
+        input_data = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11, 0x22]
         input_pdu = self._make_pdu(input_data, input_dict)
 
         captured = self._run_and_capture(dut, input_pdu)
@@ -239,31 +239,31 @@ class qa_cltuFramer(gr_unittest.TestCase):
         output_dict = pmt.car(result)
         self.assertEqual(output_dict, input_dict)
 
-    def test_012_payload_size_boundary_6_bytes(self):
+    def test_012_payload_size_boundary_7_bytes(self):
         dut = cltuFramer(startSequence=START, tailSequence=END)
-        input_data = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06]
+        input_data = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
         input_pdu = self._make_pdu(input_data)
 
         with self.assertLogs("gnuradio.sage.cltuFramer", level="ERROR") as cm:
             captured = self._run_and_capture(dut, input_pdu)
 
         self.assertEqual(len(captured), 0)
-        self.assertTrue(any("Payload size is 6 bytes, expected 7 bytes" in s for s in cm.output))
+        self.assertTrue(any("Payload size is 7 bytes, expected 8 bytes" in s for s in cm.output))
 
-    def test_013_payload_size_boundary_8_bytes(self):
+    def test_013_payload_size_boundary_9_bytes(self):
         dut = cltuFramer(startSequence=START, tailSequence=END)
-        input_data = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
+        input_data = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09]
         input_pdu = self._make_pdu(input_data)
 
         with self.assertLogs("gnuradio.sage.cltuFramer", level="ERROR") as cm:
             captured = self._run_and_capture(dut, input_pdu)
 
         self.assertEqual(len(captured), 0)
-        self.assertTrue(any("Payload size is 8 bytes, expected 7 bytes" in s for s in cm.output))
+        self.assertTrue(any("Payload size is 9 bytes, expected 8 bytes" in s for s in cm.output))
 
     def test_014_default_sequences(self):
         dut = cltuFramer()
-        input_data = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77]
+        input_data = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]
         input_pdu = self._make_pdu(input_data)
 
         captured = self._run_and_capture(dut, input_pdu)
