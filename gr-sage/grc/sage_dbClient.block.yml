@@ -4,7 +4,7 @@ category: '[sage]/Database'
 
 templates:
   imports: from gnuradio import sage
-  make: sage.dbClient(${type}, ${ip}, ${port}, ${yaml_path}, ${scid}, ${spi}, ${vcid}, ${crypt_key}, ${auth_key}, ${sdls_counter}, ${vcid_counter}, ${key_state_enc}, ${key_state_auth})
+  make: sage.dbClient(${type}, ${ip}, ${port}, ${yaml_path}, ${forward_body}, ${scid}, ${spi}, ${vcid}, ${crypt_key}, ${auth_key}, ${sdls_counter}, ${vcid_counter}, ${key_state_enc}, ${key_state_auth})
 
 #  Make one 'parameters' list entry for every parameter you want settable from the GUI.
 #     Keys include:
@@ -34,6 +34,12 @@ parameters:
   dtype: file_open
   default: ""
   hide: ${ 'none' if type == '1' else 'all' }
+- id: forward_body
+  label: Forward Message Body
+  dtype: enum
+  options: ['True', 'False']
+  option_labels: [Enabled, Disabled]
+  default: 'True'
 - id: scid
   label: Dummy SCID
   dtype: int

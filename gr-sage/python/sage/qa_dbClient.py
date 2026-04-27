@@ -42,11 +42,12 @@ class qa_dbClient(gr_unittest.TestCase):
             return int(pmt.to_uint64(value))
         return int(pmt.to_long(value))
 
-    def _build_query(self, scid, spi):
+    def _build_query(self, scid, spi, body=None):
         meta = pmt.make_dict()
         meta = pmt.dict_add(meta, pmt.intern("scid"), pmt.from_long(scid))
         meta = pmt.dict_add(meta, pmt.intern("spi"), pmt.from_long(spi))
-        return pmt.cons(meta, pmt.PMT_NIL)
+        payload = body if body is not None else pmt.PMT_NIL
+        return pmt.cons(meta, payload)
 
     def test_instance(self):
         instance = dbClient()
@@ -67,6 +68,8 @@ class qa_dbClient(gr_unittest.TestCase):
         out_port_1, out_msg_1 = published[0]
         self.assertTrue(pmt.eqv(out_port_1, pmt.intern("db_callback")))
         out_meta_1 = pmt.car(out_msg_1)
+        self.assertEqual(self._meta_int(out_meta_1, "scid"), 0x155)
+        self.assertEqual(self._meta_int(out_meta_1, "spi"), 1)
         self.assertEqual(self._meta_int(out_meta_1, "vcid"), 0x12)
         self.assertEqual(self._meta_int(out_meta_1, "vcid_counter"), 0)
         self.assertEqual(self._meta_int(out_meta_1, "sdls_counter"), 0)
@@ -334,6 +337,37 @@ entries:
         
         self.assertEqual(returned_crypt, custom_crypt)
         self.assertEqual(returned_auth, custom_auth)
+
+    def test_011_forward_body_enabled_preserves_u8vector(self):
+        block = dbClient(type=0, forward_body=True)
+        original_pub, published = self._capture_pub(block)
+
+        body = pmt.init_u8vector(4, [1, 2, 3, 4])
+        try:
+            block.make_db_call(self._build_query(0x155, 1, body=body))
+        finally:
+            self._restore_pub(block, original_pub)
+
+        self.assertEqual(len(published), 1)
+        out_msg = published[0][1]
+        out_body = pmt.cdr(out_msg)
+        self.assertTrue(pmt.is_u8vector(out_body))
+        self.assertEqual(list(pmt.u8vector_elements(out_body)), [1, 2, 3, 4])
+
+    def test_012_forward_body_disabled_drops_payload(self):
+        block = dbClient(type=0, forward_body=False)
+        original_pub, published = self._capture_pub(block)
+
+        body = pmt.init_u8vector(4, [1, 2, 3, 4])
+        try:
+            block.make_db_call(self._build_query(0x155, 1, body=body))
+        finally:
+            self._restore_pub(block, original_pub)
+
+        self.assertEqual(len(published), 1)
+        out_msg = published[0][1]
+        out_body = pmt.cdr(out_msg)
+        self.assertTrue(pmt.eqv(out_body, pmt.PMT_NIL))
 
 if __name__ == '__main__':
     gr_unittest.run(qa_dbClient)

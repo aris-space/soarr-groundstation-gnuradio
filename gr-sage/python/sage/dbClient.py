@@ -35,6 +35,7 @@ class dbClient(gr.basic_block):
         ip: str = "127.0.0.1",
         port: int = 80,
         yaml_path: str = "",
+        forward_body: bool = True,
         scid: int = 0x155,
         spi: int = 1,
         vcid: int = 0x12,
@@ -61,6 +62,7 @@ class dbClient(gr.basic_block):
 
         # Optional path for local YAML mode.
         self.yaml_path = str(yaml_path) if yaml_path else ""
+        self.forward_body = self._to_bool(forward_body, default=True)
 
         # Dummy-mode entry fields.
         self.dummy_scid = self._to_int(scid, default=0x155)
@@ -224,6 +226,23 @@ class dbClient(gr.basic_block):
         except Exception:
             return default
 
+    def _to_bool(self, value, default=False):
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return default
+        if isinstance(value, (int, float)):
+            return bool(value)
+        try:
+            sval = str(value).strip().lower()
+        except Exception:
+            return default
+        if sval in ("1", "true", "yes", "on"):
+            return True
+        if sval in ("0", "false", "no", "off"):
+            return False
+        return default
+
     def _pmt_dict_get_int(self, meta, key, default=None):
         if not pmt.is_dict(meta):
             return default
@@ -249,8 +268,8 @@ class dbClient(gr.basic_block):
 
         return self._db.get(str(scid), {}).get(str(spi))
 
-    def _publish(self, port_name, response_meta):
-        out_msg = pmt.cons(response_meta, pmt.PMT_NIL)
+    def _publish(self, port_name, response_meta, response_body=pmt.PMT_NIL):
+        out_msg = pmt.cons(response_meta, response_body)
         self.message_port_pub(pmt.intern(port_name), out_msg)
 
     def _checked_increment(self, value, max_value, counter_name):
@@ -296,13 +315,19 @@ class dbClient(gr.basic_block):
             return
 
         response_meta = pmt.make_dict()
+        response_meta = pmt.dict_add(response_meta, pmt.intern("scid"), pmt.from_long(int(entry.get("SCID", 0))))
+        response_meta = pmt.dict_add(response_meta, pmt.intern("spi"), pmt.from_long(int(entry.get("SPI", 0))))
         response_meta = pmt.dict_add(response_meta, pmt.intern("vcid"), pmt.from_long(int(entry.get("VCID", 0))))
         response_meta = pmt.dict_add(response_meta, pmt.intern("crypt_key"), pmt.intern(str(entry.get("crypt_key", ""))))
         response_meta = pmt.dict_add(response_meta, pmt.intern("auth_key"), pmt.intern(str(entry.get("auth_key", ""))))
         response_meta = pmt.dict_add(response_meta, pmt.intern("sdls_counter"), pmt.from_uint64(sdls_counter))
         response_meta = pmt.dict_add(response_meta, pmt.intern("vcid_counter"), pmt.from_long(vcid_counter))
 
-        self._publish("db_callback", response_meta)
+        in_body = pmt.cdr(msg)
+        body_to_forward = pmt.PMT_NIL
+        if self.forward_body and pmt.is_u8vector(in_body):
+            body_to_forward = in_body
+        self._publish("db_callback", response_meta, body_to_forward)
 
         # Increase counters only after giving out current values.
         try:
