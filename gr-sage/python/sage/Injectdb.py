@@ -36,6 +36,48 @@ class Injectdb(gr.basic_block):
         self.set_msg_handler(pmt.intern("db_callback"), self.send_msg_out)
 
 
+    def _is_integer_pmt(self, value) -> bool:
+        return pmt.is_integer(value) or pmt.is_uint64(value)
+
+
+    def _check_key_type(self, dict_msg, key: str, value, expected_type: str) -> bool:
+        if expected_type == "int":
+            if self._is_integer_pmt(value):
+                return True
+            self.logger.warning(
+                f"Received PDU with non-integer value for key '{key}' in metadata (expected integer or uint64): {dict_msg}"
+            )
+            return False
+
+        if expected_type == "bool":
+            if pmt.is_bool(value):
+                return True
+            self.logger.warning(
+                f"Received PDU with non-boolean value for key '{key}' in metadata (expected PMT boolean): {dict_msg}"
+            )
+            return False
+
+        if expected_type == "int_or_nil":
+            if pmt.eqv(value, pmt.PMT_NIL) or self._is_integer_pmt(value):
+                return True
+            self.logger.warning(
+                f"Received PDU with invalid value for key '{key}' in metadata (expected PMT_NIL, integer, or uint64): {dict_msg}"
+            )
+            return False
+
+        if expected_type == "secret_or_nil":
+            if pmt.eqv(value, pmt.PMT_NIL):
+                return True
+            if pmt.is_symbol(value):
+                return True
+            self.logger.warning(
+                f"Received PDU with invalid value for key '{key}' in metadata (expected PMT_NIL or symbol hex string): {dict_msg}"
+            )
+            return False
+
+        raise ValueError(f"Unsupported expected type '{expected_type}' for key '{key}'")
+
+
     def _extract_pdu(self, msg):
 
         if not pmt.is_pair(msg):
@@ -56,25 +98,15 @@ class Injectdb(gr.basic_block):
         return (dict_msg, payload_u8vector)
 
 
-    def _check_keys(self, dict_msg, required_keys, nil_or_integer_keys=None) -> bool:
-        nil_or_integer_keys = set(nil_or_integer_keys or [])
-
-        for key in required_keys:
-            if not pmt.dict_has_key(dict_msg, pmt.intern(key)):
+    def _check_keys(self, dict_msg, key_specs) -> bool:
+        for key, expected_type in key_specs.items():
+            pmt_key = pmt.intern(key)
+            if not pmt.dict_has_key(dict_msg, pmt_key):
                 self.logger.warning(f"Received PDU with missing required key '{key}' in metadata: {dict_msg}")
                 return False # Early exit if any required key is missing
 
-            value = pmt.dict_ref(dict_msg, pmt.intern(key), pmt.PMT_NIL)
-            if key in nil_or_integer_keys:
-                if pmt.eqv(value, pmt.PMT_NIL) or pmt.is_integer(value):
-                    continue
-                self.logger.warning(
-                    f"Received PDU with invalid value for key '{key}' in metadata (expected PMT_NIL or integer): {dict_msg}"
-                )
-                return False
-
-            if not pmt.is_integer(value):
-                self.logger.warning(f"Received PDU with non-integer value for key '{key}' in metadata: {dict_msg}")
+            value = pmt.dict_ref(dict_msg, pmt_key, pmt.PMT_NIL)
+            if not self._check_key_type(dict_msg, key, value, expected_type):
                 return False # Early exit if any required key value is not an integer
             
         return True
@@ -94,7 +126,15 @@ class Injectdb(gr.basic_block):
         dict_msg, payload_u8vector = extracted
         
         # Check if keys are there to ask the database for the right material.
-        if not self._check_keys(dict_msg, ["scid", "spi"]):
+        if not self._check_keys(
+            dict_msg,
+            {
+                "scid": "int",
+                "spi": "int",
+                "bypass": "bool",
+                "control": "bool",
+            },
+        ):
             # Already logged the specific missing/invalid key(s) in the _check_keys function
             return # Early exit if required keys are missing or invalid
         
@@ -118,8 +158,17 @@ class Injectdb(gr.basic_block):
         # Check if keys are there to ask the database for the right material.
         if not self._check_keys(
             dict_msg,
-            ["scid", "spi", "auth_key", "crypt_key", "vcid", "vcid_counter", "sdls_counter"],
-            nil_or_integer_keys={"auth_key", "crypt_key"},
+            {
+                "scid": "int",
+                "spi": "int",
+                "bypass": "bool",
+                "control": "bool",
+                "auth_key": "secret_or_nil",
+                "crypt_key": "secret_or_nil",
+                "vcid": "int",
+                "vcid_counter": "int",
+                "sdls_counter": "int",
+            },
         ):
             # Already logged the specific missing/invalid key(s) in the _check_keys function
             return # Early exit if required keys are missing or invalid
