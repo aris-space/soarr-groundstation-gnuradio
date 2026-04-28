@@ -51,10 +51,28 @@ class sdlsHeader(gr.basic_block):
                 return None
         elif pmt.is_u8vector(value_pmt):
             value = bytes(pmt.u8vector_elements(value_pmt))
+        elif pmt.is_integer(value_pmt) or pmt.is_uint64(value_pmt):
+            if fixed_length_bytes is None or fixed_length_bytes <= 0:
+                self.logger.warning(
+                    f"Received integer value for key '{key_name}' in metadata, but no fixed length specified: {dict_msg}"
+                )
+                return None
+
+            int_value = int(pmt.to_uint64(value_pmt)) if pmt.is_uint64(value_pmt) else int(pmt.to_long(value_pmt))
+            if int_value < 0:
+                self.logger.warning(f"Received negative integer for key '{key_name}' in metadata: {dict_msg}")
+                return None
+
+            try:
+                value = int_value.to_bytes(fixed_length_bytes, 'big')
+            except OverflowError as exc:
+                raise ValueError(
+                    f"'{key_name}' integer value {int_value} exceeds fixed length {fixed_length_bytes} bytes."
+                ) from exc
         else:
             self.logger.warning(
                 f"Received '{key_name}' of unsupported type "
-                f"(expected symbol hex string or u8vector)."
+                f"(expected symbol hex string, u8vector, or integer)."
             )
             return None
 
@@ -101,30 +119,30 @@ class sdlsHeader(gr.basic_block):
                 self.logger.warning(f"Failed to extract spi from message: {msg}")
                 return
 
-            # Extract and validate initialization_vector from dict
-            initialization_vector = self._extract_dictionary_key(dict_msg, "initialization_vector", fixed_length_bytes=self.iv_length_bytes)
-            if initialization_vector is None:
-                self.logger.warning(f"Failed to extract initialization_vector from message: {msg}")
+            # Extract and validate sdls_counter from dict
+            sdls_counter = self._extract_dictionary_key(dict_msg, "sdls_counter", fixed_length_bytes=self.iv_length_bytes)
+            if sdls_counter is None:
+                self.logger.warning(f"Failed to extract sdls_counter from message: {msg}")
                 return
         except ValueError as exc:
             self.logger.error(str(exc))
             return
 
-        # SDLS header: SPI is 16 bits, IV length is byte-aligned and variable.
+        # SDLS header: SPI is 16 bits, counter length is byte-aligned and variable.
         header_struct = Struct(
             "spi" / Int16ub,
-            "initialization_vector" / Bytes(len(initialization_vector)),
+            "sdls_counter" / Bytes(len(sdls_counter)),
         )
         header = header_struct.build(
             {
                 "spi": int.from_bytes(spi, byteorder="big"),
-                "initialization_vector": initialization_vector,
+                "sdls_counter": sdls_counter,
             }
         )
 
         # Remove the used keys from the dict to avoid confusion downstream.
         dict_msg = pmt.dict_delete(dict_msg, pmt.intern("spi"))
-        dict_msg = pmt.dict_delete(dict_msg, pmt.intern("initialization_vector"))
+        dict_msg = pmt.dict_delete(dict_msg, pmt.intern("sdls_counter"))
 
         # Combine header and payload, then create a new PDU message with the modified payload.
         framed_payload = header + bytes(pmt.u8vector_elements(payload))

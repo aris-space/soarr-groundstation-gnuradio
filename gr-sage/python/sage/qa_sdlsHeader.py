@@ -38,10 +38,10 @@ class qa_sdlsHeader(gr_unittest.TestCase):
     def _restore_pub(self, original_pub):
         self.block.message_port_pub = original_pub
 
-    def _make_pdu(self, payload_bytes, spi, initialization_vector, extra_meta=None):
+    def _make_pdu(self, payload_bytes, spi, sdls_counter, extra_meta=None):
         meta = pmt.make_dict()
         meta = pmt.dict_add(meta, pmt.intern("spi"), pmt.intern(spi.hex().upper()))
-        meta = pmt.dict_add(meta, pmt.intern("initialization_vector"), pmt.intern(initialization_vector.hex().upper()))
+        meta = pmt.dict_add(meta, pmt.intern("sdls_counter"), pmt.intern(sdls_counter.hex().upper()))
         if extra_meta is not None:
             for key, value in extra_meta:
                 meta = pmt.dict_add(meta, pmt.intern(key), value)
@@ -50,12 +50,12 @@ class qa_sdlsHeader(gr_unittest.TestCase):
 
     def test_001_prepends_header_and_preserves_other_metadata(self):
         spi = bytes([0x12, 0x34])
-        initialization_vector = bytes([0xAA, 0xBB])
+        sdls_counter = bytes([0xAA, 0xBB])
         payload = bytes([0x01, 0x02, 0x03, 0x04])
         msg = self._make_pdu(
             payload,
             spi=spi,
-            initialization_vector=initialization_vector,
+            sdls_counter=sdls_counter,
             extra_meta=[("frame_id", pmt.from_long(7))],
         )
 
@@ -72,16 +72,16 @@ class qa_sdlsHeader(gr_unittest.TestCase):
         out_meta = pmt.car(out_msg)
         self.assertTrue(pmt.dict_has_key(out_meta, pmt.intern("frame_id")))
         self.assertFalse(pmt.dict_has_key(out_meta, pmt.intern("spi")))
-        self.assertFalse(pmt.dict_has_key(out_meta, pmt.intern("initialization_vector")))
+        self.assertFalse(pmt.dict_has_key(out_meta, pmt.intern("sdls_counter")))
 
         out_payload = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
-        self.assertEqual(out_payload, spi + initialization_vector + payload)
+        self.assertEqual(out_payload, spi + sdls_counter + payload)
 
     def test_002_short_fields_are_zero_padded(self):
         spi = bytes([0x12])
-        initialization_vector = bytes([0xAA])
+        sdls_counter = bytes([0xAA])
         payload = bytes([0x10, 0x20])
-        msg = self._make_pdu(payload, spi=spi, initialization_vector=initialization_vector)
+        msg = self._make_pdu(payload, spi=spi, sdls_counter=sdls_counter)
 
         original_pub = self._capture_pub()
         try:
@@ -97,9 +97,9 @@ class qa_sdlsHeader(gr_unittest.TestCase):
 
     def test_003_too_long_spi_emits_no_output(self):
         spi = bytes([0x01, 0x02, 0x03])
-        initialization_vector = bytes([0xAA, 0xBB])
+        sdls_counter = bytes([0xAA, 0xBB])
         payload = bytes([0x10, 0x20])
-        msg = self._make_pdu(payload, spi=spi, initialization_vector=initialization_vector)
+        msg = self._make_pdu(payload, spi=spi, sdls_counter=sdls_counter)
 
         original_pub = self._capture_pub()
         try:
@@ -111,7 +111,7 @@ class qa_sdlsHeader(gr_unittest.TestCase):
 
     def test_004_missing_spi_emits_no_output(self):
         meta = pmt.make_dict()
-        meta = pmt.dict_add(meta, pmt.intern("initialization_vector"), pmt.intern("AABB"))
+        meta = pmt.dict_add(meta, pmt.intern("sdls_counter"), pmt.intern("AABB"))
         payload = pmt.init_u8vector(2, [0x10, 0x20])
         msg = pmt.cons(meta, payload)
 
@@ -126,7 +126,7 @@ class qa_sdlsHeader(gr_unittest.TestCase):
     def test_005_non_u8vector_payload_emits_no_output(self):
         meta = pmt.make_dict()
         meta = pmt.dict_add(meta, pmt.intern("spi"), pmt.intern("1234"))
-        meta = pmt.dict_add(meta, pmt.intern("initialization_vector"), pmt.intern("AABB"))
+        meta = pmt.dict_add(meta, pmt.intern("sdls_counter"), pmt.intern("AABB"))
         msg = pmt.cons(meta, pmt.from_long(99))
 
         original_pub = self._capture_pub()
@@ -139,9 +139,9 @@ class qa_sdlsHeader(gr_unittest.TestCase):
 
     def test_006_too_long_iv_emits_no_output(self):
         spi = bytes([0x12, 0x34])
-        initialization_vector = bytes([0xAA, 0xBB, 0xCC])
+        sdls_counter = bytes([0xAA, 0xBB, 0xCC])
         payload = bytes([0x10, 0x20])
-        msg = self._make_pdu(payload, spi=spi, initialization_vector=initialization_vector)
+        msg = self._make_pdu(payload, spi=spi, sdls_counter=sdls_counter)
 
         original_pub = self._capture_pub()
         try:
@@ -154,7 +154,7 @@ class qa_sdlsHeader(gr_unittest.TestCase):
     def test_007_invalid_hex_symbols_emit_no_output(self):
         meta = pmt.make_dict()
         meta = pmt.dict_add(meta, pmt.intern("spi"), pmt.intern("ZZZZ"))
-        meta = pmt.dict_add(meta, pmt.intern("initialization_vector"), pmt.intern("AABB"))
+        meta = pmt.dict_add(meta, pmt.intern("sdls_counter"), pmt.intern("AABB"))
         payload = pmt.init_u8vector(2, [0x10, 0x20])
         msg = pmt.cons(meta, payload)
 
@@ -180,7 +180,7 @@ class qa_sdlsHeader(gr_unittest.TestCase):
         meta = pmt.dict_add(meta, pmt.intern("spi"), pmt.init_u8vector(2, [0x12, 0x34]))
         meta = pmt.dict_add(
             meta,
-            pmt.intern("initialization_vector"),
+            pmt.intern("sdls_counter"),
             pmt.init_u8vector(2, [0xAA, 0xBB]),
         )
         meta = pmt.dict_add(meta, pmt.intern("frame_id"), pmt.from_long(11))
@@ -200,10 +200,27 @@ class qa_sdlsHeader(gr_unittest.TestCase):
         out_meta = pmt.car(out_msg)
         self.assertTrue(pmt.dict_has_key(out_meta, pmt.intern("frame_id")))
         self.assertFalse(pmt.dict_has_key(out_meta, pmt.intern("spi")))
-        self.assertFalse(pmt.dict_has_key(out_meta, pmt.intern("initialization_vector")))
+        self.assertFalse(pmt.dict_has_key(out_meta, pmt.intern("sdls_counter")))
 
         out_payload = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
         self.assertEqual(out_payload, b"\x12\x34\xAA\xBB\x01\x02\x03")
+
+    def test_010_integer_spi_is_supported(self):
+        meta = pmt.make_dict()
+        meta = pmt.dict_add(meta, pmt.intern("spi"), pmt.from_long(1))
+        meta = pmt.dict_add(meta, pmt.intern("sdls_counter"), pmt.intern("AABB"))
+        payload = pmt.init_u8vector(2, [0x10, 0x20])
+        msg = pmt.cons(meta, payload)
+
+        original_pub = self._capture_pub()
+        try:
+            self.block.add_header(msg)
+        finally:
+            self._restore_pub(original_pub)
+
+        self.assertEqual(len(self.published), 1)
+        out_payload = bytes(pmt.u8vector_elements(pmt.cdr(self.published[0][1])))
+        self.assertEqual(out_payload, b"\x00\x01\xAA\xBB\x10\x20")
 
 
 if __name__ == '__main__':
