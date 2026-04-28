@@ -56,7 +56,7 @@ class qa_tcPrimaryHeader(gr_unittest.TestCase):
         instance = tcPrimaryHeader()
         self.assertIsNotNone(instance)
 
-    def test_001_missing_frame_sequence_number_emits_no_output(self):
+    def test_001_missing_vcid_counter_emits_no_output(self):
         meta = pmt.make_dict()
         payload = pmt.init_u8vector(3, [1, 2, 3])
         msg = pmt.cons(meta, payload)
@@ -73,7 +73,7 @@ class qa_tcPrimaryHeader(gr_unittest.TestCase):
         # If PDU metadata has no SCID/VCID, constructor defaults must be used.
         payload_bytes = bytes([0x10, 0x20, 0x30, 0x40])
         meta = pmt.make_dict()
-        meta = pmt.dict_add(meta, pmt.intern("frame_sequence_number"), pmt.from_long(0x2A))
+        meta = pmt.dict_add(meta, pmt.intern("vcid_counter"), pmt.from_long(0x2A))
         msg = pmt.cons(meta, pmt.init_u8vector(len(payload_bytes), list(payload_bytes)))
 
         original_pub = self._capture_pub()
@@ -98,9 +98,9 @@ class qa_tcPrimaryHeader(gr_unittest.TestCase):
         meta = pmt.make_dict()
         meta = pmt.dict_add(meta, pmt.intern("scid"), pmt.from_long(0x2AB))
         meta = pmt.dict_add(meta, pmt.intern("vcid"), pmt.from_long(0x2E))
-        meta = pmt.dict_add(meta, pmt.intern("bypass"), pmt.from_long(1))
-        meta = pmt.dict_add(meta, pmt.intern("control"), pmt.from_long(0))
-        meta = pmt.dict_add(meta, pmt.intern("frame_sequence_number"), pmt.from_long(0x7F))
+        meta = pmt.dict_add(meta, pmt.intern("bypass"), pmt.from_bool(True))
+        meta = pmt.dict_add(meta, pmt.intern("control"), pmt.from_bool(False))
+        meta = pmt.dict_add(meta, pmt.intern("vcid_counter"), pmt.from_long(0x7F))
 
         payload_bytes = bytes([0xAA, 0xBB, 0xCC])
         msg = pmt.cons(meta, pmt.init_u8vector(len(payload_bytes), list(payload_bytes)))

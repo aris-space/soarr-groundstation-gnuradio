@@ -104,6 +104,26 @@ class tcPrimaryHeader(gr.basic_block):
             self.logger.warning(f"Failed to convert metadata key '{key}' to integer: {meta}")
             return default
 
+    def _pmt_dict_get_bool(self, meta, key, default=None):
+        if not pmt.is_dict(meta):
+            self.logger.warning(f"Expected metadata to be a dict, but got: {meta}")
+            return default
+
+        pmt_key = pmt.intern(key)
+        if not pmt.dict_has_key(meta, pmt_key):
+            self.logger.warning(f"Metadata missing expected key '{key}': {meta}")
+            return default
+
+        value = pmt.dict_ref(meta, pmt_key, pmt.PMT_NIL)
+        if pmt.eqv(value, pmt.PMT_NIL):
+            return default
+
+        try:
+            return pmt.to_bool(value)
+        except Exception:
+            self.logger.warning(f"Failed to convert metadata key '{key}' to boolean: {meta}")
+            return default
+
     def _pack_header(self, fields):
         if TC_PRIMARY_HEADER_STRUCT is not None:
             return TC_PRIMARY_HEADER_STRUCT.build(fields)
@@ -155,10 +175,10 @@ class tcPrimaryHeader(gr.basic_block):
             dict_msg = pmt.dict_add(dict_msg, pmt.intern("scid"), pmt.from_long(scid))
 
         # Check for bypass flag
-        bypass = self._pmt_dict_get_int(dict_msg, "bypass", int(self.bypass))
+        bypass = self._pmt_dict_get_bool(dict_msg, "bypass", self.bypass)
 
         # Check for control flag
-        control = self._pmt_dict_get_int(dict_msg, "control", int(self.control))
+        control = self._pmt_dict_get_bool(dict_msg, "control", self.control)
 
         # Check for frame_length
         frame_length = self._pmt_dict_get_int(dict_msg, "frame_length", None)
@@ -166,10 +186,10 @@ class tcPrimaryHeader(gr.basic_block):
             self.logger.warning(f"Metadata missing 'frame_length' key; using payload length: {len(payload_bytes) + 5 - 1}")
             frame_length = len(payload_bytes) + 5 - 1
 
-        # Extract frame_sequence_number (required)
-        frame_sequence_number = self._pmt_dict_get_int(dict_msg, "frame_sequence_number", None)
+        # Extract vcid_counter (required) - maps to frame_sequence_number in CCSDS header
+        frame_sequence_number = self._pmt_dict_get_int(dict_msg, "vcid_counter", None)
         if frame_sequence_number is None:
-            self.logger.error("Metadata did not include frame_sequence_number.")
+            self.logger.error("Metadata did not include vcid_counter.")
             return
 
         fields = {
@@ -188,8 +208,9 @@ class tcPrimaryHeader(gr.basic_block):
         dict_msg = pmt.dict_delete(dict_msg, pmt.intern("bypass"))
         dict_msg = pmt.dict_delete(dict_msg, pmt.intern("control"))
         dict_msg = pmt.dict_delete(dict_msg, pmt.intern("frame_length"))
+        dict_msg = pmt.dict_delete(dict_msg, pmt.intern("vcid_counter"))
 
-        # VCID, SCID & frame_sequence_number are used in future blocks (not deleted)
+        # VCID, SCID are used in future blocks (not deleted)
 
         frame = header + payload_bytes
         out_msg = pmt.cons(dict_msg, pmt.init_u8vector(len(frame), list(frame)))
