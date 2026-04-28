@@ -60,7 +60,7 @@ class qa_lfsr_cltu_bch_chain(gr_unittest.TestCase):
             meta = pmt.make_dict()
             meta = pmt.dict_add(meta, pmt.intern("frame_id"), pmt.from_long(42))
 
-            input_data = bytes([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE])
+            input_data = bytes([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0])
             input_pdu = pmt.cons(meta, pmt.init_u8vector(len(input_data), list(input_data)))
 
             self.scrambler.handle_msg(input_pdu)
@@ -77,7 +77,7 @@ class qa_lfsr_cltu_bch_chain(gr_unittest.TestCase):
 
         out_bytes = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
 
-        # 7-byte input -> scrambler keeps 7 bytes -> framer outputs 17 bytes
+        # 8-byte input -> scrambler keeps 8 bytes -> framer outputs 18 bytes
         # BCH then pads to 3 codewords (24 bytes output).
         self.assertEqual(len(out_bytes), 24)
 
@@ -85,7 +85,7 @@ class qa_lfsr_cltu_bch_chain(gr_unittest.TestCase):
         pubs = self._connect_chain()
         try:
             meta = pmt.make_dict()
-            input_data = bytes([0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD])
+            input_data = bytes([0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF])
             input_pdu = pmt.cons(meta, pmt.init_u8vector(len(input_data), list(input_data)))
             self.scrambler.handle_msg(input_pdu)
         finally:
