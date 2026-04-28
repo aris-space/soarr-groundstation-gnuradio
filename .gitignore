@@ -43,6 +43,7 @@ htmlcov/
 .tox/
 .nox/
 .ipynb_checkpoints/
+*.egg-info/
 
 # Editor / IDE
 .vscode/*.log

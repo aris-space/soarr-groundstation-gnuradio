@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gnuradio-sage"
+version = "1.0.0"
+description = "GNU Radio SAGE module for CCSDS telecommand processing"
+
+[tool.setuptools]
+packages = ["gnuradio", "gnuradio.sage"]
+package-dir = {"gnuradio" = "python/gnuradio", "gnuradio.sage" = "python/sage"}
