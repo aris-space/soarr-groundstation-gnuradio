@@ -223,6 +223,208 @@ class qa_bchEncoder(gr_unittest.TestCase):
         self._encode_and_capture(pmt.make_dict(), bad_payload)
         self.assertEqual(len(self.captured_output), 0)
 
+    def test_016_three_codewords_generation(self):
+        """Test generation of exactly 3 codewords (21 bytes -> 168 bits -> 3x56)."""
+        input_data = bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+                            0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE,
+                            0xFF, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06])
+        payload = pmt.init_u8vector(len(input_data), list(input_data))
+
+        self._encode_and_capture(pmt.make_dict(), payload)
+        self.assertEqual(len(self.captured_output), 1)
+
+        _, out_msg = self.captured_output[0]
+        out_bytes = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
+
+        # 21 input bytes = 168 bits exactly (3 codewords * 56 bits)
+        # 3 codewords * 8 bytes/codeword = 24 output bytes
+        self.assertEqual(len(out_bytes), 24)
+
+        # Verify each codeword's information field
+        self.assertEqual(out_bytes[0:7], input_data[0:7])    # Codeword 1
+        self.assertEqual(out_bytes[8:15], input_data[7:14])  # Codeword 2
+        self.assertEqual(out_bytes[16:23], input_data[14:21])  # Codeword 3
+
+    def test_017_four_codewords_with_fill(self):
+        """Test generation of 4 codewords with fill bits."""
+        # 25 bytes = 200 bits, need 8 fill bits to reach 208 bits (56*3 + 40)
+        # Then fill to 224 bits (4 codewords) = 32 fill bits needed
+        input_data = bytes(range(25))  # 0x00 to 0x18
+        payload = pmt.init_u8vector(len(input_data), list(input_data))
+
+        self._encode_and_capture(pmt.make_dict(), payload)
+        self.assertEqual(len(self.captured_output), 1)
+
+        _, out_msg = self.captured_output[0]
+        out_bytes = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
+
+        # 4 codewords * 8 bytes/codeword = 32 output bytes
+        self.assertEqual(len(out_bytes), 32)
+
+        # Verify information bits are preserved
+        self.assertEqual(out_bytes[0:7], input_data[0:7])
+        self.assertEqual(out_bytes[8:15], input_data[7:14])
+        self.assertEqual(out_bytes[16:23], input_data[14:21])
+        self.assertEqual(out_bytes[24:25], input_data[21:22])
+
+    def test_018_large_payload_seven_codewords(self):
+        """Test encoding of large payload spanning 7 codewords."""
+        # 49 bytes = 392 bits = 7 * 56 bits exactly
+        input_data = bytes([i % 256 for i in range(49)])
+        payload = pmt.init_u8vector(len(input_data), list(input_data))
+
+        self._encode_and_capture(pmt.make_dict(), payload)
+        self.assertEqual(len(self.captured_output), 1)
+
+        _, out_msg = self.captured_output[0]
+        out_bytes = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
+
+        # 7 codewords * 8 bytes/codeword = 56 output bytes
+        self.assertEqual(len(out_bytes), 56)
+
+        # Verify all input bytes are preserved in information fields
+        for cw_idx in range(7):
+            info_start = cw_idx * 8
+            info_end = info_start + 7
+            expected_start = cw_idx * 7
+            expected_end = expected_start + 7
+            self.assertEqual(out_bytes[info_start:info_end], input_data[expected_start:expected_end])
+
+    def test_019_exact_boundary_7_bytes(self):
+        """Test that exactly 7 bytes (56 bits) produces exactly 1 codeword."""
+        input_data = bytes([0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA])
+        payload = pmt.init_u8vector(len(input_data), list(input_data))
+
+        self._encode_and_capture(pmt.make_dict(), payload)
+        self.assertEqual(len(self.captured_output), 1)
+
+        _, out_msg = self.captured_output[0]
+        out_bytes = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
+
+        self.assertEqual(len(out_bytes), 8)
+        self.assertEqual(out_bytes[:7], input_data)
+
+    def test_020_exact_boundary_14_bytes(self):
+        """Test that exactly 14 bytes (112 bits) produces exactly 2 codewords."""
+        input_data = bytes([i for i in range(14)])
+        payload = pmt.init_u8vector(len(input_data), list(input_data))
+
+        self._encode_and_capture(pmt.make_dict(), payload)
+        self.assertEqual(len(self.captured_output), 1)
+
+        _, out_msg = self.captured_output[0]
+        out_bytes = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
+
+        self.assertEqual(len(out_bytes), 16)
+        self.assertEqual(out_bytes[:7], input_data[:7])
+        self.assertEqual(out_bytes[8:15], input_data[7:14])
+
+    def test_021_exact_boundary_21_bytes(self):
+        """Test that exactly 21 bytes (168 bits) produces exactly 3 codewords."""
+        input_data = bytes([i for i in range(21)])
+        payload = pmt.init_u8vector(len(input_data), list(input_data))
+
+        self._encode_and_capture(pmt.make_dict(), payload)
+        self.assertEqual(len(self.captured_output), 1)
+
+        _, out_msg = self.captured_output[0]
+        out_bytes = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
+
+        self.assertEqual(len(out_bytes), 24)
+        self.assertEqual(out_bytes[:7], input_data[:7])
+        self.assertEqual(out_bytes[8:15], input_data[7:14])
+        self.assertEqual(out_bytes[16:23], input_data[14:21])
+
+    def test_022_fill_bits_across_multiple_codewords(self):
+        """Test fill bit pattern (0x55) applied across multiple codewords."""
+        # 8 bytes = 64 bits, need 48 fill bits -> 2 codewords total
+        input_data = bytes([0xAA] * 8)
+        payload = pmt.init_u8vector(len(input_data), list(input_data))
+
+        self._encode_and_capture(pmt.make_dict(), payload)
+        self.assertEqual(len(self.captured_output), 1)
+
+        _, out_msg = self.captured_output[0]
+        out_bytes = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
+
+        # 16 output bytes (2 codewords)
+        self.assertEqual(len(out_bytes), 16)
+
+        # First codeword: 7 bytes info (preserved) + 1 parity byte
+        self.assertEqual(out_bytes[0:7], input_data[:7])
+        # Parity byte should have filler bit (LSB) = 0
+        self.assertEqual(out_bytes[7] & 0x01, 0)
+
+        # Second codeword: 1 byte info + fill bits (0x55 pattern) + 1 parity byte
+        self.assertEqual(out_bytes[8], input_data[7])
+        self.assertEqual(out_bytes[9:15], bytes([0x55] * 6))
+        # Second parity byte should have filler bit (LSB) = 0
+        self.assertEqual(out_bytes[15] & 0x01, 0)
+
+    def test_023_each_codeword_has_filler_bit(self):
+        """Test that each codeword has filler bit (LSB of parity byte = 0)."""
+        input_data = bytes([0xFF] * 15)
+        payload = pmt.init_u8vector(len(input_data), list(input_data))
+
+        self._encode_and_capture(pmt.make_dict(), payload)
+        self.assertEqual(len(self.captured_output), 1)
+
+        _, out_msg = self.captured_output[0]
+        out_bytes = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
+
+        # 15 bytes = 120 bits, need 48 fill bits -> 3 codewords (24 output bytes)
+        self.assertEqual(len(out_bytes), 24)
+
+        # Check filler bit (LSB) in each parity byte
+        parity_byte_1 = out_bytes[7]
+        parity_byte_2 = out_bytes[15]
+        parity_byte_3 = out_bytes[23]
+
+        self.assertEqual(parity_byte_1 & 0x01, 0, "Codeword 1 filler bit should be 0")
+        self.assertEqual(parity_byte_2 & 0x01, 0, "Codeword 2 filler bit should be 0")
+        self.assertEqual(parity_byte_3 & 0x01, 0, "Codeword 3 filler bit should be 0")
+
+    def test_024_large_payload_50_bytes(self):
+        """Test large payload of 50 bytes across 7+ codewords."""
+        input_data = bytes([i % 256 for i in range(50)])
+        payload = pmt.init_u8vector(len(input_data), list(input_data))
+
+        self._encode_and_capture(pmt.make_dict(), payload)
+        self.assertEqual(len(self.captured_output), 1)
+
+        _, out_msg = self.captured_output[0]
+        out_bytes = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
+
+        # 50 bytes = 400 bits, need 8 fill bits -> 408 bits = 7.28... -> 8 codewords = 64 bytes
+        self.assertEqual(len(out_bytes), 64)
+
+        # Verify information bits from first few codewords
+        self.assertEqual(out_bytes[:7], input_data[:7])
+        self.assertEqual(out_bytes[8:15], input_data[7:14])
+        self.assertEqual(out_bytes[16:23], input_data[14:21])
+
+    def test_025_random_data_multiple_codewords(self):
+        """Test encoding of random pattern across multiple codewords."""
+        input_data = bytes([0x47, 0x6F, 0x74, 0x79, 0x61, 0x0A, 0x0B,  # Codeword 1
+                            0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12,  # Codeword 2
+                            0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19])  # Codeword 3
+        payload = pmt.init_u8vector(len(input_data), list(input_data))
+
+        self._encode_and_capture(pmt.make_dict(), payload)
+        self.assertEqual(len(self.captured_output), 1)
+
+        _, out_msg = self.captured_output[0]
+        out_bytes = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
+
+        # 21 bytes = 3 codewords = 24 output bytes
+        self.assertEqual(len(out_bytes), 24)
+
+        # Verify information fields preserved
+        for cw in range(3):
+            info_idx = cw * 8
+            data_idx = cw * 7
+            self.assertEqual(out_bytes[info_idx:info_idx + 7], input_data[data_idx:data_idx + 7])
+
 
 if __name__ == '__main__':
     gr_unittest.run(qa_bchEncoder)

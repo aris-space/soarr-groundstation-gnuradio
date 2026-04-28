@@ -120,7 +120,6 @@ class bchEncoder(gr.basic_block):
             if fill_count > 0:
                 self.logger.debug(f"Applied {fill_count} fill bits to complete BCH codeword boundary.")
 
-            output_data = bytearray()
             for bit_start in range(0, len(stuffed_bits), INPUT_SIZE):
                 info_bits = stuffed_bits[bit_start:bit_start + INPUT_SIZE]
                 info_bytes = self._bits_to_bytes(info_bits)
@@ -133,16 +132,17 @@ class bchEncoder(gr.basic_block):
                     parity_byte = (parity_byte << 1) | bit
                 parity_byte = (parity_byte << FILLER_BITS)
 
+                output_data = bytearray()
                 output_data.extend(info_bytes)
                 output_data.append(parity_byte)
-            
-            # Create output PDU with encoded data (PMT expects a sequence of ints)
-            encoded_pdu = pmt.cons(meta, pmt.init_u8vector(len(output_data), list(output_data)))
-            
-            self.logger.debug(f"Encoded PDU: {len(output_data)} bytes")
-            
-            # Send the encoded PDU out
-            self.message_port_pub(pmt.intern("codewords"), encoded_pdu)
+                
+                # Create output PDU with encoded data (PMT expects a sequence of ints)
+                encoded_pdu = pmt.cons(meta, pmt.init_u8vector(len(output_data), list(output_data)))
+                
+                self.logger.debug(f"Encoded PDU: {len(output_data)} bytes")
+                
+                # Send the encoded PDU out
+                self.message_port_pub(pmt.intern("codewords"), encoded_pdu)
             
         except Exception as e:
             self.logger.error(f"BCH encoding error: {str(e)}")
