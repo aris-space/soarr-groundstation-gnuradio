@@ -17,5 +17,11 @@
         "-DMPIR_LIBRARY=C:/Users/yanni/anaconda3/envs/radioconda/Library/lib/mpir.lib",
         "-DMPIRXX_LIBRARY=C:/Users/yanni/anaconda3/envs/radioconda/Library/lib/mpirxx_static.lib",
         "-DCMAKE_INSTALL_PREFIX=C:/Users/yanni/anaconda3/envs/radioconda"
-    ]
+    ],
+    "python.testing.unittestArgs": [
+        "-p",
+        "qa_*.py"
+    ],
+    "python.testing.pytestEnabled": false,
+    "python.testing.unittestEnabled": true
 }
