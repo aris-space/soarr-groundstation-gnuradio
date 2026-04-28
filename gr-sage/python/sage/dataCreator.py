@@ -15,7 +15,7 @@ class dataCreator(gr.basic_block):
     """
     docstring for block dataCreator
     """
-    def __init__(self, mode=0, data:int|None=None, data_length_bytes:int|None=None, scid=0,spi=0 ):
+    def __init__(self, mode=0, data:int|None=None, data_length_bytes:int|None=None, scid=0, spi=0, bypass=False, control=False):
         gr.basic_block.__init__(self,
             name="dataCreator",
             in_sig=None,
@@ -26,6 +26,8 @@ class dataCreator(gr.basic_block):
         self.length = data_length_bytes
         self.scid = scid
         self.spi = spi
+        self.bypass = bypass
+        self.control = control
 
         self.message_port_register_in(pmt.intern("ping"))
         self.message_port_register_out(pmt.intern("out"))
@@ -43,6 +45,8 @@ class dataCreator(gr.basic_block):
         msg_dict = pmt.make_dict()
         msg_dict = pmt.dict_add(msg_dict, pmt.intern("scid"), pmt.from_long(self.scid))
         msg_dict = pmt.dict_add(msg_dict, pmt.intern("spi"), pmt.from_long(self.spi))
+        msg_dict = pmt.dict_add(msg_dict, pmt.intern("bypass"), pmt.from_bool(self.bypass))
+        msg_dict = pmt.dict_add(msg_dict, pmt.intern("control"), pmt.from_bool(self.control))
 
         if self.data is not None and self.length is not None:
             raise ValueError("Either data or data_length_bytes must be provided.")

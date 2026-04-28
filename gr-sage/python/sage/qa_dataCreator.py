@@ -56,8 +56,10 @@ class qa_dataCreator(gr_unittest.TestCase):
         self.assertEqual(instance.mode, 0)
         self.assertEqual(instance.scid, 0)
         self.assertEqual(instance.spi, 0)
+        self.assertEqual(instance.bypass, False)
+        self.assertEqual(instance.control, False)
 
-    def test_generate_message_with_manual_data(self):
+    def test_001_generate_message_with_manual_data(self):
         payload = np.array([0x10, 0x20, 0x30, 0x40], dtype=np.uint8)
         instance = dataCreator(mode=0, data=payload, data_length_bytes=None, scid=341, spi=7)
 
@@ -78,7 +80,7 @@ class qa_dataCreator(gr_unittest.TestCase):
         self.assertTrue(pmt.is_u8vector(out_body))
         self.assertEqual(bytes(pmt.u8vector_elements(out_body)), bytes([0x10, 0x20, 0x30, 0x40]))
 
-    def test_choose_mode_generates_random_payload_with_length(self):
+    def test_002_choose_mode_generates_random_payload_with_length(self):
         expected_length = 16
         instance = dataCreator(mode=0, data=None, data_length_bytes=expected_length, scid=1, spi=2)
 
@@ -99,21 +101,50 @@ class qa_dataCreator(gr_unittest.TestCase):
         self.assertEqual(self._pmt_get_int(out_meta, "spi"), 2)
         self.assertEqual(len(out_bytes), expected_length)
 
-    def test_raises_when_data_and_length_both_provided(self):
+    def test_003_raises_when_data_and_length_both_provided(self):
         payload = np.array([0x01, 0x02], dtype=np.uint8)
         instance = dataCreator(mode=0, data=payload, data_length_bytes=2, scid=0, spi=0)
         with self.assertRaises(ValueError):
             instance.generate_message(pmt.PMT_NIL)
 
-    def test_raises_for_unsupported_mode(self):
+    def test_004_raises_for_unsupported_mode(self):
         instance = dataCreator(mode=99, data_length_bytes=4)
         with self.assertRaises(NotImplementedError):
             instance._choose_mode(pmt.PMT_NIL)
 
-    def test_message_ports_registered(self):
+    def test_005_message_ports_registered(self):
         instance = dataCreator()
         self.assertIsNotNone(instance.message_ports_in())
         self.assertIsNotNone(instance.message_ports_out())
+
+    def test_006_bypass_flag_default_false(self):
+        instance = dataCreator()
+        self.assertEqual(instance.bypass, False)
+
+    def test_007_bypass_flag_set_true(self):
+        instance = dataCreator(bypass=True)
+        self.assertEqual(instance.bypass, True)
+
+    def test_008_control_flag_default_false(self):
+        instance = dataCreator()
+        self.assertEqual(instance.control, False)
+
+    def test_009_control_flag_set_true(self):
+        instance = dataCreator(control=True)
+        self.assertEqual(instance.control, True)
+
+    def test_010_both_flags_set(self):
+        instance = dataCreator(bypass=True, control=True)
+        self.assertEqual(instance.bypass, True)
+        self.assertEqual(instance.control, True)
+
+    def test_011_flags_with_other_parameters(self):
+        payload = np.array([0x10, 0x20], dtype=np.uint8)
+        instance = dataCreator(mode=0, data=payload, scid=100, spi=50, bypass=True, control=False)
+        self.assertEqual(instance.bypass, True)
+        self.assertEqual(instance.control, False)
+        self.assertEqual(instance.scid, 100)
+        self.assertEqual(instance.spi, 50)
 
 
 if __name__ == '__main__':
