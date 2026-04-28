@@ -13,7 +13,6 @@ from gnuradio import gr, gr_unittest
 import pmt
 
 from gnuradio.sage import dbClient
-from dbClient import dbClient
 
 class qa_dbClient(gr_unittest.TestCase):
 

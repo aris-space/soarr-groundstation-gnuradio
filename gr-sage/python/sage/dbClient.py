@@ -243,6 +243,23 @@ class dbClient(gr.basic_block):
             return False
         return default
 
+    def _pmt_dict_get_bool(self, meta, key, default=None):
+        if not pmt.is_dict(meta):
+            return default
+
+        pmt_key = pmt.intern(key)
+        if not pmt.dict_has_key(meta, pmt_key):
+            return default
+
+        value = pmt.dict_ref(meta, pmt_key, pmt.PMT_NIL)
+        if pmt.eqv(value, pmt.PMT_NIL):
+            return default
+
+        try:
+            return pmt.to_bool(value)
+        except Exception:
+            return default
+
     def _pmt_dict_get_int(self, meta, key, default=None):
         if not pmt.is_dict(meta):
             return default
@@ -289,8 +306,10 @@ class dbClient(gr.basic_block):
         Input metadata keys:
         - scid
         - spi
+        - bypass
+        - control
 
-        Output metadata keys:
+        Additional output metadata keys:
         - vcid
         - crypt_key
         - auth_key
@@ -315,8 +334,15 @@ class dbClient(gr.basic_block):
             return
 
         response_meta = pmt.make_dict()
+        # Old inputs - echo back bypass and control from query
         response_meta = pmt.dict_add(response_meta, pmt.intern("scid"), pmt.from_long(int(entry.get("SCID", 0))))
         response_meta = pmt.dict_add(response_meta, pmt.intern("spi"), pmt.from_long(int(entry.get("SPI", 0))))
+        bypass = self._pmt_dict_get_bool(meta, "bypass", False)
+        control = self._pmt_dict_get_bool(meta, "control", False)
+        response_meta = pmt.dict_add(response_meta, pmt.intern("bypass"), pmt.from_bool(bypass))
+        response_meta = pmt.dict_add(response_meta, pmt.intern("control"), pmt.from_bool(control))
+
+        # New outputs
         response_meta = pmt.dict_add(response_meta, pmt.intern("vcid"), pmt.from_long(int(entry.get("VCID", 0))))
         response_meta = pmt.dict_add(response_meta, pmt.intern("crypt_key"), pmt.intern(str(entry.get("crypt_key", ""))))
         response_meta = pmt.dict_add(response_meta, pmt.intern("auth_key"), pmt.intern(str(entry.get("auth_key", ""))))
