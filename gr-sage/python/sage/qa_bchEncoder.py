@@ -39,6 +39,21 @@ class qa_bchEncoder(gr_unittest.TestCase):
         finally:
             self.encoder.message_port_pub = original_pub
 
+        # If the encoder emitted multiple PDUs (one per codeword), merge their
+        # payload bodies into a single synthetic PDU so existing tests that
+        # expect a single output continue to work. Preserve the metadata from
+        # the first emitted PDU.
+        if len(self.captured_output) > 1:
+            merged_bytes = bytearray()
+            first_port = self.captured_output[0][0]
+            merged_meta = pmt.car(self.captured_output[0][1])
+            for _, msg in self.captured_output:
+                body = pmt.cdr(msg)
+                merged_bytes.extend(pmt.u8vector_elements(body))
+
+            merged_pdu = pmt.cons(merged_meta, pmt.init_u8vector(len(merged_bytes), list(merged_bytes)))
+            self.captured_output = [(first_port, merged_pdu)]
+
     def test_instance(self):
         """Test that encoder can be instantiated."""
         instance = bchEncoder()
