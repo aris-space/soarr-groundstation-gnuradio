@@ -7,7 +7,6 @@
 #
 
 
-import logging
 from gnuradio import gr
 import pmt
 
@@ -21,7 +20,6 @@ class Injectdb(gr.basic_block):
             in_sig=None,
             out_sig=None)
         
-        self.logger = logging.getLogger("gnuradio.sage.Injectdb")
 
         # Message ports
         self.message_port_register_in(pmt.intern("in"))
@@ -44,7 +42,7 @@ class Injectdb(gr.basic_block):
         if expected_type == "int":
             if self._is_integer_pmt(value):
                 return True
-            self.logger.warning(
+            self.logger.warn(
                 f"Received PDU with non-integer value for key '{key}' in metadata (expected integer or uint64): {dict_msg}"
             )
             return False
@@ -52,7 +50,7 @@ class Injectdb(gr.basic_block):
         if expected_type == "bool":
             if pmt.is_bool(value):
                 return True
-            self.logger.warning(
+            self.logger.warn(
                 f"Received PDU with non-boolean value for key '{key}' in metadata (expected PMT boolean): {dict_msg}"
             )
             return False
@@ -60,7 +58,7 @@ class Injectdb(gr.basic_block):
         if expected_type == "int_or_nil":
             if pmt.eqv(value, pmt.PMT_NIL) or self._is_integer_pmt(value):
                 return True
-            self.logger.warning(
+            self.logger.warn(
                 f"Received PDU with invalid value for key '{key}' in metadata (expected PMT_NIL, integer, or uint64): {dict_msg}"
             )
             return False
@@ -70,7 +68,7 @@ class Injectdb(gr.basic_block):
                 return True
             if pmt.is_symbol(value):
                 return True
-            self.logger.warning(
+            self.logger.warn(
                 f"Received PDU with invalid value for key '{key}' in metadata (expected PMT_NIL or symbol hex string): {dict_msg}"
             )
             return False
@@ -81,18 +79,18 @@ class Injectdb(gr.basic_block):
     def _extract_pdu(self, msg):
 
         if not pmt.is_pair(msg):
-            self.logger.warning(f"Received non-PDU message: {msg}")
+            self.logger.warn(f"Received non-PDU message: {msg}")
             return None # Early exit if message is not a pair (dict, payload)
         
         dict_msg = pmt.car(msg)
         payload_u8vector = pmt.cdr(msg)
 
         if not pmt.is_dict(dict_msg):
-            self.logger.warning(f"Received message with non-dict metadata: {msg}")
+            self.logger.warn(f"Received message with non-dict metadata: {msg}")
             return None # Early exit if metadata is not a dict
         
         if not pmt.is_u8vector(payload_u8vector):
-            self.logger.warning(f"Received message with non-u8vector payload: {msg}")
+            self.logger.warn(f"Received message with non-u8vector payload: {msg}")
             return None # Early exit if payload is not a u8vector
 
         return (dict_msg, payload_u8vector)
@@ -102,7 +100,7 @@ class Injectdb(gr.basic_block):
         for key, expected_type in key_specs.items():
             pmt_key = pmt.intern(key)
             if not pmt.dict_has_key(dict_msg, pmt_key):
-                self.logger.warning(f"Received PDU with missing required key '{key}' in metadata: {dict_msg}")
+                self.logger.warn(f"Received PDU with missing required key '{key}' in metadata: {dict_msg}")
                 return False # Early exit if any required key is missing
 
             value = pmt.dict_ref(dict_msg, pmt_key, pmt.PMT_NIL)
@@ -116,7 +114,7 @@ class Injectdb(gr.basic_block):
         # For testing, we will just send a fixed query to the database client.
 
         if not pmt.is_pair(msg):
-            self.logger.warning(f"Received non-PDU message from input: {msg}")
+            self.logger.warn(f"Received non-PDU message from input: {msg}")
             return # Early exit if message is not a pair (dict, payload)
 
         extracted = self._extract_pdu(msg)
@@ -146,7 +144,7 @@ class Injectdb(gr.basic_block):
     def send_msg_out(self, msg):
 
         if not pmt.is_pair(msg):
-            self.logger.warning(f"Received non-PDU message from database: {msg}")
+            self.logger.warn(f"Received non-PDU message from database: {msg}")
             return # Early exit if message is not a pair (dict, payload)
 
         extracted = self._extract_pdu(msg)

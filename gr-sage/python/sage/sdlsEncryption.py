@@ -7,8 +7,6 @@
 #
 
 
-import logging
-
 from gnuradio import gr
 import pmt
 
@@ -30,7 +28,6 @@ class sdlsEncryption(gr.basic_block):
             in_sig=None,
             out_sig=None)
         
-        self.logger = logging.getLogger("gnuradio.sage.sdlsEncryption")
         
         self.state = state
         if not isinstance(nonce, (bytes, bytearray)):
@@ -52,7 +49,7 @@ class sdlsEncryption(gr.basic_block):
         # Extract and validate the encryption key from dict
         key = pmt.dict_ref(dict_msg, pmt.intern("crypt_key"), pmt.PMT_NIL)
         if pmt.eqv(key, pmt.PMT_NIL):
-            self.logger.warning(f"Received dict message with empty crypt_key: {dict_msg}")
+            self.logger.warn(f"Received dict message with empty crypt_key: {dict_msg}")
             return None # Early exit if crypt_key is empty
 
         
@@ -62,16 +59,16 @@ class sdlsEncryption(gr.basic_block):
             try:
                 secret = bytes.fromhex(key_str)
             except ValueError:
-                self.logger.warning("crypt_key symbol must be a valid hex string.")
+                self.logger.warn(f"crypt_key symbol must be a valid hex string: {key_str}")
                 return None
         elif pmt.is_u8vector(key):
             secret = bytes(pmt.u8vector_elements(key))
         else:
-            self.logger.warning("Received crypt_key of unsupported type (expected symbol hex string or u8vector).")
+            self.logger.warn(f"Received crypt_key of unsupported type (expected symbol hex string or u8vector): {key}")
             return None # Early exit if crypt_key is of unsupported type
         
         if len(secret) != 32:
-            self.logger.warning("crypt_key length must be exactly 32 bytes (AES-256).")
+            self.logger.warn(f"crypt_key length must be exactly 32 bytes (AES-256); got {len(secret)}")
             return None
         
         return secret
@@ -81,11 +78,11 @@ class sdlsEncryption(gr.basic_block):
         counter = pmt.dict_ref(dict_msg, pmt.intern("sdls_counter"), pmt.PMT_NIL)
 
         if pmt.eqv(counter, pmt.PMT_NIL):
-            self.logger.warning(f"Received dict message with empty sdls_counter: {dict_msg}")
+            self.logger.warn(f"Received dict message with empty sdls_counter: {dict_msg}")
             return None # Early exit if counter is empty
 
         if not (pmt.is_integer(counter) or pmt.is_uint64(counter)):
-            self.logger.warning("sdls_counter must be an integer PMT value.")
+            self.logger.warn(f"sdls_counter must be an integer PMT value: {counter}")
             return None
 
         # Counter is an integer PMT
@@ -96,7 +93,7 @@ class sdlsEncryption(gr.basic_block):
 
         # Validate counter range
         if counter < COUNTER_MIN or counter > COUNTER_MAX:
-            self.logger.error("sdls_counter exceeds 2-byte range (0..65535); aborting message processing.")
+            self.logger.error(f"sdls_counter exceeds 2-byte range (0..65535); aborting message processing. Value: {counter}")
             return None
         
         return counter
@@ -118,14 +115,14 @@ class sdlsEncryption(gr.basic_block):
     def add_encryption(self, msg):
 
         if self.state is False:
-            self.logger.info("No encryption applied since state is False. Passing through message.")
+            self.logger.info(f"No encryption applied since state is False. Passing through message.")
             self.message_port_pub(pmt.intern("out"), msg)
             return # Early exit if encryption is disabled
         
 
         # Expecting a PDU with dict and payload
         if not pmt.is_pair(msg):
-            self.logger.warning(f"Received non-PDU message: {msg}")
+            self.logger.warn(f"Received non-PDU message: {msg}")
             return
         
         # Extract the dict and payload from the PDU
@@ -133,24 +130,24 @@ class sdlsEncryption(gr.basic_block):
         payload_u8vector = pmt.cdr(msg)
 
         if not pmt.is_u8vector(payload_u8vector):
-            self.logger.warning(f"Received message with non-u8vector payload: {msg}")
+            self.logger.warn(f"Received message with non-u8vector payload: {msg}")
             return
         
         if not pmt.is_dict(dict_msg):
-            self.logger.warning(f"Received message with non-dict metadata: {msg}")
+            self.logger.warn(f"Received message with non-dict metadata: {msg}")
             return
 
 
         # Extract the encryption key from the dict
         key_bytes = self._extract_secret(dict_msg)
         if key_bytes is None:
-            self.logger.warning("Failed to extract valid encryption key from message dict; aborting encryption.")
+            self.logger.warn(f"Failed to extract valid encryption key from message dict; aborting encryption.")
             return
 
         # Extract the counter value from the dict
         counter = self._extract_counter(dict_msg)
         if counter is None:
-            self.logger.warning("Failed to extract valid counter from message dict; aborting encryption.")
+            self.logger.warn(f"Failed to extract valid counter from message dict; aborting encryption.")
             return
         
 

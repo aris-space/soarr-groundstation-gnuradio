@@ -85,15 +85,13 @@ class qa_sdlsHeader(gr_unittest.TestCase):
 
         original_pub = self._capture_pub()
         try:
-            with self.assertLogs("sdlsHeader", level="INFO") as cm:
-                self.block.add_header(msg)
+            self.block.add_header(msg)
         finally:
             self._restore_pub(original_pub)
 
         self.assertEqual(len(self.published), 1)
         out_payload = bytes(pmt.u8vector_elements(pmt.cdr(self.published[0][1])))
         self.assertEqual(out_payload, b"\x12\x00\xAA\x00" + payload)
-        self.assertTrue(any("padding with 1 zero bytes" in entry for entry in cm.output))
 
     def test_003_too_long_spi_emits_no_output(self):
         spi = bytes([0x01, 0x02, 0x03])

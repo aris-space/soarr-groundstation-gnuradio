@@ -8,9 +8,7 @@
 
 
 import struct
-import logging
 import pmt
-from time import sleep
 from gnuradio import gr
 
 
@@ -25,7 +23,6 @@ class cltuFramer(gr.basic_block):
             in_sig=None,
             out_sig=None)
         
-        self.logger = logging.getLogger("gnuradio.sage.cltuFramer")
         self.logger.info(f"Logger for CLTU Framer: {self.logger}")
         
 

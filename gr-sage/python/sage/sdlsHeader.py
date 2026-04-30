@@ -7,7 +7,6 @@
 #
 
 
-import logging
 from construct import Bytes, Int16ub, Struct
 from gnuradio import gr
 import pmt
@@ -22,7 +21,6 @@ class sdlsHeader(gr.basic_block):
             in_sig=None,
             out_sig=None)
         
-        self.logger = logging.getLogger('sdlsHeader')
 
         # Message ports
         self.message_port_register_in(pmt.intern("in"))
@@ -38,7 +36,7 @@ class sdlsHeader(gr.basic_block):
         # Extract and validate bytes from dict
         value_pmt = pmt.dict_ref(dict_msg, pmt.intern(key_name), pmt.PMT_NIL)
         if pmt.eqv(value_pmt, pmt.PMT_NIL):
-            self.logger.warning(f"Received dict message with empty '{key_name}': {dict_msg}")
+            self.logger.warn(f"Received dict message with empty '{key_name}': {dict_msg}")
             return None
 
         # Parse the value as bytes.
@@ -47,20 +45,20 @@ class sdlsHeader(gr.basic_block):
             try:
                 value = bytes.fromhex(key_str)
             except ValueError:
-                self.logger.warning(f"'{key_name}' symbol must be a valid hex string.")
+                self.logger.warn(f"'{key_name}' symbol must be a valid hex string.")
                 return None
         elif pmt.is_u8vector(value_pmt):
             value = bytes(pmt.u8vector_elements(value_pmt))
         elif pmt.is_integer(value_pmt) or pmt.is_uint64(value_pmt):
             if fixed_length_bytes is None or fixed_length_bytes <= 0:
-                self.logger.warning(
+                self.logger.warn(
                     f"Received integer value for key '{key_name}' in metadata, but no fixed length specified: {dict_msg}"
                 )
                 return None
 
             int_value = int(pmt.to_uint64(value_pmt)) if pmt.is_uint64(value_pmt) else int(pmt.to_long(value_pmt))
             if int_value < 0:
-                self.logger.warning(f"Received negative integer for key '{key_name}' in metadata: {dict_msg}")
+                self.logger.warn(f"Received negative integer for key '{key_name}' in metadata: {dict_msg}")
                 return None
 
             try:
@@ -70,7 +68,7 @@ class sdlsHeader(gr.basic_block):
                     f"'{key_name}' integer value {int_value} exceeds fixed length {fixed_length_bytes} bytes."
                 ) from exc
         else:
-            self.logger.warning(
+            self.logger.warn(
                 f"Received '{key_name}' of unsupported type "
                 f"(expected symbol hex string, u8vector, or integer)."
             )
@@ -98,31 +96,31 @@ class sdlsHeader(gr.basic_block):
 
         # Expect a GNU Radio PDU: (metadata . payload)
         if not pmt.is_pair(msg):
-            self.logger.warning(f"Received non-PDU message: {msg}")
+            self.logger.warn(f"Received non-PDU message: {msg}")
             return
         
         dict_msg = pmt.car(msg)
         payload = pmt.cdr(msg)
 
         if not pmt.is_dict(dict_msg):
-            self.logger.warning(f"Received PDU with non-dict metadata: {dict_msg}")
+            self.logger.warn(f"Received PDU with non-dict metadata: {dict_msg}")
             return
 
         if not pmt.is_u8vector(payload):
-            self.logger.warning(f"Received PDU with non-u8vector payload: {payload}")
+            self.logger.warn(f"Received PDU with non-u8vector payload: {payload}")
             return
         
         # Extract and validate spi from dict
         try:
             spi = self._extract_dictionary_key(dict_msg, "spi", fixed_length_bytes=2)
             if spi is None:
-                self.logger.warning(f"Failed to extract spi from message: {msg}")
+                self.logger.warn(f"Failed to extract spi from message: {msg}")
                 return
 
             # Extract and validate sdls_counter from dict
             sdls_counter = self._extract_dictionary_key(dict_msg, "sdls_counter", fixed_length_bytes=self.iv_length_bytes)
             if sdls_counter is None:
-                self.logger.warning(f"Failed to extract sdls_counter from message: {msg}")
+                self.logger.warn(f"Failed to extract sdls_counter from message: {msg}")
                 return
         except ValueError as exc:
             self.logger.error(str(exc))

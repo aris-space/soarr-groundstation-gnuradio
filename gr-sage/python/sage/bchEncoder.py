@@ -6,7 +6,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-import logging
 import pmt
 from gnuradio import gr
 
@@ -28,7 +27,6 @@ class bchEncoder(gr.basic_block):
             out_sig=None
         )
 
-        self.logger = logging.getLogger("gnuradio.sage.bchEncoder")
         self.logger.info(f"Initializing BCH Encoder with polynomial: 0x{polynomial:02x}")
 
         # Message Ports

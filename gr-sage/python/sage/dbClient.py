@@ -5,9 +5,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-import logging
 from pathlib import Path
-
 from gnuradio import gr
 import pmt
 
@@ -51,7 +49,6 @@ class dbClient(gr.basic_block):
                 in_sig=None,
             out_sig=None)
 
-        self.logger = logging.getLogger("gnuradio.sage.dbClient")
 
         # 0=dummy, 1=local yaml, 2=remote real DB (stub)
         self.type = int(type)
@@ -96,11 +93,11 @@ class dbClient(gr.basic_block):
 
         # type=2 not implemented yet; keep empty db and log.
         if self.type == 2:
-            self.logger.warning("Remote DB mode (type=2) is not implemented yet. Returning fallback data.")
+            self.logger.warn("Remote DB mode (type=2) is not implemented yet. Returning fallback data.")
             self._db = self._dummy_db()
             return
 
-        self.logger.warning("Unknown db type '%s'. Falling back to dummy mode.", self.type)
+        self.logger.warn(f"Unknown db type '{self.type}'. Falling back to dummy mode.")
         self._db = self._dummy_db()
 
     def _dummy_db(self):
@@ -152,27 +149,27 @@ class dbClient(gr.basic_block):
 
     def _load_yaml_db(self):
         if yaml is None:
-            self.logger.error("PyYAML is not installed; cannot use local YAML mode.")
+            self.logger.error(f"PyYAML is not installed; cannot use local YAML mode.")
             return self._dummy_db()
 
         if not self.yaml_path:
-            self.logger.error("YAML mode selected but no yaml_path provided. Falling back to dummy DB.")
+            self.logger.error(f"YAML mode selected but no yaml_path provided. Falling back to dummy DB.")
             return self._dummy_db()
 
         path = Path(self.yaml_path)
         if not path.exists():
-            self.logger.error("YAML database file not found: %s. Falling back to dummy DB.", path)
+            self.logger.error(f"YAML database file not found: {path}. Falling back to dummy DB.")
             return self._dummy_db()
 
         try:
             with path.open("r", encoding="utf-8") as f:
                 loaded = yaml.safe_load(f) or {}
         except Exception as exc:
-            self.logger.error("Failed to parse YAML database '%s': %s. Falling back to dummy DB.", path, exc)
+            self.logger.error(f"Failed to parse YAML database '{path}': {exc}. Falling back to dummy DB.")
             return self._dummy_db()
 
         if not isinstance(loaded, dict):
-            self.logger.error("YAML database root must be a mapping. Falling back to dummy DB.")
+            self.logger.error(f"YAML database root must be a mapping. Falling back to dummy DB.")
             return self._dummy_db()
 
         # Accepted layouts:
@@ -180,7 +177,7 @@ class dbClient(gr.basic_block):
         # - {"18": {...}}
         entries = loaded.get("entries", loaded)
         if not isinstance(entries, dict):
-            self.logger.error("YAML database entries must be a mapping. Falling back to dummy DB.")
+            self.logger.error(f"YAML database entries must be a mapping. Falling back to dummy DB.")
             return self._dummy_db()
 
         normalized = {}
@@ -330,7 +327,7 @@ class dbClient(gr.basic_block):
             sdls_counter = self._validate_counter(entry.get("sdls_counter", 0), SDLS_COUNTER_MAX, "sdls_counter")
             vcid_counter = self._validate_counter(entry.get("vcid_counter", 0), VCID_COUNTER_MAX, "vcid_counter")
         except (TypeError, ValueError, OverflowError) as exc:
-            self.logger.error("Invalid counter value: %s", exc)
+            self.logger.error(f"Invalid counter value: {exc}")
             return
 
         response_meta = pmt.make_dict()
@@ -360,7 +357,7 @@ class dbClient(gr.basic_block):
             entry["sdls_counter"] = self._checked_increment(sdls_counter, SDLS_COUNTER_MAX, "sdls_counter")
             entry["vcid_counter"] = self._checked_increment(vcid_counter, VCID_COUNTER_MAX, "vcid_counter")
         except OverflowError as exc:
-            self.logger.error("Counter increment aborted: %s", exc)
+            self.logger.error(f"Counter increment aborted: {exc}")
 
 
 

@@ -90,21 +90,17 @@ class qa_cltuFramer(gr_unittest.TestCase):
         input_data = [0x01, 0x02, 0x03]
         input_pdu = self._make_pdu(input_data)
 
-        with self.assertLogs("gnuradio.sage.cltuFramer", level="ERROR") as cm:
-            captured = self._run_and_capture(dut, input_pdu)
+        captured = self._run_and_capture(dut, input_pdu)
 
         self.assertEqual(len(captured), 0)
-        self.assertTrue(any("Payload size is 3 bytes, expected 8 bytes" in s for s in cm.output))
 
     def test_004_non_u8vector_payload(self):
         dut = cltuFramer(startSequence=START, tailSequence=END)
         input_pdu = pmt.cons(pmt.make_dict(), pmt.intern("This is not a u8vector"))
 
-        with self.assertLogs("gnuradio.sage.cltuFramer", level="ERROR") as cm:
-            captured = self._run_and_capture(dut, input_pdu)
+        captured = self._run_and_capture(dut, input_pdu)
 
         self.assertEqual(len(captured), 0)
-        self.assertTrue(any("Input message body is not a PDU." in s for s in cm.output))
 
     def test_005_custom_sequences(self):
         custom_start = 0x1234
@@ -244,22 +240,18 @@ class qa_cltuFramer(gr_unittest.TestCase):
         input_data = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
         input_pdu = self._make_pdu(input_data)
 
-        with self.assertLogs("gnuradio.sage.cltuFramer", level="ERROR") as cm:
-            captured = self._run_and_capture(dut, input_pdu)
+        captured = self._run_and_capture(dut, input_pdu)
 
         self.assertEqual(len(captured), 0)
-        self.assertTrue(any("Payload size is 7 bytes, expected 8 bytes" in s for s in cm.output))
 
     def test_013_payload_size_boundary_9_bytes(self):
         dut = cltuFramer(startSequence=START, tailSequence=END)
         input_data = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09]
         input_pdu = self._make_pdu(input_data)
 
-        with self.assertLogs("gnuradio.sage.cltuFramer", level="ERROR") as cm:
-            captured = self._run_and_capture(dut, input_pdu)
+        captured = self._run_and_capture(dut, input_pdu)
 
         self.assertEqual(len(captured), 0)
-        self.assertTrue(any("Payload size is 9 bytes, expected 8 bytes" in s for s in cm.output))
 
     def test_014_default_sequences(self):
         dut = cltuFramer()

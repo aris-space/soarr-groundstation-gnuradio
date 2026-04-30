@@ -6,8 +6,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-import logging
-
 from construct import BitStruct, BitsInteger, GreedyBytes, If, Rebuild, this, Switch, Struct
 from gnuradio import gr
 import pmt
@@ -39,7 +37,6 @@ class encapsulationHeader(gr.basic_block):
             in_sig=None,
             out_sig=None)
         
-        self.Logger = logging.getLogger('encapsulationHeader')
 
         # Message ports
         self.message_port_register_in(pmt.intern("in"))
@@ -91,29 +88,29 @@ class encapsulationHeader(gr.basic_block):
         """
 
         if not pmt.is_pair(msg):
-            self.Logger.error(f"Received non-PDU message: {msg}")
+            self.logger.error(f"Received non-PDU message: {msg}")
             return
         
         dict_msg = pmt.car(msg)
         payload = pmt.cdr(msg)
 
         if not pmt.is_dict(dict_msg):
-            self.Logger.error(f"Received PDU with non-dict metadata: {dict_msg}")
+            self.logger.error(f"Received PDU with non-dict metadata: {dict_msg}")
             return
         
         if not pmt.is_u8vector(payload):
-            self.Logger.error(f"Received PDU with non-u8vector payload: {payload}")
+            self.logger.error(f"Received PDU with non-u8vector payload: {payload}")
             return
         
         payload_bytes = bytes(pmt.u8vector_elements(payload))
         if payload_bytes is None:
-            self.Logger.error("Failed to extract payload bytes.")
+            self.logger.error("Failed to extract payload bytes.")
             return
         
 
         protocol_id = PROTOCOL_ID_DATA
         if payload_bytes == b'':
-            self.Logger.info("Received empty payload; packing encapsulation header as idle packet")
+            self.logger.info("Received empty payload; packing encapsulation header as idle packet")
             protocol_id = PROTOCOL_ID_IDLE
 
         # Determine packet_length field value according to CCSDS table 4-2.
@@ -174,5 +171,6 @@ class encapsulationHeader(gr.basic_block):
         # Publish the new message with header
         out_msg = pmt.cons(dict_msg, pmt.init_u8vector(len(msg_out), list(msg_out)))
         self.message_port_pub(pmt.intern("out"), out_msg)
+        self.logger.debug(f"Encapsulation done")
 
 
