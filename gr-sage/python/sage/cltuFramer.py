@@ -63,5 +63,9 @@ class cltuFramer(gr.basic_block):
         self.logger.trace(f"CLTU got framed with size {len(full_cltu)} bytes")
         self.message_port_pub(pmt.intern("out"), out_msg)
         self.logger.debug(f"OK")
+
+        # finds last codeword of an message => Message is done
+        if pmt.dict_has_key(meta,pmt.intern("filled")):
+            self.logger.info("OK")
         
 

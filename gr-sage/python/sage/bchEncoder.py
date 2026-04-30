@@ -133,6 +133,11 @@ class bchEncoder(gr.basic_block):
                 output_data = bytearray()
                 output_data.extend(info_bytes)
                 output_data.append(parity_byte)
+
+                # sets filled flag in the dictionary to the last codeword of an message
+                if bit_start + INPUT_SIZE >= len(stuffed_bits):
+                    meta = pmt.dict_add(meta, pmt.intern("filled"), pmt.from_bool(fill_count > 0))
+                
                 
                 # Create output PDU with encoded data (PMT expects a sequence of ints)
                 encoded_pdu = pmt.cons(meta, pmt.init_u8vector(len(output_data), list(output_data)))
