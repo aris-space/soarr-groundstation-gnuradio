@@ -75,4 +75,6 @@ class dataCreator(gr.basic_block):
 
         # Send the message out
         self.message_port_pub(pmt.intern("out"), msg_out)
+        self.logger.info(f"OK")
+        
 

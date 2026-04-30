@@ -22,9 +22,6 @@ class cltuFramer(gr.basic_block):
             name="CLTU Framer",
             in_sig=None,
             out_sig=None)
-        
-        self.logger.info(f"Logger for CLTU Framer: {self.logger}")
-        
 
         # Message Ports
         self.message_port_register_in(pmt.intern("in"))
@@ -63,5 +60,8 @@ class cltuFramer(gr.basic_block):
         
         # pack to PDU and send it out
         out_msg = pmt.cons(meta, pmt.init_u8vector(len(full_cltu), list(full_cltu)))
+        self.logger.trace(f"CLTU got framed with size {len(full_cltu)} bytes")
         self.message_port_pub(pmt.intern("out"), out_msg)
+        self.logger.debug(f"OK")
+        
 

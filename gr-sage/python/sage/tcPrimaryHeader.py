@@ -211,4 +211,6 @@ class tcPrimaryHeader(gr.basic_block):
 
         frame = header + payload_bytes
         out_msg = pmt.cons(dict_msg, pmt.init_u8vector(len(frame), list(frame)))
+        
         self.message_port_pub(pmt.intern("out"), out_msg)
+        self.logger.info(f"OK")

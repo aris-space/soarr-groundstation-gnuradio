@@ -164,6 +164,7 @@ class sdlsEncryption(gr.basic_block):
 
         # Emit the new PDU with the updated dict and encrypted payload
         self.message_port_pub(pmt.intern("out"), msg_out)
+        self.logger.info(f"OK")
 
 
 

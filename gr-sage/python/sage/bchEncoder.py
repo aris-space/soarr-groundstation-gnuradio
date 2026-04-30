@@ -142,6 +142,8 @@ class bchEncoder(gr.basic_block):
                 # Send the encoded PDU out
                 self.message_port_pub(pmt.intern("codewords"), encoded_pdu)
             
+            self.logger.info(f"OK")
+            
         except Exception as e:
             self.logger.error(f"BCH encoding error: {str(e)}")
             return

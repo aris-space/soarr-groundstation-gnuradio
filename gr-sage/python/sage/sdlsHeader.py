@@ -92,7 +92,7 @@ class sdlsHeader(gr.basic_block):
 
     def add_header(self, msg):
         # Log the received message
-        self.logger.debug(f"Received message: {msg}")
+        self.logger.trace(f"Received message: {msg}")
 
         # Expect a GNU Radio PDU: (metadata . payload)
         if not pmt.is_pair(msg):
@@ -149,7 +149,4 @@ class sdlsHeader(gr.basic_block):
 
         # Send the modified message to the output port
         self.message_port_pub(pmt.intern("out"), pdu_msg_out)
-        
-
-
-
+        self.logger.info(f"OK")

@@ -49,7 +49,10 @@ class lfsrScrambler(gr.basic_block):
         
         # 3. Create and publish a new PDU
         new_pdu = pmt.cons(meta, pmt.init_u8vector(len(scrambled_data), scrambled_data))
+
         self.message_port_pub(pmt.intern("out"), new_pdu)
+        self.logger.info(f"OK")
+        
 
     def apply_scrambling(self, data):
         # CCSDS bit transition generator sequence (h(x) = x^8 + x^6 + x^4 + x^3 + x^2 + x + 1)

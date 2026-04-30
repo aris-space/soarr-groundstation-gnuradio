@@ -180,5 +180,6 @@ class sdlsAuthentication(gr.basic_block):
         new_msg = pmt.cons(dict_msg, payload)
 
         self.message_port_pub(pmt.intern("out"), new_msg)
+        self.logger.info(f"OK")
 
 

@@ -171,6 +171,6 @@ class encapsulationHeader(gr.basic_block):
         # Publish the new message with header
         out_msg = pmt.cons(dict_msg, pmt.init_u8vector(len(msg_out), list(msg_out)))
         self.message_port_pub(pmt.intern("out"), out_msg)
-        self.logger.debug(f"Encapsulation done")
+        self.logger.info(f"OK") 
 
 

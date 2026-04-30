@@ -172,4 +172,6 @@ class Injectdb(gr.basic_block):
             return # Early exit if required keys are missing or invalid
         
         self.message_port_pub(pmt.intern("out"), msg)
+        self.logger.info(f"OK")
+        
 
