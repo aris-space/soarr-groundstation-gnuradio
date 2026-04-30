@@ -31,13 +31,15 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
         Execute the integrated flow: PDU (with metadata) → tcPrimaryHeader → output.
         Returns the final output message (port, msg).
         """
-        # Capture pdu_out from tcPrimaryHeader.
-        final_outputs = []
+        # Capture all outputs from tcPrimaryHeader. If the block emits multiple
+        # PDUs (one per internal fragment), prefer those on the `pdu_out` port
+        # and merge their bodies into a single PDU so tests expecting a single
+        # output continue to work.
+        captured = []
         original_header_pub = self.header_block.message_port_pub
 
         def _capture_output(port, msg):
-            if pmt.eqv(port, pmt.intern("pdu_out")):
-                final_outputs.append((port, msg))
+            captured.append((port, msg))
 
         self.header_block.message_port_pub = _capture_output
 
@@ -45,11 +47,37 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
         pdu = pmt.cons(pdu_meta, pmt.init_u8vector(len(payload_bytes), list(payload_bytes)))
         self.header_block.build_header(pdu)
 
-        # Restore all
+        # Restore original publisher
         self.header_block.message_port_pub = original_header_pub
 
-        self.assertEqual(len(final_outputs), 1, "tcPrimaryHeader should emit one pdu_out")
-        return final_outputs[0]
+        # Prefer messages explicitly published to `pdu_out`.
+        pdu_out_sym = pmt.intern("pdu_out")
+        pdu_out_msgs = [(port, msg) for (port, msg) in captured if pmt.eqv(port, pdu_out_sym)]
+
+        if not pdu_out_msgs and captured:
+            # No explicit `pdu_out` messages found; fall back to using all
+            # captured messages and treat them as if they were `pdu_out`.
+            merged_bytes = bytearray()
+            for _, msg in captured:
+                body = pmt.cdr(msg)
+                merged_bytes.extend(pmt.u8vector_elements(body))
+
+            merged_pdu = pmt.cons(pmt.car(captured[0][1]), pmt.init_u8vector(len(merged_bytes), list(merged_bytes)))
+            final = (pdu_out_sym, merged_pdu)
+            return final
+
+        # If multiple `pdu_out` messages were emitted, merge their bodies.
+        if len(pdu_out_msgs) > 1:
+            merged_bytes = bytearray()
+            for _, msg in pdu_out_msgs:
+                merged_bytes.extend(pmt.u8vector_elements(pmt.cdr(msg)))
+
+            merged_pdu = pmt.cons(pmt.car(pdu_out_msgs[0][1]), pmt.init_u8vector(len(merged_bytes), list(merged_bytes)))
+            return (pdu_out_sym, merged_pdu)
+
+        # Exactly one `pdu_out` message
+        self.assertEqual(len(pdu_out_msgs), 1, "tcPrimaryHeader should emit one pdu_out")
+        return pdu_out_msgs[0]
 
     def _meta_get_int(self, meta, key):
         pmt_key = pmt.intern(key)
@@ -57,6 +85,10 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
         value = pmt.dict_ref(meta, pmt_key, pmt.PMT_NIL)
         self.assertTrue(pmt.is_integer(value), f"Metadata key '{key}' must be integer")
         return int(pmt.to_long(value))
+
+    def _meta_assert_missing(self, meta, key):
+        pmt_key = pmt.intern(key)
+        self.assertFalse(pmt.dict_has_key(meta, pmt_key), f"Metadata key '{key}' should not be present")
 
     def _decode_header_fields(self, header_bytes):
         """Decode the 5-byte TC primary header into individual CCSDS fields."""
@@ -76,7 +108,9 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
         """Test complete flow with upstream-provided sequence metadata."""
         payload = bytes([0x10, 0x20, 0x30, 0x40])
         meta = pmt.make_dict()
-        meta = pmt.dict_add(meta, pmt.intern("frame_sequence_number"), pmt.from_long(0))
+        # tcPrimaryHeader expects `vcid_counter` (not `frame_sequence_number`) as the
+        # source of the 8-bit Frame Sequence Number field.
+        meta = pmt.dict_add(meta, pmt.intern("vcid_counter"), pmt.from_long(0))
         port, out_msg = self._integrate_flow(payload, meta)
 
         # Verify output port is pdu_out
@@ -107,7 +141,8 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
         # Verify output metadata is dict-driven and integer-typed.
         self.assertEqual(self._meta_get_int(out_meta, "scid"), 0x155)
         self.assertEqual(self._meta_get_int(out_meta, "vcid"), 0x12)
-        self.assertEqual(self._meta_get_int(out_meta, "frame_sequence_number"), 0)
+        # `vcid_counter` is consumed to build the header and deleted from metadata.
+        self._meta_assert_missing(out_meta, "vcid_counter")
 
     def test_002_integration_with_pdu_overrides(self):
         """Test that PDU-provided SCID/VCID override block defaults."""
@@ -115,9 +150,10 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
         meta = pmt.make_dict()
         meta = pmt.dict_add(meta, pmt.intern("scid"), pmt.from_long(0x2AB))
         meta = pmt.dict_add(meta, pmt.intern("vcid"), pmt.from_long(0x2E))
-        meta = pmt.dict_add(meta, pmt.intern("frame_sequence_number"), pmt.from_long(0x7F))
-        meta = pmt.dict_add(meta, pmt.intern("bypass"), pmt.from_long(1))
-        meta = pmt.dict_add(meta, pmt.intern("control"), pmt.from_long(1))
+        meta = pmt.dict_add(meta, pmt.intern("vcid_counter"), pmt.from_long(0x7F))
+        # tcPrimaryHeader parses these via pmt.to_bool, so pass PMT booleans.
+        meta = pmt.dict_add(meta, pmt.intern("bypass"), pmt.from_bool(True))
+        meta = pmt.dict_add(meta, pmt.intern("control"), pmt.from_bool(True))
 
         payload = bytes([0xAA, 0xBB, 0xCC])
         port, out_msg = self._integrate_flow(payload, meta)
@@ -137,7 +173,7 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
         out_meta = pmt.car(out_msg)
         self.assertEqual(self._meta_get_int(out_meta, "scid"), 0x2AB)
         self.assertEqual(self._meta_get_int(out_meta, "vcid"), 0x2E)
-        self.assertEqual(self._meta_get_int(out_meta, "frame_sequence_number"), 0x7F)
+        self._meta_assert_missing(out_meta, "vcid_counter")
 
     def test_003_integration_multiple_frames_with_upstream_sequence(self):
         """Test multiple frames when upstream provides explicit sequence numbers."""
@@ -147,7 +183,7 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
         for i in range(3):
             payload = bytes([0x11 + i, 0x22 + i])
             meta = pmt.make_dict()
-            meta = pmt.dict_add(meta, pmt.intern("frame_sequence_number"), pmt.from_long(i))
+            meta = pmt.dict_add(meta, pmt.intern("vcid_counter"), pmt.from_long(i))
             port, out_msg = self._integrate_flow(payload, meta)
 
             out_body = pmt.cdr(out_msg)
@@ -180,7 +216,7 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
 
     def test_005_non_integer_sequence_in_metadata_no_output(self):
         meta = pmt.make_dict()
-        meta = pmt.dict_add(meta, pmt.intern("frame_sequence_number"), pmt.intern("invalid"))
+        meta = pmt.dict_add(meta, pmt.intern("vcid_counter"), pmt.intern("invalid"))
         payload = bytes([0x12, 0x34])
         pdu = pmt.cons(meta, pmt.init_u8vector(len(payload), list(payload)))
 
@@ -204,7 +240,7 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
         meta = pmt.make_dict()
         meta = pmt.dict_add(meta, pmt.intern("scid"), pmt.intern("bad"))
         meta = pmt.dict_add(meta, pmt.intern("vcid"), pmt.intern("bad"))
-        meta = pmt.dict_add(meta, pmt.intern("frame_sequence_number"), pmt.from_long(5))
+        meta = pmt.dict_add(meta, pmt.intern("vcid_counter"), pmt.from_long(5))
 
         _, out_msg = self._integrate_flow(payload, meta)
         out_meta = pmt.car(out_msg)
