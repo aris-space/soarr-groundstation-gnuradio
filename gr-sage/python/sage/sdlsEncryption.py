@@ -77,23 +77,26 @@ class sdlsEncryption(gr.basic_block):
         return secret
         
     def _extract_counter(self, dict_msg)->int|None:
-         # Extract and validate the counter value from dict
-        counter = pmt.dict_ref(dict_msg, pmt.intern("counter"), pmt.PMT_NIL)
+         # Extract and validate the SDLS counter value from dict.
+        counter = pmt.dict_ref(dict_msg, pmt.intern("sdls_counter"), pmt.PMT_NIL)
 
         if pmt.eqv(counter, pmt.PMT_NIL):
-            self.logger.warning(f"Received dict message with empty counter: {dict_msg}")
+            self.logger.warning(f"Received dict message with empty sdls_counter: {dict_msg}")
             return None # Early exit if counter is empty
 
-        if not pmt.is_integer(counter):
-            self.logger.warning("counter must be an integer PMT value.")
+        if not (pmt.is_integer(counter) or pmt.is_uint64(counter)):
+            self.logger.warning("sdls_counter must be an integer PMT value.")
             return None
 
         # Counter is an integer PMT
-        counter = int(pmt.to_long(counter))
+        if pmt.is_uint64(counter):
+            counter = int(pmt.to_uint64(counter))
+        else:
+            counter = int(pmt.to_long(counter))
 
         # Validate counter range
         if counter < COUNTER_MIN or counter > COUNTER_MAX:
-            self.logger.error("counter exceeds 2-byte range (0..65535); aborting message processing.")
+            self.logger.error("sdls_counter exceeds 2-byte range (0..65535); aborting message processing.")
             return None
         
         return counter
@@ -104,7 +107,7 @@ class sdlsEncryption(gr.basic_block):
             raise ValueError("nonce must be exactly 14 bytes")
         
         if counter < COUNTER_MIN or counter > COUNTER_MAX:
-            raise ValueError("counter must be in range 0..65535")
+            raise ValueError("sdls_counter must be in range 0..65535")
         
         # Encrypt the payload using AES-256 in CTR mode
         cipher = AES.new(key, AES.MODE_CTR, nonce=self.nonce, initial_value=counter)
