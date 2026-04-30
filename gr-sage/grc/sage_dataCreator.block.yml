@@ -1,6 +1,6 @@
 id: sage_dataCreator
 label: Data Creator
-category: '[sage/Testing]'
+category: '[sage]/Testing'
 
 templates:
   imports: from gnuradio import sage
