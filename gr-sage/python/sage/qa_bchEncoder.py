@@ -192,7 +192,10 @@ class qa_bchEncoder(gr_unittest.TestCase):
         self.assertEqual(len(self.captured_output), 1)
         _, out_msg = self.captured_output[0]
         out_meta = pmt.car(out_msg)
-        self.assertTrue(pmt.eqv(out_meta, meta))
+
+        # Gets added by the bch encoder to the last codeword of an message
+        meta = pmt.dict_add(meta, pmt.intern("filled"), pmt.from_bool(False))
+        self.assertTrue(pmt.equal(out_meta, meta))
 
     def test_013_fill_bits_for_non_integral_payload(self):
         """Test CCSDS fill pattern for payloads that do not align to 56 bits."""
