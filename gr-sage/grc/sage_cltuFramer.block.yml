@@ -30,12 +30,12 @@ parameters:
 #      * vlen (optional - data stream vector length. Default is 1)
 #      * optional (optional - set to 1 for optional inputs. Default is 0)
 inputs:
-- label: pdu_in
+- label: in
   domain: message
   optional: 0
 
 outputs:
-- label: pdu_out
+- label: out
   domain: message
   optional: 0
 

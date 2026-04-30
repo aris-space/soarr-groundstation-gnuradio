@@ -27,9 +27,9 @@ class cltuFramer(gr.basic_block):
         
 
         # Message Ports
-        self.message_port_register_in(pmt.intern("pdu_in"))
-        self.message_port_register_out(pmt.intern("pdu_out"))
-        self.set_msg_handler(pmt.intern("pdu_in"), self.addSequences)
+        self.message_port_register_in(pmt.intern("in"))
+        self.message_port_register_out(pmt.intern("out"))
+        self.set_msg_handler(pmt.intern("in"), self.addSequences)
 
         # Enables change during runtime
         self.startSequence = startSequence
@@ -63,5 +63,5 @@ class cltuFramer(gr.basic_block):
         
         # pack to PDU and send it out
         out_msg = pmt.cons(meta, pmt.init_u8vector(len(full_cltu), list(full_cltu)))
-        self.message_port_pub(pmt.intern("pdu_out"), out_msg)
+        self.message_port_pub(pmt.intern("out"), out_msg)
 

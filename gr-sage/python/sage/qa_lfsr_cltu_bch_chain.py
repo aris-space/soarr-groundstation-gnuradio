@@ -34,7 +34,7 @@ class qa_lfsr_cltu_bch_chain(gr_unittest.TestCase):
 
         # New chain order: Scrambler -> BCH Encoder -> CLTU Framer
         def _scrambler_pub(port, msg):
-            if pmt.eqv(port, pmt.intern("pdu_out")):
+            if pmt.eqv(port, pmt.intern("out")):
                 # Scrambler output goes into the encoder
                 self.encoder.encodeBCH(msg)
 
@@ -75,7 +75,7 @@ class qa_lfsr_cltu_bch_chain(gr_unittest.TestCase):
 
         # Verify the first output is from the framer and carries the meta
         out_port, out_msg = self.captured_output[0]
-        self.assertTrue(pmt.eqv(out_port, pmt.intern("pdu_out")))
+        self.assertTrue(pmt.eqv(out_port, pmt.intern("out")))
 
         out_meta = pmt.car(out_msg)
         self.assertTrue(pmt.eqv(out_meta, meta))

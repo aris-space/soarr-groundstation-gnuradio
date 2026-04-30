@@ -41,12 +41,12 @@ asserts:
 
 
 inputs:
-- label: pdu_in
+- label: in
   domain: message
   optional: 0
 
 outputs:
-- label: pdu_out
+- label: out
   domain: message
   optional: 0
 

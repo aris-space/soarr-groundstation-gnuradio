@@ -84,7 +84,7 @@ class qa_tcPrimaryHeader(gr_unittest.TestCase):
 
         self.assertEqual(len(self.published), 1)
         out_port, out_msg = self.published[0]
-        self.assertTrue(pmt.eqv(out_port, pmt.intern("pdu_out")))
+        self.assertTrue(pmt.eqv(out_port, pmt.intern("out")))
 
         out_bytes = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
         fields = self._decode_header_fields(out_bytes[:5])
@@ -113,7 +113,7 @@ class qa_tcPrimaryHeader(gr_unittest.TestCase):
 
         self.assertEqual(len(self.published), 1)
         out_port, out_msg = self.published[0]
-        self.assertTrue(pmt.eqv(out_port, pmt.intern("pdu_out")))
+        self.assertTrue(pmt.eqv(out_port, pmt.intern("out")))
 
         out_bytes = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
         self.assertEqual(out_bytes[5:], payload_bytes)

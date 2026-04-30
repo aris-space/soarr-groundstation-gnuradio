@@ -5,7 +5,6 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-import logging
 from gnuradio import gr
 import pmt
 
@@ -16,7 +15,6 @@ class lfsrScrambler(gr.basic_block):
             in_sig=None,
             out_sig=None)
 
-        self.logger = logging.getLogger("gnuradio.sage.lfsrScrambler")
         
         # Store parameters
         self.mask = mask
@@ -24,11 +22,11 @@ class lfsrScrambler(gr.basic_block):
         self.reg_length = register_length
 
         # Define message ports
-        self.message_port_register_in(pmt.intern("pdu_in"))
-        self.message_port_register_out(pmt.intern("pdu_out"))
+        self.message_port_register_in(pmt.intern("in"))
+        self.message_port_register_out(pmt.intern("out"))
         
         # Register handler for incoming messages
-        self.set_msg_handler(pmt.intern("pdu_in"), self.handle_msg)
+        self.set_msg_handler(pmt.intern("in"), self.handle_msg)
 
     def handle_msg(self, msg):
         # 1. Unpack the PDU (metadata and data vector)
@@ -51,7 +49,7 @@ class lfsrScrambler(gr.basic_block):
         
         # 3. Create and publish a new PDU
         new_pdu = pmt.cons(meta, pmt.init_u8vector(len(scrambled_data), scrambled_data))
-        self.message_port_pub(pmt.intern("pdu_out"), new_pdu)
+        self.message_port_pub(pmt.intern("out"), new_pdu)
 
     def apply_scrambling(self, data):
         # CCSDS bit transition generator sequence (h(x) = x^8 + x^6 + x^4 + x^3 + x^2 + x + 1)

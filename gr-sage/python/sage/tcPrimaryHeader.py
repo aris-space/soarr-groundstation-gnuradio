@@ -48,9 +48,9 @@ class tcPrimaryHeader(gr.basic_block):
     Build the CCSDS TC Transfer Frame Primary Header (5 bytes).
 
     Flow:
-    - Receive a PDU on `pdu_in`
+    - Receive a PDU on `in`
     - Read frame fields (including `frame_sequence_number`) directly from metadata
-    - Build header and emit final frame on `pdu_out`
+    - Build header and emit final frame on `out`
     """
 
     def __init__(self, scid:int=0x0, vcid:int=0x0):
@@ -74,11 +74,11 @@ class tcPrimaryHeader(gr.basic_block):
             self.logger.warn("construct not installed; using manual header packing fallback.")
 
         # Message ports
-        self.message_port_register_in(pmt.intern("pdu_in"))
-        self.message_port_register_out(pmt.intern("pdu_out"))
+        self.message_port_register_in(pmt.intern("in"))
+        self.message_port_register_out(pmt.intern("out"))
 
         # Handlers
-        self.set_msg_handler(pmt.intern("pdu_in"), self.build_header)
+        self.set_msg_handler(pmt.intern("in"), self.build_header)
 
 
     def _pmt_dict_get_int(self, meta, key, default=None):
@@ -211,4 +211,4 @@ class tcPrimaryHeader(gr.basic_block):
 
         frame = header + payload_bytes
         out_msg = pmt.cons(dict_msg, pmt.init_u8vector(len(frame), list(frame)))
-        self.message_port_pub(pmt.intern("pdu_out"), out_msg)
+        self.message_port_pub(pmt.intern("out"), out_msg)

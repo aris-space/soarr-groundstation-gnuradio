@@ -81,7 +81,7 @@ class qa_lfsrScrambler(gr_unittest.TestCase):
         self.assertEqual(len(self.captured_output), 1)
 
         out_port, out_msg = self.captured_output[0]
-        self.assertTrue(pmt.eqv(out_port, pmt.intern("pdu_out")))
+        self.assertTrue(pmt.eqv(out_port, pmt.intern("out")))
         self.assertTrue(pmt.eqv(pmt.car(out_msg), meta))
 
     def test_007_pdu_payload_length_preserved(self):
