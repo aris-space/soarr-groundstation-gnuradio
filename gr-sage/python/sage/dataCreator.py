@@ -29,6 +29,25 @@ class dataCreator(gr.basic_block):
         self.bypass = bypass
         self.control = control
 
+
+        # Validate that either data or data_length_bytes is provided
+        if self.data is not None and self.length is not None:
+            raise ValueError("Either data or data_length_bytes must be provided.")
+
+        # If data is not provided, create a random vector of the specified length
+        if self.data is None:
+            # create random vector of length self.length
+            self.data = np.random.randint(0, 256, size=self.length, dtype=np.uint8)
+
+        # If length is not provided, use the length of the data
+        if self.length is None:
+            self.length = len(self.data)
+
+        # Validate that the length of the data matches the specified length
+        if len(self.data) != self.length:
+            raise ValueError("Length of data does not match data_length_bytes.")
+
+
         self.message_port_register_in(pmt.intern("ping"))
         self.message_port_register_out(pmt.intern("out"))
 
@@ -47,21 +66,6 @@ class dataCreator(gr.basic_block):
         msg_dict = pmt.dict_add(msg_dict, pmt.intern("spi"), pmt.from_long(self.spi))
         msg_dict = pmt.dict_add(msg_dict, pmt.intern("bypass"), pmt.from_bool(self.bypass))
         msg_dict = pmt.dict_add(msg_dict, pmt.intern("control"), pmt.from_bool(self.control))
-
-        if self.data is not None and self.length is not None:
-            raise ValueError("Either data or data_length_bytes must be provided.")
-
-        # If data is not provided, create a random vector of the specified length
-        if self.data is None:
-            # create random vector of length self.length
-            self.data = np.random.randint(0, 256, size=self.length, dtype=np.uint8)
-
-
-        if self.length is None:
-            self.length = len(self.data)
-
-        if len(self.data) != self.length:
-            raise ValueError("Length of data does not match data_length_bytes.")
 
         # Create a PMT u8vector to hold the message data
         msg_vector = pmt.init_u8vector(self.length, self.data)

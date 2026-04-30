@@ -51,7 +51,7 @@ class qa_dataCreator(gr_unittest.TestCase):
             return int(pmt.to_uint64(value))
 
     def test_instance(self):
-        instance = dataCreator()
+        instance = dataCreator(data_length_bytes=1)
         self.assertIsNotNone(instance)
         self.assertEqual(instance.mode, 0)
         self.assertEqual(instance.scid, 0)
@@ -103,9 +103,8 @@ class qa_dataCreator(gr_unittest.TestCase):
 
     def test_003_raises_when_data_and_length_both_provided(self):
         payload = np.array([0x01, 0x02], dtype=np.uint8)
-        instance = dataCreator(mode=0, data=payload, data_length_bytes=2, scid=0, spi=0)
         with self.assertRaises(ValueError):
-            instance.generate_message(pmt.PMT_NIL)
+            dataCreator(mode=0, data=payload, data_length_bytes=2, scid=0, spi=0)
 
     def test_004_raises_for_unsupported_mode(self):
         instance = dataCreator(mode=99, data_length_bytes=4)
@@ -113,28 +112,28 @@ class qa_dataCreator(gr_unittest.TestCase):
             instance._choose_mode(pmt.PMT_NIL)
 
     def test_005_message_ports_registered(self):
-        instance = dataCreator()
+        instance = dataCreator(data_length_bytes=1)
         self.assertIsNotNone(instance.message_ports_in())
         self.assertIsNotNone(instance.message_ports_out())
 
     def test_006_bypass_flag_default_false(self):
-        instance = dataCreator()
+        instance = dataCreator(data_length_bytes=1)
         self.assertEqual(instance.bypass, False)
 
     def test_007_bypass_flag_set_true(self):
-        instance = dataCreator(bypass=True)
+        instance = dataCreator(data_length_bytes=1, bypass=True)
         self.assertEqual(instance.bypass, True)
 
     def test_008_control_flag_default_false(self):
-        instance = dataCreator()
+        instance = dataCreator(data_length_bytes=1)
         self.assertEqual(instance.control, False)
 
     def test_009_control_flag_set_true(self):
-        instance = dataCreator(control=True)
+        instance = dataCreator(data_length_bytes=1, control=True)
         self.assertEqual(instance.control, True)
 
     def test_010_both_flags_set(self):
-        instance = dataCreator(bypass=True, control=True)
+        instance = dataCreator(data_length_bytes=1, bypass=True, control=True)
         self.assertEqual(instance.bypass, True)
         self.assertEqual(instance.control, True)
 
