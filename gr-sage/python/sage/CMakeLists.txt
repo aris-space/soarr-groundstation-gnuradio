@@ -65,3 +65,4 @@ GR_ADD_TEST(qa_ccsdsReader ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_c
 GR_ADD_TEST(qa_dataCreator ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_dataCreator.py)
 GR_ADD_TEST(qa_bchDecoder ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_bchDecoder.py)
 GR_ADD_TEST(qa_bchEncoderDecoder ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_bchEncoderDecoder.py)
+GR_ADD_TEST(qa_cltuDeframer ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_cltuDeframer.py)
