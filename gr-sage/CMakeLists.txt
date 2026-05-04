@@ -6,12 +6,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-# Select the release build type by default to get optimization flags.
-# This has to come before project() which otherwise initializes it.
-# Build type can still be overridden by setting -DCMAKE_BUILD_TYPE=
-set(CMAKE_BUILD_TYPE
-    "Release"
-    CACHE STRING "")
+# Default to Release only for single-config generators (e.g., Ninja).
+# Multi-config generators like Visual Studio ignore CMAKE_BUILD_TYPE and use
+# --config <Debug|Release|...> instead.
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE
+        "Release"
+        CACHE STRING "Choose the type of build." FORCE)
+endif()
 
 ########################################################################
 # Project setup

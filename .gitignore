@@ -5,6 +5,16 @@ build_vs/
 out/
 cmake-build-*/
 
+# Avoid committing in-tree builds inside the OOT module
+gr-sage/**/build*/
+gr-sage/**/CMakeCache.txt
+gr-sage/**/CMakeFiles/
+gr-sage/**/cmake_install.cmake
+gr-sage/**/CTestTestfile.cmake
+gr-sage/**/Testing/
+gr-sage/**/x64/
+gr-sage/**/.vs/
+
 # CMake files
 CMakeCache.txt
 CMakeFiles/

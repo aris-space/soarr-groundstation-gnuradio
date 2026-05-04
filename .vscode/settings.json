@@ -2,10 +2,10 @@
     "python-envs.defaultEnvManager": "ms-python.python:conda",
     "python-envs.defaultPackageManager": "ms-python.python:conda",
     "python.analysis.extraPaths": [
-        "gr-sage/build/test_modules"
+        "build/gr-sage/test_modules"
     ],
     "cmake.sourceDirectory": "C:/ARIS/sage-groundstation-gnuradio/gr-sage",
-    "cmake.buildDirectory": "C:/ARIS/sage-groundstation-gnuradio/gr-sage/build",
+    "cmake.buildDirectory": "C:/ARIS/sage-groundstation-gnuradio/build/gr-sage",
     "cmake.generator": "Visual Studio 17 2022",
     "cmake.platform": "x64",
     "cmake.configureEnvironment": {
