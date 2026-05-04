@@ -32,4 +32,5 @@ from .sdlsHeader import sdlsHeader
 from .encapsulationHeader import encapsulationHeader
 from .ccsdsReader import ccsdsReader
 from .dataCreator import dataCreator
+from .bchDecoder import bchDecoder
 #

@@ -31,7 +31,8 @@ gr_python_install(FILES __init__.py
     sdlsHeader.py
     encapsulationHeader.py
     ccsdsReader.py
-    dataCreator.py DESTINATION ${GR_PYTHON_DIR}/gnuradio/sage)
+    dataCreator.py
+    bchDecoder.py DESTINATION ${GR_PYTHON_DIR}/gnuradio/sage)
 
 ########################################################################
 # Handle the unit tests
@@ -62,3 +63,5 @@ GR_ADD_TEST(qa_encapsulationHeader ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_D
 GR_ADD_TEST(qa_layoutTest ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_layoutTest.py)
 GR_ADD_TEST(qa_ccsdsReader ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_ccsdsReader.py)
 GR_ADD_TEST(qa_dataCreator ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_dataCreator.py)
+GR_ADD_TEST(qa_bchDecoder ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_bchDecoder.py)
+GR_ADD_TEST(qa_bchEncoderDecoder ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_bchEncoderDecoder.py)
