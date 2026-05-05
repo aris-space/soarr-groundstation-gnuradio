@@ -107,6 +107,25 @@ class qa_bchEncoderDecoder(gr_unittest.TestCase):
         self.assertTrue(pmt.dict_has_key(pmt.car(decoded), pmt.intern("source")))
         self.assertEqual(bytes(pmt.u8vector_elements(pmt.cdr(decoded))), payload_bytes)
 
+    def test_005_regression_console_vector_no_false_error(self):
+        # Regression for observed flowgraph vector:
+        # info = f3 6f ce e5 94 55 b7 -> encoder codeword expected ... 06
+        payload_bytes = bytes([0xF3, 0x6F, 0xCE, 0xE5, 0x94, 0x55, 0xB7])
+
+        encoded = self._encode(payload_bytes)
+        encoded_bytes = bytes(pmt.u8vector_elements(pmt.cdr(encoded)))
+        self.assertEqual(
+            encoded_bytes,
+            bytes([0xF3, 0x6F, 0xCE, 0xE5, 0x94, 0x55, 0xB7, 0x06]),
+        )
+
+        decoded = self._decode(encoded)
+        decoded_meta = pmt.car(decoded)
+        decoded_bytes = bytes(pmt.u8vector_elements(pmt.cdr(decoded)))
+
+        self.assertEqual(decoded_bytes, payload_bytes)
+        self.assertFalse(pmt.dict_has_key(decoded_meta, pmt.intern("bch_error")))
+
 
 if __name__ == '__main__':
     gr_unittest.run(qa_bchEncoderDecoder)
