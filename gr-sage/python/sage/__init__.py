@@ -34,4 +34,5 @@ from .ccsdsReader import ccsdsReader
 from .dataCreator import dataCreator
 from .bchDecoder import bchDecoder
 from .cltuDeframer import cltuDeframer
+from .lfsrDescrambler import lfsrDescrambler
 #

@@ -20,4 +20,5 @@ install(FILES
     sage_ccsdsReader.block.yml
     sage_dataCreator.block.yml
     sage_bchDecoder.block.yml
-    sage_cltuDeframer.block.yml DESTINATION share/gnuradio/grc/blocks)
+    sage_cltuDeframer.block.yml
+    sage_lfsrDescrambler.block.yml DESTINATION share/gnuradio/grc/blocks)
