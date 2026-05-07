@@ -30,6 +30,11 @@ class bchDecoder(gr.basic_block):
         self.generator_polynomial = generator_polynomial
         self.primitive_polynomial = primitive_polynomial
 
+        # Validate parameters
+        # Mode 0 is the only supported mode for now, but we can add more modes in the future if needed.
+        if self.mode != 0:
+            raise ValueError(f"Unsupported mode: {self.mode}. Currently, only mode 0 is supported.")
+
         # Generator polynomial g(x) (encoder) in binary: e.g. 0xC5
         if generator_polynomial < 0x00 or generator_polynomial > 0xFF:
             raise ValueError(f"Invalid generator polynomial: 0x{generator_polynomial:02x}. Must be between 0x00 and 0xFF.")
@@ -148,6 +153,7 @@ class bchDecoder(gr.basic_block):
             self.logger.warn("Message is dropped by BCH decoder")
             dict_msg = pmt.dict_add(dict_msg, pmt.intern("bch_error"), pmt.PMT_T)
             corrected_bytes = payload_bytes
+            return None
         else:
             corrected_bytes = bytes(self._bits_to_bytes(corrected_bits))
 
@@ -160,4 +166,6 @@ class bchDecoder(gr.basic_block):
 
         # Send the corrected message to the output port
         self.message_port_pub(pmt.intern("out"), msg)
+
+        return msg
 
