@@ -15,6 +15,8 @@ from gnuradio.sage import tcPrimaryHeader
 class qa_tcPrimaryHeader(gr_unittest.TestCase):
     """Unit tests for tcPrimaryHeader message flow and header encoding."""
 
+    CRC_BYTES = 2
+
     def setUp(self):
         # Default constructor values used when input metadata does not provide them.
         self.block = tcPrimaryHeader(scid=0x155, vcid=0x12)
@@ -54,6 +56,11 @@ class qa_tcPrimaryHeader(gr_unittest.TestCase):
     def test_instance(self):
         # Smoke test: block can be instantiated with default arguments.
         instance = tcPrimaryHeader()
+        self.assertIsNotNone(instance)
+
+    def test_001_crc_disabled_can_be_instantiated(self):
+        # The new constructor flag should allow CRC-free header construction.
+        instance = tcPrimaryHeader(scid=0x155, vcid=0x12, is_crc_used=False)
         self.assertIsNotNone(instance)
 
     def test_001_missing_vcid_counter_emits_no_output(self):
@@ -126,6 +133,31 @@ class qa_tcPrimaryHeader(gr_unittest.TestCase):
         self.assertEqual(fields["scid"], 0x2AB)
         self.assertEqual(fields["vcid"], 0x2E)
         self.assertEqual(fields["frame_sequence_number"], 0x7F)
+        self.assertEqual(fields["frame_length"], len(payload_bytes) + 5 - 1 + self.CRC_BYTES)
+
+    def test_004_frame_length_without_crc_flag(self):
+        # When CRC is disabled, the frame length should not include the extra bytes.
+        block = tcPrimaryHeader(scid=0x155, vcid=0x12, is_crc_used=False)
+        published = []
+
+        original_pub = block.message_port_pub
+
+        def _capture(port, msg):
+            published.append((port, msg))
+
+        block.message_port_pub = _capture
+        try:
+            meta = pmt.make_dict()
+            meta = pmt.dict_add(meta, pmt.intern("vcid_counter"), pmt.from_long(0x3C))
+            payload_bytes = bytes([0xAA, 0xBB, 0xCC])
+            msg = pmt.cons(meta, pmt.init_u8vector(len(payload_bytes), list(payload_bytes)))
+            block.build_header(msg)
+        finally:
+            block.message_port_pub = original_pub
+
+        self.assertEqual(len(published), 1)
+        out_bytes = bytes(pmt.u8vector_elements(pmt.cdr(published[0][1])))
+        fields = self._decode_header_fields(out_bytes[:5])
         self.assertEqual(fields["frame_length"], len(payload_bytes) + 5 - 1)
 
 

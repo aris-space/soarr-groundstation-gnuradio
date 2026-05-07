@@ -4,7 +4,7 @@ category: '[sage]/Telecommand'
 
 templates:
   imports: from gnuradio import sage
-  make: sage.tcPrimaryHeader(${scid}, ${vcid})
+  make: sage.tcPrimaryHeader(${scid}, ${vcid}, ${is_crc_used})
 
 #  Make one 'parameters' list entry for every parameter you want settable from the GUI.
 #     Keys include:
@@ -21,6 +21,12 @@ parameters:
   label: Default VCID
   dtype: int
   default: 0
+- id: is_crc_used
+  label: Is CRC Used
+  dtype: enum
+  options: ['False', 'True']
+  option_labels: [No, Yes]
+  default: True
 #- id: ...
 #  label: ...
 #  dtype: ...

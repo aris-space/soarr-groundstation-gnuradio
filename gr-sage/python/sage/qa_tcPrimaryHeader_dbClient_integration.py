@@ -16,6 +16,8 @@ from gnuradio.sage import tcPrimaryHeader
 class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
     """Test tcPrimaryHeader integration when metadata is pre-populated upstream."""
 
+    CRC_BYTES = 2
+
     def setUp(self):
         """Create instance and capture output messages."""
         self.header_block = tcPrimaryHeader(scid=0x155, vcid=0x12)
@@ -136,7 +138,7 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
         self.assertEqual(fields["scid"], 0x155)  # tcPrimaryHeader default
         self.assertEqual(fields["vcid"], 0x12)   # tcPrimaryHeader default
         self.assertEqual(fields["frame_sequence_number"], 0)
-        self.assertEqual(fields["frame_length"], len(payload) + 5 - 1)
+        self.assertEqual(fields["frame_length"], len(payload) + 5 - 1 + self.CRC_BYTES)
 
         # Verify output metadata is dict-driven and integer-typed.
         self.assertEqual(self._meta_get_int(out_meta, "scid"), 0x155)
@@ -252,6 +254,33 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
         self.assertEqual(fields["vcid"], 0x12)
         self.assertEqual(self._meta_get_int(out_meta, "scid"), 0x155)
         self.assertEqual(self._meta_get_int(out_meta, "vcid"), 0x12)
+
+    def test_007_integration_without_crc_flag(self):
+        payload = bytes([0x10, 0x20, 0x30, 0x40])
+        header_block = tcPrimaryHeader(scid=0x155, vcid=0x12, is_crc_used=False)
+        captured_output = []
+
+        original_pub = header_block.message_port_pub
+
+        def _capture_output(port, msg):
+            captured_output.append((port, msg))
+
+        header_block.message_port_pub = _capture_output
+        try:
+            meta = pmt.make_dict()
+            meta = pmt.dict_add(meta, pmt.intern("vcid_counter"), pmt.from_long(9))
+            pdu = pmt.cons(meta, pmt.init_u8vector(len(payload), list(payload)))
+            header_block.build_header(pdu)
+        finally:
+            header_block.message_port_pub = original_pub
+
+        self.assertEqual(len(captured_output), 1)
+        _, out_msg = captured_output[0]
+        out_bytes = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
+        fields = self._decode_header_fields(out_bytes[:5])
+
+        self.assertEqual(fields["frame_length"], len(payload) + 5 - 1)
+        self.assertEqual(out_bytes[5:], payload)
 
 if __name__ == '__main__':
     gr_unittest.run(qa_tcPrimaryHeader_dbClient_integration)

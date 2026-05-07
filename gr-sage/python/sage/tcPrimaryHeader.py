@@ -42,6 +42,8 @@ VCID_MASK = 0b11_1111  # 6 bits
 FRAME_LENGTH_MASK = 0b11_1111_1111  # 10 bits for frame length
 FRAME_SEQUENCE_NUMBER_MASK = 0b1111_1111  # 8 bits
 
+HEADER_BYTES = 5
+
 
 class tcPrimaryHeader(gr.basic_block):
     """
@@ -53,7 +55,7 @@ class tcPrimaryHeader(gr.basic_block):
     - Build header and emit final frame on `out`
     """
 
-    def __init__(self, scid:int=0x0, vcid:int=0x0):
+    def __init__(self, scid:int=0x0, vcid:int=0x0, is_crc_used:bool=True):
         gr.basic_block.__init__(
             self,
             name="TC Primary Header Adder",
@@ -69,6 +71,11 @@ class tcPrimaryHeader(gr.basic_block):
         self.reserved = 0b00
         self.scid = scid
         self.vcid = vcid
+
+        if is_crc_used:
+            self.additional_crc_bytes = 2
+        else:
+            self.additional_crc_bytes = 0
 
         if TC_PRIMARY_HEADER_STRUCT is None:
             self.logger.warn("construct not installed; using manual header packing fallback.")
@@ -182,9 +189,9 @@ class tcPrimaryHeader(gr.basic_block):
             frame_length = self._pmt_dict_get_int(dict_msg, "frame_length", None)
             if frame_length is None:
                 # if not provided: calculate it
-                self.logger.debug(f"Metadata missing 'frame_length' key; using payload length: {len(payload_bytes) + 5 - 1}")
+                self.logger.debug(f"Metadata missing 'frame_length' key; using payload length: {len(payload_bytes) + HEADER_BYTES - 1 + self.additional_crc_bytes}")
         else:
-            frame_length = len(payload_bytes) + 5 - 1
+            frame_length = len(payload_bytes) + HEADER_BYTES - 1 + self.additional_crc_bytes  # payload + header - 1 (since frame_length counts from byte 6) + optional CRC bytes
 
         # Extract vcid_counter (required) - maps to frame_sequence_number in CCSDS header
         frame_sequence_number = self._pmt_dict_get_int(dict_msg, "vcid_counter", None)
