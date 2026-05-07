@@ -53,7 +53,7 @@ class qa_lfsrDescrambler(gr_unittest.TestCase):
 
     def test_003_known_sequence_descramble(self):
         scrambled = bytes([0xFF, 0x39, 0x9E, 0x5A, 0x68])
-        recovered = bytes(self.descrambler._apply_descrambling(scrambled))
+        recovered = bytes(self.descrambler.apply_descrambling(scrambled))
         self.assertEqual(recovered, bytes([0x00, 0x00, 0x00, 0x00, 0x00]))
 
     def test_004_pdu_metadata_preserved(self):

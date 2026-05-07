@@ -63,7 +63,7 @@ class lfsrDescrambler(gr.basic_block):
         self._seq_index += 1
         return next_bit
 
-    def _apply_descrambling(self, data):
+    def apply_descrambling(self, data):
         if self.register_length != 8:
             raise ValueError("CCSDS randomizer requires register_length=8")
 
@@ -105,13 +105,15 @@ class lfsrDescrambler(gr.basic_block):
             self._reset_sequence()
         
         try:
-            descrambled_data = self._apply_descrambling(pdu_data)
+            descrambled_data = self.apply_descrambling(pdu_data)
         except ValueError as err:
             self.logger.error(str(err))
             return
         
-        new_pdu = pmt.cons(meta, pmt.init_u8vector(len(descrambled_data), descrambled_data))
+        msg = pmt.cons(meta, pmt.init_u8vector(len(descrambled_data), descrambled_data))
 
-        self.message_port_pub(pmt.intern("out"), new_pdu)
+        self.message_port_pub(pmt.intern("out"), msg)
         self.logger.info(f"OK")
+
+        return msg
 
