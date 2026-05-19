@@ -169,8 +169,7 @@ class ccsdsReceiver(gr.basic_block):
         # Implementation for searching TFPH
         tfph = self.tc_header().parse(cltu_frame[:6])
 
-        self.logger.info(f"Searching for TFPH in received frame. Parsed header: {tfph}")
-        self.logger.info(f"Parsed TFPH fields - TFVN: {tfph.tfvn}, Bypass: {tfph.bypass_flag}, Control: {tfph.control_flag}, Reserve: {tfph.reserve}, SCID: {tfph.scid}, VCID: {tfph.vcid}, Frame Length: {tfph.frame_length}, Frame Sequence Number: {tfph.frame_sequence_number}")   
+        self.logger.debug(f"Parsed TFPH fields - TFVN: {tfph.tfvn}, Bypass: {tfph.bypass_flag}, Control: {tfph.control_flag}, Reserve: {tfph.reserve}, SCID: {tfph.scid}, VCID: {tfph.vcid}, Frame Length: {tfph.frame_length}, Frame Sequence Number: {tfph.frame_sequence_number}")   
 
         if tfph.tfvn != 0:
             # Not a valid TFPH, continue searching
@@ -276,9 +275,11 @@ class ccsdsReceiver(gr.basic_block):
         if self.message_type == MESSAGE_TYPE_TC and self.remaining_frame_length <= 0:
             self.logger.info(f"Complete frame received, publishing frame with {self.total_frame_length} length.")
             self._publishFrame(self.total_frame_length)
+            self.logger.info(f"OK")
             self.length_found = False
             self.remaining_frame_length = 0
             self.total_frame_length = 0
+            self.lfsrDescrambler.reset_sequence()  # Reset LFSR sequence for next frame
             return
 
         if self.message_type == MESSAGE_TYPE_FIXED and self.remaining_fixed_bytes <= 0:
@@ -287,5 +288,6 @@ class ccsdsReceiver(gr.basic_block):
             self.length_found = False
             self.remaining_fixed_bytes = self.fixed_byte_length
             self.total_frame_length = 0
+            self.lfsrDescrambler.reset_sequence()  # Reset LFSR sequence for next frame
             return
             

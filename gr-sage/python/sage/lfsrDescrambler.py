@@ -27,14 +27,14 @@ class lfsrDescrambler(gr.basic_block):
         self._seed_bits = []
         self._seq_index = 0
         self._window = []
-        self._reset_sequence()
+        self.reset_sequence()
 
         self.message_port_register_in(pmt.intern("in"))
         self.message_port_register_out(pmt.intern("out"))
 
         self.set_msg_handler(pmt.intern("in"), self.descramble_msg)
 
-    def _reset_sequence(self):
+    def reset_sequence(self):
         if self.register_length != 8:
             raise ValueError("CCSDS randomizer requires register_length=8")
 
@@ -99,10 +99,10 @@ class lfsrDescrambler(gr.basic_block):
 
         if pmt.dict_has_key(meta, pmt.intern("scramble_reset")):
             if pmt.to_bool(pmt.dict_ref(meta, pmt.intern("scramble_reset"))):
-                self._reset_sequence()
+                self.reset_sequence()
         elif pmt.dict_has_key(meta, pmt.intern("filled")):
             # Presence of 'filled' marks end-of-message in this chain.
-            self._reset_sequence()
+            self.reset_sequence()
         
         try:
             descrambled_data = self.apply_descrambling(pdu_data)
@@ -113,7 +113,7 @@ class lfsrDescrambler(gr.basic_block):
         msg = pmt.cons(meta, pmt.init_u8vector(len(descrambled_data), descrambled_data))
 
         self.message_port_pub(pmt.intern("out"), msg)
-        self.logger.info(f"OK")
+        self.logger.debug(f"OK")
 
         return msg
 

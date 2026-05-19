@@ -27,8 +27,6 @@ class bchEncoder(gr.basic_block):
             out_sig=None
         )
 
-        self.logger.info(f"Initializing BCH Encoder with polynomial: 0x{polynomial:02x}")
-
         # Message Ports
         self.message_port_register_in(pmt.intern("message"))
         self.message_port_register_out(pmt.intern("codewords"))

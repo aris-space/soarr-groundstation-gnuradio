@@ -167,5 +167,6 @@ class bchDecoder(gr.basic_block):
         # Send the corrected message to the output port
         self.message_port_pub(pmt.intern("out"), msg)
 
+        self.logger.debug(f"OK")
         return msg
 
