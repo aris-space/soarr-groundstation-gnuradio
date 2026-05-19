@@ -21,6 +21,7 @@ add_subdirectory(bindings)
 ########################################################################
 gr_python_install(FILES __init__.py
     cltuFramer.py
+    cltuDeframer.py
     bchEncoder.py
     lfsrScrambler.py
     tcPrimaryHeader.py
