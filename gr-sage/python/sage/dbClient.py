@@ -34,6 +34,7 @@ class dbClient(gr.basic_block):
         port: int = 80,
         yaml_path: str = "",
         forward_body: bool = True,
+        auto_reset_counters: bool = False,
         scid: int = 0x155,
         spi: int = 1,
         vcid: int = 0x12,
@@ -60,6 +61,8 @@ class dbClient(gr.basic_block):
         # Optional path for local YAML mode.
         self.yaml_path = str(yaml_path) if yaml_path else ""
         self.forward_body = self._to_bool(forward_body, default=True)
+        # If true, dummy-mode counters at max will be reset to 0 after being served
+        self.auto_reset_counters = self._to_bool(auto_reset_counters, default=False)
 
         # Dummy-mode entry fields.
         self.dummy_scid = self._to_int(scid, default=0x155)
@@ -353,11 +356,23 @@ class dbClient(gr.basic_block):
         self._publish("db_callback", response_meta, body_to_forward)
 
         # Increase counters only after giving out current values.
+        # sdls_counter: try to increment; if at max and auto-reset enabled for dummy mode,
+        # reset to 0 instead of raising an error.
         try:
             entry["sdls_counter"] = self._checked_increment(sdls_counter, SDLS_COUNTER_MAX, "sdls_counter")
+        except OverflowError as exc:
+            if self.type == 0 and self.auto_reset_counters:
+                entry["sdls_counter"] = 0
+            else:
+                self.logger.error(f"Counter increment aborted: {exc}")
+
+        try:
             entry["vcid_counter"] = self._checked_increment(vcid_counter, VCID_COUNTER_MAX, "vcid_counter")
         except OverflowError as exc:
-            self.logger.error(f"Counter increment aborted: {exc}")
+            if self.type == 0 and self.auto_reset_counters:
+                entry["vcid_counter"] = 0
+            else:
+                self.logger.error(f"Counter increment aborted: {exc}")
 
 
 

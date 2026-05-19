@@ -368,5 +368,63 @@ entries:
         out_body = pmt.cdr(out_msg)
         self.assertTrue(pmt.eqv(out_body, pmt.PMT_NIL))
 
+    def test_013_auto_reset_enabled_resets_counters(self):
+        block = dbClient(type=0, auto_reset_counters=True)
+
+        VCID = 0x155
+        SPI = 1
+
+        SDLS_COUNTER_MAX = 0xFFFFFFFF
+        VCID_COUNTER_MAX = 0xFF
+
+        # Force counters to maximum values.
+        block._db[str(VCID)][str(SPI)]["sdls_counter"] = SDLS_COUNTER_MAX
+        block._db[str(VCID)][str(SPI)]["vcid_counter"] = VCID_COUNTER_MAX
+
+        original_pub, published = self._capture_pub(block)
+        try:
+            block.make_db_call(self._build_query(VCID, SPI))
+        finally:
+            self._restore_pub(block, original_pub)
+
+        self.assertEqual(len(published), 1)
+
+        out_port, out_msg = published[0]
+        self.assertTrue(pmt.eqv(out_port, pmt.intern("db_callback")))
+        out_meta = pmt.car(out_msg)
+
+        # Verify counters are at max values in the callback metadata.
+        self.assertEqual(self._meta_int(out_meta, "sdls_counter"), SDLS_COUNTER_MAX)
+        self.assertEqual(self._meta_int(out_meta, "vcid_counter"), VCID_COUNTER_MAX)
+
+        # With auto-reset enabled for dummy mode, counters should be reset to 0.
+        self.assertEqual(block._db[str(VCID)][str(SPI)]["sdls_counter"], 0)
+        self.assertEqual(block._db[str(VCID)][str(SPI)]["vcid_counter"], 0)
+
+    def test_014_auto_reset_disabled_keeps_max(self):
+        block = dbClient(type=0, auto_reset_counters=False)
+
+        VCID = 0x155
+        SPI = 1
+
+        SDLS_COUNTER_MAX = 0xFFFFFFFF
+        VCID_COUNTER_MAX = 0xFF
+
+        # Force counters to maximum values.
+        block._db[str(VCID)][str(SPI)]["sdls_counter"] = SDLS_COUNTER_MAX
+        block._db[str(VCID)][str(SPI)]["vcid_counter"] = VCID_COUNTER_MAX
+
+        original_pub, published = self._capture_pub(block)
+        try:
+            block.make_db_call(self._build_query(VCID, SPI))
+        finally:
+            self._restore_pub(block, original_pub)
+
+        self.assertEqual(len(published), 1)
+
+        # Ensure no wrap-around happened after callback publication.
+        self.assertEqual(block._db[str(VCID)][str(SPI)]["sdls_counter"], SDLS_COUNTER_MAX)
+        self.assertEqual(block._db[str(VCID)][str(SPI)]["vcid_counter"], VCID_COUNTER_MAX)
+
 if __name__ == '__main__':
     gr_unittest.run(qa_dbClient)
