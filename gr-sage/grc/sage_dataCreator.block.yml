@@ -28,13 +28,13 @@ parameters:
   option_labels: ['Random (length-based)', 'Manual data']
 
 - id: data
-  label: Data (optional)
+  label: Data (manual int/bytes/list)
   dtype: raw
   default: None
-  hide: ${ 'none' if payload_source == 'manual' else 'all' }
+  hide: ${ 'part' if payload_source == 'manual' else 'all' }
 
 - id: data_length_bytes
-  label: Data Length (bytes)
+  label: Data Length (bytes, random or pad)
   dtype: int
   default: 64
   hide: ${ 'none' if payload_source == 'random' else 'all' }

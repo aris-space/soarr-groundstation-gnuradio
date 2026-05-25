@@ -13,7 +13,14 @@ import numpy as np
 
 class dataCreator(gr.basic_block):
     """
-    docstring for block dataCreator
+    Create test payloads for downstream blocks.
+
+    Manual data can be an int, bytes/bytearray, or a list/array of bytes.
+    If data is an int and data_length_bytes is set, the value is left-padded
+    to that length using big-endian byte order.
+
+    Example:
+        data=0x00010203, data_length_bytes=4 -> 00 01 02 03
     """
     def __init__(self, mode=0, data:int|None=None, data_length_bytes:int|None=None, scid=0, spi=0, bypass=False, control=False):
         gr.basic_block.__init__(self,
@@ -33,6 +40,21 @@ class dataCreator(gr.basic_block):
         # Validate that either data or data_length_bytes is provided
         if self.data is not None and self.length is not None:
             raise ValueError("Either data or data_length_bytes must be provided.")
+
+        # Normalize provided data to a uint8 array when set explicitly.
+        if self.data is not None:
+            if isinstance(self.data, int):
+                if self.data < 0:
+                    raise ValueError("data must be non-negative when given as int")
+                if self.length is None:
+                    byte_len = max(1, (self.data.bit_length() + 7) // 8)
+                else:
+                    byte_len = int(self.length)
+                self.data = self.data.to_bytes(byte_len, byteorder="big", signed=False)
+            if isinstance(self.data, (bytes, bytearray)):
+                self.data = np.frombuffer(self.data, dtype=np.uint8)
+            elif not isinstance(self.data, np.ndarray):
+                self.data = np.array(self.data, dtype=np.uint8)
 
         # If data is not provided, create a random vector of the specified length
         if self.data is None:
