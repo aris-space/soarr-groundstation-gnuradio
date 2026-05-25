@@ -36,4 +36,5 @@ from .bchDecoder import bchDecoder
 from .cltuDeframer import cltuDeframer
 from .lfsrDescrambler import lfsrDescrambler
 from .ccsdsReceiver import ccsdsReceiver
+from .sdlsDecryption import sdlsDecryption
 #
