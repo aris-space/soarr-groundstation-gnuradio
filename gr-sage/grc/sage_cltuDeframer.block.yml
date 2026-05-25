@@ -4,7 +4,7 @@ category: '[sage]/CLTU'
 
 templates:
   imports: from gnuradio import sage
-  make: sage.cltuDeframer(${start_sequence}, ${tail_sequence}, ${payload_bytes}, ${threshold}, ${input_packed}, ${output_packed})
+  make: sage.cltuDeframer(${start_sequence}, ${tail_sequence}, ${payload_bytes}, ${threshold}, ${input_packed}, ${output_packed}, ${tag_name})
 
 #  Make one 'parameters' list entry for every parameter you want settable from the GUI.
 #     Keys include:
@@ -17,26 +17,42 @@ parameters:
   label: Start Sequence
   dtype: int
   default: 0xEB90
+
 - id: tail_sequence
   label: Tail Sequence
   dtype: int
   default: 0xC5C5C5C5C5C5C579
+
 - id: payload_bytes
   label: Payload Bytes
   dtype: int
   default: 8
+
 - id: threshold
   label: Threshold
   dtype: int
   default: 2
+
 - id: input_packed
   label: Packed Input
-  dtype: bool
-  default: True
+  dtype: enum
+  options: ['False', 'True']
+  option_labels: ['No', 'Yes']
+  default: 'False'
+
 - id: output_packed
   label: Packed Output
-  dtype: bool
-  default: True
+  dtype: enum
+  options: ['False', 'True']
+  option_labels: ['No', 'Yes']
+  default: 'False'
+
+- id: tag_name
+  label: Tag Name
+  dtype: string
+  default: start
+
+
 
 
 #  Make one 'inputs' list entry per input and one 'outputs' list entry per output.

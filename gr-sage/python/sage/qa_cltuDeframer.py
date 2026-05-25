@@ -36,6 +36,23 @@ class qa_cltuDeframer(gr_unittest.TestCase):
 
         return captured
 
+    def _run_and_capture_tagged_bits(self, dut, bit_stream, tag_offset):
+        captured = []
+        original_pub = dut.message_port_pub
+
+        def _capture(port, msg):
+            captured.append((port, msg))
+
+        dut.message_port_pub = _capture
+        try:
+            dut.test_set_bit_buffer(bit_stream, 0)
+            dut.test_set_pending_tag(tag_offset)
+            dut.process_pending_tag()
+        finally:
+            dut.message_port_pub = original_pub
+
+        return captured
+
     def test_instance(self):
         dut = cltuDeframer(start_sequence=START, tail_sequence=TAIL)
         self.assertIsNotNone(dut)
@@ -126,6 +143,136 @@ class qa_cltuDeframer(gr_unittest.TestCase):
         published = bytes(pmt.u8vector_elements(pmt.cdr(result)))
         expected_bits = self._bytes_to_bits(bytes(payload))
         self.assertEqual(published, expected_bits)
+
+    def test_007_correlate_access_code_tag(self):
+        """Simulate a Correlate Access Code - Tag and verify a PDU is produced."""
+        dut = cltuDeframer(
+            start_sequence=START,
+            tail_sequence=TAIL,
+            input_packed=False,
+            output_packed=True,
+            tag_name="start",
+        )
+        payload = [0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0]
+        frame = self._make_frame(payload)
+        bit_stream = self._bytes_to_bits(frame)
+
+        # Correlator tags the last bit of the access code window (index 15)
+        class _Tag:
+            def __init__(self, offset, key):
+                self.offset = offset
+                self.key = key
+
+        tag = _Tag(offset=15, key=pmt.intern("start"))
+
+        captured = self._run_and_capture_tagged_bits(dut, bit_stream, tag.offset)
+
+        self.assertEqual(len(captured), 1)
+        _, result = captured[0]
+        self.assertEqual(bytes(pmt.u8vector_elements(pmt.cdr(result))), bytes(payload))
+
+    def test_010_tag_requires_full_frame(self):
+        """Ensure a tag does not emit a PDU until the full frame is buffered."""
+        dut = cltuDeframer(
+            start_sequence=START,
+            tail_sequence=TAIL,
+            input_packed=False,
+            output_packed=True,
+            tag_name="start",
+        )
+        payload = [0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0]
+        frame = self._make_frame(payload)
+        bit_stream = self._bytes_to_bits(frame)
+
+        class _Tag:
+            def __init__(self, offset, key):
+                self.offset = offset
+                self.key = key
+
+        tag = _Tag(offset=15, key=pmt.intern("start"))
+
+        original_pub = dut.message_port_pub
+        try:
+            first = []
+            dut.message_port_pub = lambda port, msg: first.append((port, msg))
+            dut.test_set_bit_buffer(bit_stream[:40], 0)
+            dut.test_set_pending_tag(tag.offset)
+            dut.process_pending_tag()
+
+            second = []
+            dut.message_port_pub = lambda port, msg: second.append((port, msg))
+            dut.test_set_bit_buffer(bit_stream, 0)
+            dut.process_pending_tag()
+        finally:
+            dut.message_port_pub = original_pub
+
+        self.assertEqual(len(first), 0)
+        self.assertEqual(len(second), 1)
+        _, result = second[0]
+        self.assertEqual(bytes(pmt.u8vector_elements(pmt.cdr(result))), bytes(payload))
+
+    def test_011_threshold_allows_start_errors(self):
+        """Allow a small number of start-code bit errors within threshold."""
+        dut = cltuDeframer(
+            start_sequence=START,
+            tail_sequence=TAIL,
+            input_packed=False,
+            output_packed=True,
+            tag_name="start",
+            threshold=2,
+        )
+        payload = [0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0]
+        frame = self._make_frame(payload)
+        bit_stream = list(self._bytes_to_bits(frame))
+
+        # Flip two bits within the access code window (first 16 bits)
+        bit_stream[0] ^= 1
+        bit_stream[5] ^= 1
+        bit_stream = bytes(bit_stream)
+
+        class _Tag:
+            def __init__(self, offset, key):
+                self.offset = offset
+                self.key = key
+
+        tag = _Tag(offset=15, key=pmt.intern("start"))
+
+        captured = self._run_and_capture_tagged_bits(dut, bit_stream, tag.offset)
+
+        self.assertEqual(len(captured), 1)
+        _, result = captured[0]
+        self.assertEqual(bytes(pmt.u8vector_elements(pmt.cdr(result))), bytes(payload))
+
+    def test_012_threshold_rejects_too_many_errors(self):
+        """Reject frames when start-code errors exceed threshold."""
+        dut = cltuDeframer(
+            start_sequence=START,
+            tail_sequence=TAIL,
+            input_packed=False,
+            output_packed=True,
+            tag_name="start",
+            threshold=2,
+        )
+        payload = [0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0]
+        frame = self._make_frame(payload)
+        bit_stream = list(self._bytes_to_bits(frame))
+
+        # Flip three bits within the access code window (first 16 bits)
+        bit_stream[0] ^= 1
+        bit_stream[5] ^= 1
+        bit_stream[10] ^= 1
+        bit_stream = bytes(bit_stream)
+
+        class _Tag:
+            def __init__(self, offset, key):
+                self.offset = offset
+                self.key = key
+
+        tag = _Tag(offset=15, key=pmt.intern("start"))
+
+        captured = self._run_and_capture_tagged_bits(dut, bit_stream, tag.offset)
+
+        self.assertEqual(len(captured), 0)
 
 
 if __name__ == '__main__':
