@@ -36,7 +36,8 @@ gr_python_install(FILES __init__.py
     bchDecoder.py
     lfsrDescrambler.py
     ccsdsReceiver.py
-    sdlsDecryption.py DESTINATION ${GR_PYTHON_DIR}/gnuradio/sage)
+    sdlsDecryption.py
+    sdlsAuthenticationVerify.py DESTINATION ${GR_PYTHON_DIR}/gnuradio/sage)
 
 ########################################################################
 # Handle the unit tests
@@ -97,3 +98,5 @@ GR_ADD_TEST(qa_ccsdsReceiver ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa
 GR_ADD_TEST(qa_sdlsDecryption ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_sdlsDecryption.py)
 GR_ADD_TEST(qa_EncryptDecrypt ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_EncryptDecrypt.py)
 
+GR_ADD_TEST(qa_sdlsAuthenticationVerify ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_sdlsAuthenticationVerify.py)
+GR_ADD_TEST(qa_AuthenticateAuthVerify ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_AuthenticateAuthVerify.py)

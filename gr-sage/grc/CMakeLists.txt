@@ -23,4 +23,5 @@ install(FILES
     sage_cltuDeframer.block.yml
     sage_lfsrDescrambler.block.yml
     sage_ccsdsReceiver.block.yml
-    sage_sdlsDecryption.block.yml DESTINATION share/gnuradio/grc/blocks)
+    sage_sdlsDecryption.block.yml
+    sage_sdlsAuthenticationVerify.block.yml DESTINATION share/gnuradio/grc/blocks)
