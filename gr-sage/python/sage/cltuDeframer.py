@@ -172,7 +172,7 @@ class cltuDeframer(gr.basic_block):
         except Exception:
             hex_str = repr(payload_bytes)
         
-        self.logger.debug(f"Publishing payload: {hex_str} (start_err={start_errors}, tail_err={tail_errors})")
+        self.logger.trace(f"Publishing payload: {hex_str} (start_err={start_errors}, tail_err={tail_errors})")
         
         # Create metadata dict with correlation error info
         meta = pmt.make_dict()
@@ -181,6 +181,8 @@ class cltuDeframer(gr.basic_block):
         
         out_msg = pmt.cons(meta, pmt.init_u8vector(len(payload_bytes), list(payload_bytes)))
         self.message_port_pub(pmt.intern("out"), out_msg)
+        self.logger.debug(f"OK")
+        return out_msg
 
     def _process_tag(self, frame_start):
         """
@@ -356,7 +358,7 @@ class cltuDeframer(gr.basic_block):
                     if tag_abs < self._last_accepted_tag_abs + self._frame_length_items:
                         continue
                 bit_offset = int(tag.offset) * (8 if self.input_packed else 1)
-                self.logger.info(f"Tag '{self.tag_name}' found at bit offset {bit_offset}")
+                self.logger.debug(f"Tag '{self.tag_name}' found at bit offset {bit_offset}")
                 if not self._pending_tags or self._pending_tags[-1] != tag_abs:
                     self._pending_tags.append(tag_abs)
                     if not self.input_packed:

@@ -300,7 +300,7 @@ class ccsdsReader(gr.basic_block):
         sdls_trailer_len = 16 if self.sdls_type in (2, 3) else 0
         data_len = len(parsed.data) if hasattr(parsed, "data") and parsed.data is not None else 0
         overhead = 5 + 2 + (6 if self.data_type == 1 else 0) + encap_len + sdls_header_len + sdls_trailer_len
-        self.logger.info(
+        self.logger.debug(
             f"Parsed frame lengths: total={total_length} overhead={overhead} data={data_len} "
             f"encap={encap_len} sdls_hdr={sdls_header_len} sdls_trailer={sdls_trailer_len}"
         )
@@ -373,3 +373,6 @@ class ccsdsReader(gr.basic_block):
         payload_bytes = bytes(parsed.data) if hasattr(parsed, "data") and parsed.data is not None else b""
         out_body = pmt.init_u8vector(len(payload_bytes), list(payload_bytes))
         self.message_port_pub(pmt.intern("debug"), pmt.cons(out_meta, out_body))
+
+        self.logger.debug(f"OK")
+        return msg

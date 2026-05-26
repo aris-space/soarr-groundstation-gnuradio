@@ -278,7 +278,8 @@ class ccsdsReceiver(gr.basic_block):
             self.remaining_frame_length = 0
             self.total_frame_length = 0
             self.lfsrDescrambler.reset_sequence()  # Reset LFSR sequence for next frame
-            return
+            self.logger.debug(f"OK")
+            return msg
 
         if self.message_type == MESSAGE_TYPE_FIXED and self.remaining_fixed_bytes <= 0:
             self.logger.info(f"Complete frame received, publishing frame with {self.fixed_byte_length} length.")
@@ -287,5 +288,6 @@ class ccsdsReceiver(gr.basic_block):
             self.remaining_fixed_bytes = self.fixed_byte_length
             self.total_frame_length = 0
             self.lfsrDescrambler.reset_sequence()  # Reset LFSR sequence for next frame
-            return
+            self.logger.debug(f"OK")
+            return msg
             
