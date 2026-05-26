@@ -236,7 +236,6 @@ class ccsdsReceiver(gr.basic_block):
         self.message_port_pub(pmt.intern("out"), pmt.cons(metadata, pmt.init_u8vector(len(frame_data), list(frame_data))))
         self.frame_buffer = bytearray()  # Clear buffer for next frame
 
-
     def receiver(self, msg):
         """Saves the received messages in a buffer"""
         
@@ -250,7 +249,6 @@ class ccsdsReceiver(gr.basic_block):
                     self._handleMessageTypeTC(payload_bytes)
                 elif self.field_type == LENGTH_TYPE_ENCAPSULATION_FIELD:
                     raise NotImplementedError("Length type 'Encapsulation Field' is not implemented yet.")
-
 
             if self.message_type == MESSAGE_TYPE_TM:
                 raise NotImplementedError("Message type TM is not implemented yet.")

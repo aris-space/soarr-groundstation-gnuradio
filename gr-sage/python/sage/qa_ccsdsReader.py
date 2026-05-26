@@ -182,8 +182,9 @@ class qa_ccsdsReader(gr_unittest.TestCase):
     def test_decode_full_packet_outputs_all_fields_and_unchanged_u8vector(self):
         """Build a full CCSDS packet then decode to a PDU with parsed fields and unchanged frame bytes."""
         payload_bytes = bytes([0xDE, 0xAD, 0xBE, 0xEF])
-        sdls_trailer = bytes([0xA5] * 32)
-        frame_length = 5 + 6 + 6 + 4 + len(payload_bytes) + 32 + 2
+        sdls_trailer = bytes([0xA5] * 16)
+        total_length = 5 + 6 + 4 + 4 + len(payload_bytes) + 16 + 2
+        frame_length = total_length - 1
 
         instance = ccsdsReader(message_type=0, sdls_type=3, encapsulation_used=True, data_type=1)
 
@@ -208,12 +209,9 @@ class qa_ccsdsReader(gr_unittest.TestCase):
                     flags=0x15,
                 ),
                 encapsulation_header=dict(
-                    packet_version=0x7,
-                    protocol_id=0x5,
-                    length_of_length=0x2,
-                    user_defined_field=0xA,
-                    protocol_id_extension=0x4,
-                    ccsds_defined_field=0x1234,
+                    first_octet=0xF6,
+                    _user_defined_field_raw=0xA4,
+                    ccsds_defined_field=0x0000,
                     packet_length=0x5678,
                 ),
                 sdls_security_header=dict(
@@ -229,22 +227,22 @@ class qa_ccsdsReader(gr_unittest.TestCase):
         # Deconstruct the full packet with CCSDSReader field parsers.
         tc_size = 5
         csp_size = 6
-        encaps_size = 6
         sdls_header_size = 4
+        encaps_size = 4
         fecf_size = 2
-        sdls_trailer_size = 32
+        sdls_trailer_size = 16
 
-        data_length = frame_length - (tc_size + csp_size + encaps_size + sdls_header_size + sdls_trailer_size + fecf_size)
+        data_length = total_length - (tc_size + csp_size + encaps_size + sdls_header_size + sdls_trailer_size + fecf_size)
 
         offset = 0
         tc_header = dict(instance.tc_header().parse(packet_bytes[offset:offset + tc_size]))
         offset += tc_size
         csp_header = dict(instance.csp_header().parse(packet_bytes[offset:offset + csp_size]))
         offset += csp_size
-        encapsulation_header = dict(instance.encapsulation_header().parse(packet_bytes[offset:offset + encaps_size]))
-        offset += encaps_size
         sdls_security_header = dict(instance.sdls_security_header().parse(packet_bytes[offset:offset + sdls_header_size]))
         offset += sdls_header_size
+        encapsulation_header = dict(instance.encapsulation_header().parse(packet_bytes[offset:offset + encaps_size]))
+        offset += encaps_size
         data_bytes = packet_bytes[offset:offset + data_length]
         offset += data_length
         sdls_security_trailer_out = packet_bytes[offset:offset + sdls_trailer_size]
@@ -299,7 +297,8 @@ class qa_ccsdsReader(gr_unittest.TestCase):
     def test_decode_minimal_packet_outputs_fields_and_unchanged_u8vector(self):
         """Build a minimal CCSDS packet then decode to parsed dict fields and unchanged frame bytes."""
         payload_bytes = bytes([0x01, 0x23, 0x45, 0x67])
-        frame_length = 5 + len(payload_bytes) + 2
+        total_length = 5 + len(payload_bytes) + 2
+        frame_length = total_length - 1
 
         instance = ccsdsReader(message_type=0, sdls_type=0, encapsulation_used=False, data_type=0)
 
@@ -323,7 +322,7 @@ class qa_ccsdsReader(gr_unittest.TestCase):
         # Deconstruct the minimal packet with CCSDSReader field parsers.
         tc_size = 5
         fecf_size = 2
-        data_length = frame_length - (tc_size + fecf_size)
+        data_length = total_length - (tc_size + fecf_size)
 
         offset = 0
         tc_header = dict(instance.tc_header().parse(packet_bytes[offset:offset + tc_size]))

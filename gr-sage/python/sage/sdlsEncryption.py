@@ -76,6 +76,12 @@ class sdlsEncryption(gr.basic_block):
     def _extract_counter(self, dict_msg)->int|None:
          # Extract and validate the SDLS counter value from dict.
         counter = pmt.dict_ref(dict_msg, pmt.intern("sdls_counter"), pmt.PMT_NIL)
+        if pmt.eqv(counter, pmt.PMT_NIL):
+            sdls = pmt.dict_ref(dict_msg, pmt.intern("sdls"), pmt.PMT_NIL)
+            if not pmt.eqv(sdls, pmt.PMT_NIL) and pmt.is_dict(sdls):
+                security_header = pmt.dict_ref(sdls, pmt.intern("security_header"), pmt.PMT_NIL)
+                if not pmt.eqv(security_header, pmt.PMT_NIL) and pmt.is_dict(security_header):
+                    counter = pmt.dict_ref(security_header, pmt.intern("sdls_counter"), pmt.PMT_NIL)
 
         if pmt.eqv(counter, pmt.PMT_NIL):
             self.logger.warn(f"Received dict message with empty sdls_counter: {dict_msg}")

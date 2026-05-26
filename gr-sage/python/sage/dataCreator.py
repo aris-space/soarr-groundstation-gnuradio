@@ -22,7 +22,7 @@ class dataCreator(gr.basic_block):
     Example:
         data=0x00010203, data_length_bytes=4 -> 00 01 02 03
     """
-    def __init__(self, mode=0, data:int|None=None, data_length_bytes:int|None=None, scid=0, spi=0, bypass=False, control=False):
+    def __init__(self, mode=0, data:int|None=None, data_length_bytes:int|None=None, scid=0, spi=0, bypass=False, control=False, vcid=0, vcid_counter=0, sdls_counter=0):
         gr.basic_block.__init__(self,
             name="dataCreator",
             in_sig=None,
@@ -33,8 +33,11 @@ class dataCreator(gr.basic_block):
         self.length = data_length_bytes
         self.scid = scid
         self.spi = spi
+        self.vcid_counter = vcid_counter
+        self.sdls_counter = sdls_counter
         self.bypass = bypass
         self.control = control
+        self.vcid = vcid
 
 
         # Validate that either data or data_length_bytes is provided
@@ -84,10 +87,21 @@ class dataCreator(gr.basic_block):
     def generate_message(self, msg):
         # Create a PMT dictionary to hold the message fields
         msg_dict = pmt.make_dict()
-        msg_dict = pmt.dict_add(msg_dict, pmt.intern("scid"), pmt.from_long(self.scid))
-        msg_dict = pmt.dict_add(msg_dict, pmt.intern("spi"), pmt.from_long(self.spi))
-        msg_dict = pmt.dict_add(msg_dict, pmt.intern("bypass"), pmt.from_bool(self.bypass))
-        msg_dict = pmt.dict_add(msg_dict, pmt.intern("control"), pmt.from_bool(self.control))
+
+        telecommand = pmt.make_dict()
+        tc_header = pmt.make_dict()
+        tc_header = pmt.dict_add(tc_header, pmt.intern("scid"), pmt.from_long(self.scid))
+        tc_header = pmt.dict_add(tc_header, pmt.intern("bypass_flag"), pmt.from_bool(self.bypass))
+        tc_header = pmt.dict_add(tc_header, pmt.intern("control_flag"), pmt.from_bool(self.control))
+        telecommand = pmt.dict_add(telecommand, pmt.intern("tc_header"), tc_header)
+        msg_dict = pmt.dict_add(msg_dict, pmt.intern("telecommand"), telecommand)
+
+        sdls = pmt.make_dict()
+        sdls_header = pmt.make_dict()
+        sdls_header = pmt.dict_add(sdls_header, pmt.intern("spi"), pmt.from_long(self.spi))
+        sdls_header = pmt.dict_add(sdls_header, pmt.intern("security_param_index"), pmt.from_long(self.spi))
+        sdls = pmt.dict_add(sdls, pmt.intern("security_header"), sdls_header)
+        msg_dict = pmt.dict_add(msg_dict, pmt.intern("sdls"), sdls)
 
         # Create a PMT u8vector to hold the message data
         msg_vector = pmt.init_u8vector(self.length, self.data)

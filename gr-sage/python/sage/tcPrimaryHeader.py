@@ -128,6 +128,43 @@ class tcPrimaryHeader(gr.basic_block):
             self.logger.warn(f"Failed to convert metadata key '{key}' to boolean: {meta}")
             return default
 
+    def _try_get_int(self, meta, key):
+        if not pmt.is_dict(meta):
+            return None
+        pmt_key = pmt.intern(key)
+        if not pmt.dict_has_key(meta, pmt_key):
+            return None
+        value = pmt.dict_ref(meta, pmt_key, pmt.PMT_NIL)
+        if pmt.eqv(value, pmt.PMT_NIL):
+            return None
+        try:
+            return int(pmt.to_long(value))
+        except Exception:
+            return None
+
+    def _try_get_bool(self, meta, key):
+        if not pmt.is_dict(meta):
+            return None
+        pmt_key = pmt.intern(key)
+        if not pmt.dict_has_key(meta, pmt_key):
+            return None
+        value = pmt.dict_ref(meta, pmt_key, pmt.PMT_NIL)
+        if pmt.eqv(value, pmt.PMT_NIL):
+            return None
+        try:
+            return pmt.to_bool(value)
+        except Exception:
+            return None
+
+    def _get_tc_header(self, dict_msg):
+        telecommand = pmt.dict_ref(dict_msg, pmt.intern("telecommand"), pmt.PMT_NIL)
+        if pmt.eqv(telecommand, pmt.PMT_NIL) or not pmt.is_dict(telecommand):
+            return pmt.PMT_NIL
+        tc_header = pmt.dict_ref(telecommand, pmt.intern("tc_header"), pmt.PMT_NIL)
+        if pmt.eqv(tc_header, pmt.PMT_NIL) or not pmt.is_dict(tc_header):
+            return pmt.PMT_NIL
+        return tc_header
+
     def _pack_header(self, fields):
         if TC_PRIMARY_HEADER_STRUCT is not None:
             return TC_PRIMARY_HEADER_STRUCT.build(fields)
@@ -164,25 +201,43 @@ class tcPrimaryHeader(gr.basic_block):
         
         payload_bytes = bytes(pmt.u8vector_elements(payload))
 
+        tc_header = self._get_tc_header(dict_msg)
+
         # Check for VCID
-        vcid = self._pmt_dict_get_int(dict_msg, "vcid", None)
+        vcid = self._try_get_int(dict_msg, "vcid")
+        if vcid is None and not pmt.eqv(tc_header, pmt.PMT_NIL):
+            vcid = self._try_get_int(tc_header, "vcid")
         if vcid is None:
             # VCID is not proviced in metadata; write default value to metadata for downstream blocks to use
             vcid = self.vcid
             dict_msg = pmt.dict_add(dict_msg, pmt.intern("vcid"), pmt.from_long(vcid))
 
         # Check for SCID
-        scid = self._pmt_dict_get_int(dict_msg, "scid", None)
+        scid = self._try_get_int(dict_msg, "scid")
+        if scid is None and not pmt.eqv(tc_header, pmt.PMT_NIL):
+            scid = self._try_get_int(tc_header, "scid")
         if scid is None:
             # SCID is not proviced in metadata; write default value to metadata for downstream blocks to use
             scid = self.scid
             dict_msg = pmt.dict_add(dict_msg, pmt.intern("scid"), pmt.from_long(scid))
 
         # Check for bypass flag
-        bypass = self._pmt_dict_get_bool(dict_msg, "bypass", self.bypass)
+        bypass = self._try_get_bool(dict_msg, "bypass")
+        if bypass is None and not pmt.eqv(tc_header, pmt.PMT_NIL):
+            bypass = self._try_get_bool(tc_header, "bypass")
+        if bypass is None and not pmt.eqv(tc_header, pmt.PMT_NIL):
+            bypass = self._try_get_bool(tc_header, "bypass_flag")
+        if bypass is None:
+            bypass = self.bypass
 
         # Check for control flag
-        control = self._pmt_dict_get_bool(dict_msg, "control", self.control)
+        control = self._try_get_bool(dict_msg, "control")
+        if control is None and not pmt.eqv(tc_header, pmt.PMT_NIL):
+            control = self._try_get_bool(tc_header, "control")
+        if control is None and not pmt.eqv(tc_header, pmt.PMT_NIL):
+            control = self._try_get_bool(tc_header, "control_flag")
+        if control is None:
+            control = self.control
 
         # Check for frame_length
         if pmt.dict_has_key(dict_msg, pmt.intern("frame_length")):
@@ -194,7 +249,9 @@ class tcPrimaryHeader(gr.basic_block):
             frame_length = len(payload_bytes) + HEADER_BYTES - 1 + self.additional_crc_bytes  # payload + header - 1 (since frame_length counts from byte 6) + optional CRC bytes
 
         # Extract vcid_counter (required) - maps to frame_sequence_number in CCSDS header
-        frame_sequence_number = self._pmt_dict_get_int(dict_msg, "vcid_counter", None)
+        frame_sequence_number = self._try_get_int(dict_msg, "vcid_counter")
+        if frame_sequence_number is None and not pmt.eqv(tc_header, pmt.PMT_NIL):
+            frame_sequence_number = self._try_get_int(tc_header, "vcid_counter")
         if frame_sequence_number is None:
             self.logger.error("Metadata did not include vcid_counter.")
             return

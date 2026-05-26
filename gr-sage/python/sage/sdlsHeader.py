@@ -112,13 +112,32 @@ class sdlsHeader(gr.basic_block):
         
         # Extract and validate spi from dict
         try:
-            spi = self._extract_dictionary_key(dict_msg, "spi", fixed_length_bytes=2)
+            sdls = pmt.dict_ref(dict_msg, pmt.intern("sdls"), pmt.PMT_NIL)
+            security_header = pmt.PMT_NIL
+            if not pmt.eqv(sdls, pmt.PMT_NIL) and pmt.is_dict(sdls):
+                security_header = pmt.dict_ref(sdls, pmt.intern("security_header"), pmt.PMT_NIL)
+
+            if pmt.dict_has_key(dict_msg, pmt.intern("spi")):
+                spi = self._extract_dictionary_key(dict_msg, "spi", fixed_length_bytes=2)
+            elif not pmt.eqv(security_header, pmt.PMT_NIL) and pmt.is_dict(security_header):
+                spi = self._extract_dictionary_key(security_header, "spi", fixed_length_bytes=2)
+            else:
+                spi = None
             if spi is None:
                 self.logger.warn(f"Failed to extract spi from message: {msg}")
                 return
 
             # Extract and validate sdls_counter from dict
-            sdls_counter = self._extract_dictionary_key(dict_msg, "sdls_counter", fixed_length_bytes=self.iv_length_bytes)
+            if pmt.dict_has_key(dict_msg, pmt.intern("sdls_counter")):
+                sdls_counter = self._extract_dictionary_key(dict_msg, "sdls_counter", fixed_length_bytes=self.iv_length_bytes)
+            elif not pmt.eqv(security_header, pmt.PMT_NIL) and pmt.is_dict(security_header):
+                sdls_counter = self._extract_dictionary_key(
+                    security_header,
+                    "sdls_counter",
+                    fixed_length_bytes=self.iv_length_bytes,
+                )
+            else:
+                sdls_counter = None
             if sdls_counter is None:
                 self.logger.warn(f"Failed to extract sdls_counter from message: {msg}")
                 return

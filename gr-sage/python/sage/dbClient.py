@@ -277,9 +277,53 @@ class dbClient(gr.basic_block):
         except Exception:
             return default
 
-    def _entry_from_scid_spi(self, meta):
+    def _pmt_dict_get(self, meta, key):
+        if not pmt.is_dict(meta):
+            return pmt.PMT_NIL
+        pmt_key = pmt.intern(key)
+        if not pmt.dict_has_key(meta, pmt_key):
+            return pmt.PMT_NIL
+        return pmt.dict_ref(meta, pmt_key, pmt.PMT_NIL)
+
+    def _resolve_nested(self, meta, path):
+        current = meta
+        for key in path:
+            current = self._pmt_dict_get(current, key)
+            if pmt.eqv(current, pmt.PMT_NIL):
+                return pmt.PMT_NIL
+        return current
+
+    def _resolve_scid_spi(self, meta):
         scid = self._pmt_dict_get_int(meta, "scid", None)
         spi = self._pmt_dict_get_int(meta, "spi", None)
+        if scid is not None and spi is not None:
+            return scid, spi
+
+        tc_header = self._resolve_nested(meta, ["telecommand", "tc_header"])
+        scid = self._pmt_dict_get_int(tc_header, "scid", None)
+        spi = self._pmt_dict_get_int(
+            self._resolve_nested(meta, ["sdls", "security_header"]),
+            "spi",
+            None,
+        )
+        if scid is None or spi is None:
+            return None, None
+
+        return scid, spi
+
+    def _resolve_bypass_control(self, meta):
+        bypass = self._pmt_dict_get_bool(meta, "bypass", None)
+        control = self._pmt_dict_get_bool(meta, "control", None)
+        if bypass is not None and control is not None:
+            return bypass, control
+
+        tc_header = self._resolve_nested(meta, ["telecommand", "tc_header"])
+        bypass = self._pmt_dict_get_bool(tc_header, "bypass", False)
+        control = self._pmt_dict_get_bool(tc_header, "control", False)
+        return bypass, control
+
+    def _entry_from_scid_spi(self, meta):
+        scid, spi = self._resolve_scid_spi(meta)
         if scid is None or spi is None:
             return None
 
@@ -337,8 +381,7 @@ class dbClient(gr.basic_block):
         # Old inputs - echo back bypass and control from query
         response_meta = pmt.dict_add(response_meta, pmt.intern("scid"), pmt.from_long(int(entry.get("SCID", 0))))
         response_meta = pmt.dict_add(response_meta, pmt.intern("spi"), pmt.from_long(int(entry.get("SPI", 0))))
-        bypass = self._pmt_dict_get_bool(meta, "bypass", False)
-        control = self._pmt_dict_get_bool(meta, "control", False)
+        bypass, control = self._resolve_bypass_control(meta)
         response_meta = pmt.dict_add(response_meta, pmt.intern("bypass"), pmt.from_bool(bypass))
         response_meta = pmt.dict_add(response_meta, pmt.intern("control"), pmt.from_bool(control))
 

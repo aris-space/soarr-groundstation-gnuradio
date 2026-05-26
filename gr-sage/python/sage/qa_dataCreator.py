@@ -50,6 +50,16 @@ class qa_dataCreator(gr_unittest.TestCase):
         except Exception:
             return int(pmt.to_uint64(value))
 
+    def _pmt_get_nested_int(self, meta, path):
+        current = meta
+        for key in path:
+            current = pmt.dict_ref(current, pmt.intern(key), pmt.PMT_NIL)
+            self.assertFalse(pmt.eqv(current, pmt.PMT_NIL), f"Missing metadata key '{key}'")
+        try:
+            return int(pmt.to_long(current))
+        except Exception:
+            return int(pmt.to_uint64(current))
+
     def test_instance(self):
         instance = dataCreator(data_length_bytes=1)
         self.assertIsNotNone(instance)
@@ -75,8 +85,8 @@ class qa_dataCreator(gr_unittest.TestCase):
         out_meta = pmt.car(out_msg)
         out_body = pmt.cdr(out_msg)
 
-        self.assertEqual(self._pmt_get_int(out_meta, "scid"), 341)
-        self.assertEqual(self._pmt_get_int(out_meta, "spi"), 7)
+        self.assertEqual(self._pmt_get_nested_int(out_meta, ["telecommand", "tc_header", "scid"]), 341)
+        self.assertEqual(self._pmt_get_nested_int(out_meta, ["sdls", "security_header", "spi"]), 7)
         self.assertTrue(pmt.is_u8vector(out_body))
         self.assertEqual(bytes(pmt.u8vector_elements(out_body)), bytes([0x10, 0x20, 0x30, 0x40]))
 
@@ -97,8 +107,8 @@ class qa_dataCreator(gr_unittest.TestCase):
         out_body = pmt.cdr(out_msg)
         out_bytes = bytes(pmt.u8vector_elements(out_body))
 
-        self.assertEqual(self._pmt_get_int(out_meta, "scid"), 1)
-        self.assertEqual(self._pmt_get_int(out_meta, "spi"), 2)
+        self.assertEqual(self._pmt_get_nested_int(out_meta, ["telecommand", "tc_header", "scid"]), 1)
+        self.assertEqual(self._pmt_get_nested_int(out_meta, ["sdls", "security_header", "spi"]), 2)
         self.assertEqual(len(out_bytes), expected_length)
 
     def test_003_raises_when_data_and_length_both_provided(self):
