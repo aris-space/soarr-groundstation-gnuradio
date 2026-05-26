@@ -94,11 +94,11 @@ class layout(gr.top_block):
         self.msg_connect((self.encapsulation_header, "out"), (self.sdls_encryption, "in"))
         self.msg_connect((self.sdls_encryption, "out"), (self.sdls_authentication, "in"))
         self.msg_connect((self.sdls_authentication, "out"), (self.sdls_header, "in"))
-        self.msg_connect((self.sdls_header, "out"), (self.tc_primary_header, "pdu_in"))
-        self.msg_connect((self.tc_primary_header, "pdu_out"), (self.crc_append, "in"))
-        self.msg_connect((self.crc_append, "out"), (self.lfsr_scrambler, "pdu_in"))
-        self.msg_connect((self.lfsr_scrambler, "pdu_out"), (self.bch_encoder, "message"))
-        self.msg_connect((self.bch_encoder, "codewords"), (self.cltu_framer, "pdu_in"))
+        self.msg_connect((self.sdls_header, "out"), (self.tc_primary_header, "in"))
+        self.msg_connect((self.tc_primary_header, "out"), (self.crc_append, "in"))
+        self.msg_connect((self.crc_append, "out"), (self.lfsr_scrambler, "in"))
+        self.msg_connect((self.lfsr_scrambler, "out"), (self.bch_encoder, "message"))
+        self.msg_connect((self.bch_encoder, "codewords"), (self.cltu_framer, "in"))
 
 class qa_layoutTest(gr_unittest.TestCase):
 
@@ -211,14 +211,14 @@ class qa_layoutTest(gr_unittest.TestCase):
         self._bind_passthrough(self.tb.sdls_encryption, "add_encryption", "in", "out")
         self._bind_passthrough(self.tb.sdls_authentication, "add_authentication", "in", "out")
         self._bind_passthrough(self.tb.sdls_header, "add_header", "in", "out")
-        self._bind_passthrough(self.tb.tc_primary_header, "build_header", "pdu_in", "pdu_out")
-        self._bind_passthrough(self.tb.lfsr_scrambler, "handle_msg", "pdu_in", "pdu_out")
+        self._bind_passthrough(self.tb.tc_primary_header, "build_header", "in", "out")
+        self._bind_passthrough(self.tb.lfsr_scrambler, "handle_msg", "in", "out")
         self._bind_passthrough(self.tb.bch_encoder, "encodeBCH", "message", "codewords")
-        self._bind_passthrough(self.tb.cltu_framer, "addSequences", "pdu_in", "pdu_out")
+        self._bind_passthrough(self.tb.cltu_framer, "addSequences", "in", "out")
 
         # Capture the pdu_out outputs
         captured = []
-        original_pub = self._capture_port(self.tb.cltu_framer, "pdu_out", captured)
+        original_pub = self._capture_port(self.tb.cltu_framer, "out", captured)
 
         # Build a test PDU with metadata and payload to inject into the flowgraph.
         meta = pmt.make_dict()
@@ -252,7 +252,6 @@ class qa_layoutTest(gr_unittest.TestCase):
         self.assertEqual(self._pmt_get_int(out_meta, "frame_sequence_number"), FRAME_SEQUENCE_NUMBER)
         self.assertEqual(out_bytes[:len(PAYLOAD_BYTES)], PAYLOAD_BYTES)
         self.assertEqual(len(out_bytes), len(PAYLOAD_BYTES) + 4)
-
 
     def test_003_dbclient_distinct_spi_entries_for_same_scid(self):
         """Verify one SCID can resolve to multiple distinct SPI entries with unique material."""
@@ -326,14 +325,15 @@ class qa_layoutTest(gr_unittest.TestCase):
         TEST_SCID = 0x155
         TEST_VCID = 0x12
         TEST_SEQUENCE_NUMBER = 9
+        TEST_VCID_COUNTER = 0
         PAYLOAD_BYTES = bytes([0x11, 0x22, 0x33])
 
         block = tcPrimaryHeader(scid=TEST_SCID, vcid=TEST_VCID)
         captured = []
-        original_pub = self._capture_specific_port(block, "pdu_out", captured)
+        original_pub = self._capture_specific_port(block, "out", captured)
 
         meta = pmt.make_dict()
-        meta = pmt.dict_add(meta, pmt.intern("frame_sequence_number"), pmt.from_long(TEST_SEQUENCE_NUMBER))
+        meta = pmt.dict_add(meta, pmt.intern("vcid_counter"), pmt.from_long(TEST_VCID_COUNTER))
         payload = pmt.init_u8vector(len(PAYLOAD_BYTES), list(PAYLOAD_BYTES))
         msg = pmt.cons(meta, payload)
 
@@ -351,7 +351,7 @@ class qa_layoutTest(gr_unittest.TestCase):
 
         self.assertEqual(self._pmt_get_int(out_meta, "scid"), TEST_SCID)
         self.assertEqual(self._pmt_get_int(out_meta, "vcid"), TEST_VCID)
-        self.assertEqual(self._pmt_get_int(out_meta, "frame_sequence_number"), TEST_SEQUENCE_NUMBER)
+        self.assertFalse(pmt.dict_has_key(out_meta, pmt.intern("vcid_counter")))
         self.assertEqual(out_bytes[-len(PAYLOAD_BYTES):], PAYLOAD_BYTES)
 
     def test_005_sdls_header_real_handler(self):
@@ -359,7 +359,7 @@ class qa_layoutTest(gr_unittest.TestCase):
 
         FRAME_ID = 21
         SPI_BYTES = bytes([0x12, 0x34])
-        IV_BYTES = bytes([0xAB, 0xCD])
+        SDLS_COUNTER = 0
         PAYLOAD_BYTES = bytes([0x55, 0x66, 0x77])
 
         block = sdlsHeader(iv_length_bytes=2)
@@ -368,11 +368,7 @@ class qa_layoutTest(gr_unittest.TestCase):
 
         meta = pmt.make_dict()
         meta = pmt.dict_add(meta, pmt.intern("spi"), pmt.init_u8vector(len(SPI_BYTES), list(SPI_BYTES)))
-        meta = pmt.dict_add(
-            meta,
-            pmt.intern("initialization_vector"),
-            pmt.init_u8vector(len(IV_BYTES), list(IV_BYTES)),
-        )
+        meta = pmt.dict_add(meta, pmt.intern("sdls_counter"), pmt.from_long(SDLS_COUNTER))
         meta = pmt.dict_add(meta, pmt.intern("frame_id"), pmt.from_long(FRAME_ID))
         msg = pmt.cons(meta, pmt.init_u8vector(len(PAYLOAD_BYTES), list(PAYLOAD_BYTES)))
 
@@ -390,8 +386,7 @@ class qa_layoutTest(gr_unittest.TestCase):
 
         self.assertTrue(pmt.dict_has_key(out_meta, pmt.intern("frame_id")))
         self.assertFalse(pmt.dict_has_key(out_meta, pmt.intern("spi")))
-        self.assertFalse(pmt.dict_has_key(out_meta, pmt.intern("initialization_vector")))
-        self.assertEqual(out_bytes, SPI_BYTES + IV_BYTES + PAYLOAD_BYTES)
+        self.assertEqual(out_bytes, SPI_BYTES + SDLS_COUNTER.to_bytes(2, byteorder="big") + PAYLOAD_BYTES)
 
     def test_006_sdls_encryption_real_handler(self):
         """Verify the real SDLS encryption block encrypts with AES-CTR and removes the key from metadata."""
@@ -507,7 +502,7 @@ class qa_layoutTest(gr_unittest.TestCase):
 
         block = lfsrScrambler(mask=0xA9, seed=0xFF, register_length=8)
         captured = []
-        original_pub = self._capture_specific_port(block, "pdu_out", captured)
+        original_pub = self._capture_specific_port(block, "out", captured)
 
         meta = pmt.make_dict()
         meta = pmt.dict_add(meta, pmt.intern("frame_id"), pmt.from_long(FRAME_ID))
@@ -566,11 +561,11 @@ class qa_layoutTest(gr_unittest.TestCase):
         FRAME_ID = 202
         START_SEQUENCE = 0xEB90
         TAIL_SEQUENCE = 0xC5C5C5C5C5C5C579
-        PAYLOAD_BYTES = bytes([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07])
+        PAYLOAD_BYTES = bytes([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08])
 
         block = cltuFramer(startSequence=START_SEQUENCE, tailSequence=TAIL_SEQUENCE)
         captured = []
-        original_pub = self._capture_specific_port(block, "pdu_out", captured)
+        original_pub = self._capture_specific_port(block, "out", captured)
 
         meta = pmt.make_dict()
         meta = pmt.dict_add(meta, pmt.intern("frame_id"), pmt.from_long(FRAME_ID))
