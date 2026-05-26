@@ -1,6 +1,6 @@
 id: sage_ccsdsReader
 label: CCSDS Reader
-category: '[sage]/Testing'
+category: '[sage]/Reception'
 
 templates:
   imports: from gnuradio import sage
@@ -30,6 +30,8 @@ parameters:
 - id: encapsulation_used
   label: Encapsulation Header
   dtype: bool
+  options: ['True', 'False']
+  option_labels: [Activated, Deactivated]
   default: True
 
 - id: data_type

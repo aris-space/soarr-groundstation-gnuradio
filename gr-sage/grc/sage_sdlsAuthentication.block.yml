@@ -20,7 +20,7 @@ parameters:
   option_labels: [Enabled, Disabled]
   default: 'True'
 - id: nonce_hex
-  label: Nonce Hex
+  label: Nonce
   dtype: int
   default: 0
 

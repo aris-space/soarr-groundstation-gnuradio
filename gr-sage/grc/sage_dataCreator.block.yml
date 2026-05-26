@@ -52,11 +52,15 @@ parameters:
 - id: bypass
   label: Bypass
   dtype: bool
+  options: ['True', 'False']
+  option_labels: ['True', 'False']
   default: 'False'
 
 - id: control
   label: Control
   dtype: bool
+  options: ['True', 'False']
+  option_labels: ['True', 'False']
   default: 'False'
 #  Keys include:
 #      * label (an identifier for the GUI)

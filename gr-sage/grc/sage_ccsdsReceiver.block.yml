@@ -1,6 +1,6 @@
 id: sage_ccsdsReceiver
-label: ccsdsReceiver
-category: '[sage]'
+label: CCSDS Receiver
+category: '[sage]/Reception'
 
 templates:
   imports: from gnuradio import sage
@@ -34,12 +34,11 @@ parameters:
   default: 0
   hide: ${ 'all' if message_type != '2' else 'none' }
 
-
 - id: scid_filter_enable
   label: SCID Filter
   dtype: enum
   options: ['False', 'True']
-  option_labels: [Disable, Enable]
+  option_labels: [Disabled, Enabled]
   default: 'False'
 
 - id: scid
@@ -48,12 +47,11 @@ parameters:
   default: 0
   hide: ${ 'none' if scid_filter_enable == 'True' else 'all' }
 
-
 - id: vcid_filter_enable
   label: VCID Filter
   dtype: enum
   options: ['False', 'True']
-  option_labels: [Disable, Enable]
+  option_labels: [Disabled, Enabled]
   default: 'False'
 
 - id: vcid

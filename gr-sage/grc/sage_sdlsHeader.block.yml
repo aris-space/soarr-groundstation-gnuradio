@@ -14,7 +14,7 @@ templates:
 #     * default
 parameters:
 - id: iv_length_bytes
-  label: IV Length (bytes)
+  label: IV byte length
   dtype: int
   default: 2
 #- id: ...
