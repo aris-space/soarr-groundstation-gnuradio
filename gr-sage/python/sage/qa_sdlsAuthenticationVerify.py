@@ -58,6 +58,26 @@ class qa_sdlsAuthenticationVerify(gr_unittest.TestCase):
         tag = cobj.digest()
         return payload + tag
 
+    def _make_trailer_tag(self, key_hex, counter, payload):
+        counter_bytes = (b"\x00" * 14) + counter.to_bytes(2, byteorder="big", signed=False)
+        cobj = CMAC.new(bytes.fromhex(key_hex), ciphermod=AES)
+        cobj.update(counter_bytes + payload)
+        return cobj.digest()
+
+    def _encap_meta(self, packet_length=0x0104):
+        meta = pmt.make_dict()
+        meta = pmt.dict_add(meta, pmt.intern("length_of_length"), pmt.from_long(2))
+        meta = pmt.dict_add(meta, pmt.intern("packet_version"), pmt.from_long(7))
+        meta = pmt.dict_add(meta, pmt.intern("protocol_id"), pmt.from_long(7))
+        meta = pmt.dict_add(meta, pmt.intern("user_defined_field"), pmt.from_long(0))
+        meta = pmt.dict_add(meta, pmt.intern("protocol_id_extension"), pmt.from_long(0))
+        meta = pmt.dict_add(meta, pmt.intern("first_octet"), pmt.from_long(0xFE))
+        meta = pmt.dict_add(meta, pmt.intern("packet_length"), pmt.from_long(packet_length))
+        return meta
+
+    def _encap_bytes(self, packet_length=0x0104):
+        return bytes([0xFE, 0x00]) + int(packet_length).to_bytes(2, byteorder="big", signed=False)
+
     def test_instance(self):
         instance = sdlsAuthenticationVerify()
         self.assertIsNotNone(instance)
@@ -212,6 +232,64 @@ class qa_sdlsAuthenticationVerify(gr_unittest.TestCase):
     def test_012_nonce_type_validation_in_constructor(self):
         with self.assertRaises(TypeError):
             sdlsAuthenticationVerify(nonce=0x1234)
+
+    def test_013_trailer_with_encap_in_payload_strips_header(self):
+        key_hex = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
+        counter = 5
+        payload = bytes([0x01, 0x02, 0x03, 0x04])
+        encap = self._encap_bytes()
+        tag = self._make_trailer_tag(key_hex, counter, encap + payload)
+
+        meta = pmt.make_dict()
+        meta = pmt.dict_add(meta, pmt.intern("auth_key"), pmt.intern(key_hex))
+        meta = pmt.dict_add(meta, pmt.intern("sdls_counter"), pmt.from_long(counter))
+        meta = pmt.dict_add(meta, pmt.intern("encapsulation_header"), self._encap_meta())
+        sdls_meta = pmt.make_dict()
+        sdls_meta = pmt.dict_add(sdls_meta, pmt.intern("security_trailer"), pmt.init_u8vector(len(tag), list(tag)))
+        meta = pmt.dict_add(meta, pmt.intern("sdls"), sdls_meta)
+
+        msg = self._make_pdu_from_parts(meta, pmt.init_u8vector(len(encap + payload), list(encap + payload)))
+
+        original_pub = self._capture_pub()
+        try:
+            self.block.verify_message(msg)
+        finally:
+            self._restore_pub(original_pub)
+
+        self.assertEqual(len(self.published), 1)
+        out_port, out_msg = self.published[0]
+        self.assertTrue(pmt.eqv(out_port, pmt.intern("out")))
+        out_payload = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
+        self.assertEqual(out_payload, payload)
+
+    def test_014_trailer_with_no_encap_in_payload_keeps_payload(self):
+        key_hex = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
+        counter = 6
+        payload = bytes([0x0A, 0x0B, 0x0C])
+        encap = self._encap_bytes()
+        tag = self._make_trailer_tag(key_hex, counter, encap + payload)
+
+        meta = pmt.make_dict()
+        meta = pmt.dict_add(meta, pmt.intern("auth_key"), pmt.intern(key_hex))
+        meta = pmt.dict_add(meta, pmt.intern("sdls_counter"), pmt.from_long(counter))
+        meta = pmt.dict_add(meta, pmt.intern("encapsulation_header"), self._encap_meta())
+        sdls_meta = pmt.make_dict()
+        sdls_meta = pmt.dict_add(sdls_meta, pmt.intern("security_trailer"), pmt.init_u8vector(len(tag), list(tag)))
+        meta = pmt.dict_add(meta, pmt.intern("sdls"), sdls_meta)
+
+        msg = self._make_pdu_from_parts(meta, pmt.init_u8vector(len(payload), list(payload)))
+
+        original_pub = self._capture_pub()
+        try:
+            self.block.verify_message(msg)
+        finally:
+            self._restore_pub(original_pub)
+
+        self.assertEqual(len(self.published), 1)
+        out_port, out_msg = self.published[0]
+        self.assertTrue(pmt.eqv(out_port, pmt.intern("out")))
+        out_payload = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
+        self.assertEqual(out_payload, payload)
 
 
 if __name__ == '__main__':

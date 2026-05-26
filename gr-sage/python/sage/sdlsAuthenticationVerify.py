@@ -107,6 +107,57 @@ class sdlsAuthenticationVerify(gr.basic_block):
 
         return payload_bytes[:-TAG_LEN], payload_bytes[-TAG_LEN:]
 
+    def _pmt_dict_get_int(self, meta, key, default=None):
+        if not pmt.is_dict(meta):
+            return default
+        pmt_key = pmt.intern(key)
+        if not pmt.dict_has_key(meta, pmt_key):
+            return default
+        value = pmt.dict_ref(meta, pmt_key, pmt.PMT_NIL)
+        if pmt.eqv(value, pmt.PMT_NIL):
+            return default
+        try:
+            return int(pmt.to_long(value))
+        except Exception:
+            try:
+                return int(pmt.to_uint64(value))
+            except Exception:
+                return default
+
+    def _build_encapsulation_header(self, encap_meta) -> bytes | None:
+        if not pmt.is_dict(encap_meta):
+            return None
+
+        length_of_length = self._pmt_dict_get_int(encap_meta, "length_of_length", None)
+        if length_of_length is None:
+            return None
+
+        first_octet = self._pmt_dict_get_int(encap_meta, "first_octet", None)
+        if first_octet is None:
+            packet_version = self._pmt_dict_get_int(encap_meta, "packet_version", 0)
+            protocol_id = self._pmt_dict_get_int(encap_meta, "protocol_id", 0)
+            first_octet = ((packet_version & 0x7) << 5) | ((protocol_id & 0x7) << 2) | (length_of_length & 0x3)
+
+        header = bytearray([first_octet & 0xFF])
+
+        if length_of_length >= 0b10:
+            user_defined_field = self._pmt_dict_get_int(encap_meta, "user_defined_field", 0)
+            protocol_id_extension = self._pmt_dict_get_int(encap_meta, "protocol_id_extension", 0)
+            header.append(((user_defined_field & 0xF) << 4) | (protocol_id_extension & 0xF))
+
+        if length_of_length >= 0b11:
+            ccsds_defined_field = self._pmt_dict_get_int(encap_meta, "ccsds_defined_field", 0)
+            header.extend(int(ccsds_defined_field).to_bytes(2, byteorder="big", signed=False))
+
+        if length_of_length != 0b00:
+            packet_length = self._pmt_dict_get_int(encap_meta, "packet_length", None)
+            if packet_length is None:
+                return None
+            length_bytes = {0b01: 1, 0b10: 2, 0b11: 4}.get(length_of_length, 0)
+            header.extend(int(packet_length).to_bytes(length_bytes, byteorder="big", signed=False))
+
+        return bytes(header)
+
     def _verify_tag(self, secret: bytes, counter: int, payload_bytes: bytes, tag: bytes) -> bool:
         counter_bytes = self._build_ctr_counter_block(counter)
         verifier = CMAC.new(secret, ciphermod=AES)
@@ -149,17 +200,39 @@ class sdlsAuthenticationVerify(gr.basic_block):
             return
 
         payload_bytes = bytes(pmt.u8vector_elements(payload_u8vector))
-        split = self._split_payload_tag(payload_bytes)
-        if split is None:
-            return
-        payload, tag = split
 
-        if not self._verify_tag(secret_bytes, counter, payload, tag):
+        tag = None
+        encap_prefix = b""
+        sdls = pmt.dict_ref(dict_msg, pmt.intern("sdls"), pmt.PMT_NIL)
+        if not pmt.eqv(sdls, pmt.PMT_NIL) and pmt.is_dict(sdls):
+            trailer = pmt.dict_ref(sdls, pmt.intern("security_trailer"), pmt.PMT_NIL)
+            if pmt.is_u8vector(trailer):
+                tag = bytes(pmt.u8vector_elements(trailer))
+
+        encap_meta = pmt.dict_ref(dict_msg, pmt.intern("encapsulation_header"), pmt.PMT_NIL)
+        if not pmt.eqv(encap_meta, pmt.PMT_NIL):
+            encap_bytes = self._build_encapsulation_header(encap_meta)
+            if encap_bytes is not None:
+                encap_prefix = encap_bytes
+
+        if tag is None:
+            split = self._split_payload_tag(payload_bytes)
+            if split is None:
+                return
+            payload, tag = split
+            mac_payload = payload
+            out_payload_bytes = payload
+        else:
+            has_encap = bool(encap_prefix) and payload_bytes.startswith(encap_prefix)
+            mac_payload = payload_bytes if has_encap else encap_prefix + payload_bytes
+            out_payload_bytes = payload_bytes[len(encap_prefix):] if has_encap else payload_bytes
+
+        if not self._verify_tag(secret_bytes, counter, mac_payload, tag):
             self.logger.warn("Authentication tag verification failed; dropping message.")
             return
 
         dict_msg = pmt.dict_delete(dict_msg, pmt.intern("auth_key"))
-        out_payload = pmt.init_u8vector(len(payload), list(payload))
+        out_payload = pmt.init_u8vector(len(out_payload_bytes), list(out_payload_bytes))
         msg_out = pmt.cons(dict_msg, out_payload)
         self.message_port_pub(pmt.intern("out"), msg_out)
         self.logger.info("OK")
