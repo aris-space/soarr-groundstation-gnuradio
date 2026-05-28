@@ -126,13 +126,17 @@ class ccsdsReceiver(gr.basic_block):
         if not self._checkmsg(msg):
             return None  # Message is not valid, ignore it
 
-
         msg = self.bchDecoder.error_correction_mode(msg)
         if msg is None:
             self.logger.error("BCH decoding failed. Discarding message.")
             return None  # BCH decoding failed, ignore message
         
         if DESCRAMBLING_ACTIVE:
+            # If we are waiting for a new frame, reset the descrambler sequence
+            # before descrambling because this message is a candidate for the first codeword.
+            if not self.length_found and self.message_type != MESSAGE_TYPE_FIXED:
+                self.lfsrDescrambler.reset_sequence()
+
             msg = self.lfsrDescrambler.descramble_msg(msg)
             if msg is None:
                 self.logger.error("LFSR descrambling failed. Discarding message.")
@@ -208,7 +212,7 @@ class ccsdsReceiver(gr.basic_block):
 
                 # Found a valid TFPH
                 self.total_frame_length = frame_length_bytes
-                self.remaining_frame_length = frame_length_bytes
+                self.remaining_frame_length = frame_length_bytes + 1 # +1 to get actual byte length
                 self.length_found = True
             else:
                 # No valid TFPH found, continue accumulating data
@@ -220,7 +224,9 @@ class ccsdsReceiver(gr.basic_block):
         self.remaining_fixed_bytes -= len(payload_bytes)
 
         if len(self.frame_buffer) >= self.fixed_byte_length:
-            self._publishFrame(self.fixed_byte_length)
+            self._publishFrame(self.fixed_byte_length - 1) # -1 because _publishFrame adds +1
+            self.remaining_fixed_bytes = self.fixed_byte_length
+            self.lfsrDescrambler.reset_sequence()  # Reset LFSR sequence for next frame
             
         return
 
@@ -241,6 +247,13 @@ class ccsdsReceiver(gr.basic_block):
         
         payload_bytes = self._readInputMsg(msg)
         if payload_bytes is None:
+            if self.length_found:
+                self.logger.error("Error during frame accumulation. Aborting current frame.")
+                self.length_found = False
+                self.remaining_frame_length = 0
+                self.total_frame_length = 0
+                self.frame_buffer = bytearray()
+                self.lfsrDescrambler.reset_sequence()
             return  # Message was invalid or not processable, ignore it
         
         if not self.length_found: # Only search if not found yet
