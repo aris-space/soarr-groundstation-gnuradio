@@ -1,0 +1,81 @@
+id: soarr_dataCreator
+label: Data Creator
+category: '[soarr]/Testing'
+
+templates:
+  imports: from gnuradio import soarr
+  make: soarr.dataCreator(int(${mode}), ${data if payload_source == 'manual' else None}, ${int(data_length_bytes) if payload_source == 'random' else None}, int(${scid}), int(${spi}), ${bypass}, ${control})
+
+#  Make one 'parameters' list entry for every parameter you want settable from the GUI.
+#     Keys include:
+#     * id (makes the value accessible as keyname, e.g. in the make entry)
+#     * label (label shown in the GUI)
+#     * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
+#     * default
+parameters:
+- id: mode
+  label: Mode
+  dtype: enum
+  default: '0'
+  options: ['0']
+  option_labels: ['Random/Configured Payload']
+
+- id: payload_source
+  label: Payload Source
+  dtype: enum
+  default: random
+  options: [random, manual]
+  option_labels: ['Random (length-based)', 'Manual data']
+
+- id: data
+  label: Data (manual int/bytes/list)
+  dtype: raw
+  default: None
+  hide: ${ 'part' if payload_source == 'manual' else 'all' }
+
+- id: data_length_bytes
+  label: Data Length (bytes, random or pad)
+  dtype: int
+  default: 64
+  hide: ${ 'none' if payload_source == 'random' else 'all' }
+
+- id: scid
+  label: SCID
+  dtype: int
+  default: 0
+
+- id: spi
+  label: SPI
+  dtype: int
+  default: 0
+
+- id: bypass
+  label: Bypass
+  dtype: bool
+  options: ['True', 'False']
+  option_labels: ['True', 'False']
+  default: 'False'
+
+- id: control
+  label: Control
+  dtype: bool
+  options: ['True', 'False']
+  option_labels: ['True', 'False']
+  default: 'False'
+#  Keys include:
+#      * label (an identifier for the GUI)
+#      * domain (optional - stream or message. Default is stream)
+#      * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
+#      * vlen (optional - data stream vector length. Default is 1)
+#      * optional (optional - set to 1 for optional inputs. Default is 0)
+inputs:
+- label: ping
+  domain: message
+
+outputs:
+- label: out
+  domain: message
+
+#  'file_format' specifies the version of the GRC yml format used in the file
+#  and should usually not be changed.
+file_format: 1

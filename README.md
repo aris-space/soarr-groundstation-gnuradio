@@ -1,4 +1,4 @@
-# gr-sage
+# gr-soarr
 
 GNU Radio out-of-tree module for CCSDS CLTU framing and BCH encoding.
 
@@ -17,8 +17,8 @@ This repository is configured to build inside the `radioconda` environment on Wi
 
 The workspace uses these settings in [`.vscode/settings.json`](.vscode/settings.json):
 
-- `cmake.sourceDirectory = C:/ARIS/sage-groundstation-gnuradio/gr-sage`
-- `cmake.buildDirectory = C:/ARIS/sage-groundstation-gnuradio/build/gr-sage`
+- `cmake.sourceDirectory = C:/ARIS/soarr-groundstation-gnuradio`
+- `cmake.buildDirectory = C:/ARIS/soarr-groundstation-gnuradio/build`
 - `cmake.generator = Visual Studio 17 2022`
 - `cmake.platform = x64`
 - `CMAKE_PREFIX_PATH = C:/Users/yanni/anaconda3/envs/radioconda/Library`
@@ -42,17 +42,16 @@ From the repository root:
 
 ```powershell
 conda activate radioconda
-cmake -S gr-sage -B build/gr-sage -G "Visual Studio 17 2022" -A x64
-cmake --build build/gr-sage --config Release
-cmake --install build/gr-sage --config Release
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+cmake --build build --config Release
+cmake --install build --config Release
 ```
 
 ### Python tests
 
 ```powershell
 conda activate radioconda
-cd gr-sage
-pytest .\python\sage\ -q
+pytest .\python\soarr\ -q
 ```
 
 ## Notes

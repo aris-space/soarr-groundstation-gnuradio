@@ -4,16 +4,9 @@ build_test/
 build_vs/
 out/
 cmake-build-*/
-
-# Avoid committing in-tree builds inside the OOT module
-gr-sage/**/build*/
-gr-sage/**/CMakeCache.txt
-gr-sage/**/CMakeFiles/
-gr-sage/**/cmake_install.cmake
-gr-sage/**/CTestTestfile.cmake
-gr-sage/**/Testing/
-gr-sage/**/x64/
-gr-sage/**/.vs/
+Testing/
+x64/
+.vs/
 
 # CMake files
 CMakeCache.txt
@@ -35,6 +28,10 @@ __pycache__/
 *.dll
 *.lib
 *.exp
+
+# Local dev-workspace junction (created by tools/ensure_gnuradio_soarr_dev.py
+# workflow) linking python/gnuradio/soarr -> python/soarr for editable imports
+python/gnuradio/soarr/
 
 # Python
 .venv/
