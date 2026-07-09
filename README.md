@@ -1,61 +1,22 @@
 # gr-soarr
 
-GNU Radio out-of-tree module for CCSDS CLTU framing and BCH encoding.
+GNU Radio out-of-tree module implementing the ground-station side of a
+CCSDS Telecommand (TC) uplink chain for ARIS's SOARR mission.
 
-## Development Setup
+See [CONTEXT.md](CONTEXT.md) for what this is,
+[claude/architecture.md](claude/architecture.md) for how it works, and
+[claude/development.md](claude/development.md) for build/install/test
+setup.
 
-This repository is configured to build inside the `radioconda` environment on Windows.
-
-### Prerequisites
-
-- Visual Studio 2022 Community or Build Tools
-- `radioconda` conda environment
-- GNU Radio 3.10.12 in `radioconda`
-- Matching Boost development packages in `radioconda`
-
-### Working CMake configuration
-
-The workspace uses these settings in [`.vscode/settings.json`](.vscode/settings.json):
-
-- `cmake.sourceDirectory = C:/ARIS/soarr-groundstation-gnuradio`
-- `cmake.buildDirectory = C:/ARIS/soarr-groundstation-gnuradio/build`
-- `cmake.generator = Visual Studio 17 2022`
-- `cmake.platform = x64`
-- `CMAKE_PREFIX_PATH = C:/Users/yanni/anaconda3/envs/radioconda/Library`
-- `Gnuradio_DIR = C:/Users/yanni/anaconda3/envs/radioconda/Library/lib/cmake/gnuradio`
-- `MPIR_INCLUDE_DIR = C:/Users/yanni/anaconda3/envs/radioconda/Library/include`
-- `MPIR_LIBRARY = C:/Users/yanni/anaconda3/envs/radioconda/Library/lib/mpir.lib`
-- `MPIRXX_LIBRARY = C:/Users/yanni/anaconda3/envs/radioconda/Library/lib/mpirxx_static.lib`
-
-### Install the remaining Boost development package
-
-If GNU Radio configure fails on Boost headers, install the matching development package in the same env:
-
-```powershell
-conda activate radioconda
-conda install -c conda-forge libboost-devel=1.88.0
-```
-
-### Configure and build
-
-From the repository root:
+## Quick start
 
 ```powershell
 conda activate radioconda
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Release
 cmake --install build --config Release
-```
-
-### Python tests
-
-```powershell
-conda activate radioconda
 pytest .\python\soarr\ -q
 ```
 
-## Notes
-
-- `bchEncoder` implements the CCSDS (63,56) BCH code with complemented parity bits.
-- `cltuFramer` prepends the CLTU start sequence and appends the tail sequence.
-- Fill bits are handled in the BCH encoder for incomplete 56-bit codeword payloads.
+Full setup details, prerequisites, and troubleshooting:
+[claude/development.md](claude/development.md).
