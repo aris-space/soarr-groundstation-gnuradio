@@ -6,21 +6,21 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-"""Integration test for tcPrimaryHeader with upstream metadata provider."""
+"""Integration test for tc_primary_header with upstream metadata provider."""
 
 import pmt
 from gnuradio import gr_unittest
-from gnuradio.soarr import tcPrimaryHeader
+from gnuradio.soarr import tc_primary_header
 
 
 class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
-    """Test tcPrimaryHeader integration when metadata is pre-populated upstream."""
+    """Test tc_primary_header integration when metadata is pre-populated upstream."""
 
     CRC_BYTES = 2
 
     def setUp(self):
         """Create instance and capture output messages."""
-        self.header_block = tcPrimaryHeader(scid=0x155, vcid=0x12)
+        self.header_block = tc_primary_header(scid=0x155, vcid=0x12)
         self.captured_output = []
 
     def tearDown(self):
@@ -30,10 +30,10 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
 
     def _integrate_flow(self, payload_bytes, pdu_meta):
         """
-        Execute the integrated flow: PDU (with metadata) → tcPrimaryHeader → output.
+        Execute the integrated flow: PDU (with metadata) → tc_primary_header → output.
         Returns the final output message (port, msg).
         """
-        # Capture all outputs from tcPrimaryHeader. If the block emits multiple
+        # Capture all outputs from tc_primary_header. If the block emits multiple
         # PDUs (one per internal fragment), prefer those on the `pdu_out` port
         # and merge their bodies into a single PDU so tests expecting a single
         # output continue to work.
@@ -45,7 +45,7 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
 
         self.header_block.message_port_pub = _capture_output
 
-        # Send PDU to tcPrimaryHeader
+        # Send PDU to tc_primary_header
         pdu = pmt.cons(pdu_meta, pmt.init_u8vector(len(payload_bytes), list(payload_bytes)))
         self.header_block.build_header(pdu)
 
@@ -78,7 +78,7 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
             return (pdu_out_sym, merged_pdu)
 
         # Exactly one `pdu_out` message
-        self.assertEqual(len(pdu_out_msgs), 1, "tcPrimaryHeader should emit one pdu_out")
+        self.assertEqual(len(pdu_out_msgs), 1, "tc_primary_header should emit one pdu_out")
         return pdu_out_msgs[0]
 
     def _meta_get_int(self, meta, key):
@@ -110,7 +110,7 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
         """Test complete flow with upstream-provided sequence metadata."""
         payload = bytes([0x10, 0x20, 0x30, 0x40])
         meta = pmt.make_dict()
-        # tcPrimaryHeader expects `vcid_counter` (not `frame_sequence_number`) as the
+        # tc_primary_header expects `vcid_counter` (not `frame_sequence_number`) as the
         # source of the 8-bit Frame Sequence Number field.
         meta = pmt.dict_add(meta, pmt.intern("vcid_counter"), pmt.from_long(0))
         port, out_msg = self._integrate_flow(payload, meta)
@@ -130,13 +130,13 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
         # Decode header fields
         fields = self._decode_header_fields(out_bytes[:5])
 
-        # Verify fields: defaults from tcPrimaryHeader + FSN from upstream metadata
+        # Verify fields: defaults from tc_primary_header + FSN from upstream metadata
         self.assertEqual(fields["tfvn"], 0b00)
         self.assertEqual(fields["bypass"], 0)
         self.assertEqual(fields["control"], 0)
         self.assertEqual(fields["reserved"], 0)
-        self.assertEqual(fields["scid"], 0x155)  # tcPrimaryHeader default
-        self.assertEqual(fields["vcid"], 0x12)   # tcPrimaryHeader default
+        self.assertEqual(fields["scid"], 0x155)  # tc_primary_header default
+        self.assertEqual(fields["vcid"], 0x12)   # tc_primary_header default
         self.assertEqual(fields["frame_sequence_number"], 0)
         self.assertEqual(fields["frame_length"], len(payload) + 5 - 1 + self.CRC_BYTES)
 
@@ -153,7 +153,7 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
         meta = pmt.dict_add(meta, pmt.intern("scid"), pmt.from_long(0x2AB))
         meta = pmt.dict_add(meta, pmt.intern("vcid"), pmt.from_long(0x2E))
         meta = pmt.dict_add(meta, pmt.intern("vcid_counter"), pmt.from_long(0x7F))
-        # tcPrimaryHeader parses these via pmt.to_bool, so pass PMT booleans.
+        # tc_primary_header parses these via pmt.to_bool, so pass PMT booleans.
         meta = pmt.dict_add(meta, pmt.intern("bypass"), pmt.from_bool(True))
         meta = pmt.dict_add(meta, pmt.intern("control"), pmt.from_bool(True))
 
@@ -257,7 +257,7 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
 
     def test_007_integration_without_crc_flag(self):
         payload = bytes([0x10, 0x20, 0x30, 0x40])
-        header_block = tcPrimaryHeader(scid=0x155, vcid=0x12, is_crc_used=False)
+        header_block = tc_primary_header(scid=0x155, vcid=0x12, is_crc_used=False)
         captured_output = []
 
         original_pub = header_block.message_port_pub

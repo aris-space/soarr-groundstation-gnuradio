@@ -58,13 +58,22 @@ def _looks_like_gr_soarr_install(shadow_dir: Path) -> bool:
     if not shadow_dir.exists() or not shadow_dir.is_dir():
         return False
 
+    # Covers both today's camelCase filenames and the target snake_case
+    # names from claude/coding-standards.md (ADR-0001, not yet executed) —
+    # keeps this guardrail working before, during, and after that rename
+    # without needing a second edit later.
     expected_any = {
         "__init__.py",
         "cltuFramer.py",
+        "cltu_framer.py",
         "bchEncoder.py",
+        "bch_encoder.py",
         "tcPrimaryHeader.py",
+        "tc_primary_header.py",
         "sdlsHeader.py",
+        "sdls_header.py",
         "bchDecoder.py",
+        "bch_decoder.py",
     }
 
     present = {p.name for p in shadow_dir.iterdir() if p.is_file()}
@@ -149,11 +158,11 @@ def _verify_import(repo_root: Path) -> None:
             "import importlib",
             "from pathlib import Path",
             f"expected_root = Path({str(expected_root)!r}).resolve()",
-            "m = importlib.import_module('gnuradio.soarr.cltuDeframer')",
+            "m = importlib.import_module('gnuradio.soarr.cltu_deframer')",
             "loaded_from = Path(getattr(m, '__file__', '<unknown>')).resolve()",
             "if expected_root not in loaded_from.parents:",
             "    raise SystemExit(",
-            "        'gnuradio.soarr.cltuDeframer is NOT importing from workspace.\\n'",
+            "        'gnuradio.soarr.cltu_deframer is NOT importing from workspace.\\n'",
             "        f'Loaded from: {loaded_from}\\n'",
             "        f'Expected under: {expected_root}\\n'",
             "    )",

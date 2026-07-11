@@ -10,15 +10,15 @@ import struct
 import pmt
 from gnuradio import gr_unittest
 
-from gnuradio.soarr import lfsrScrambler, cltuFramer, bchEncoder
+from gnuradio.soarr import lfsr_scrambler, cltu_framer, bch_encoder
 
 
 class qa_lfsr_cltu_bch_chain(gr_unittest.TestCase):
 
     def setUp(self):
-        self.scrambler = lfsrScrambler()
-        self.framer = cltuFramer()
-        self.encoder = bchEncoder()
+        self.scrambler = lfsr_scrambler()
+        self.framer = cltu_framer()
+        self.encoder = bch_encoder()
         self.captured_output = []
 
     def tearDown(self):

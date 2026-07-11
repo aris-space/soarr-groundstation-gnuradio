@@ -2,10 +2,10 @@
 
 **Status:** Accepted
 
-`ccsdsReceiver` imports `bchDecoder`/`lfsrDescrambler` directly and
+`ccsds_receiver` imports `bch_decoder`/`lfsr_descrambler` directly and
 implements frame reassembly and TFPH search found nowhere else — it's the
 one documented, recommended RX path. The standalone
-`cltuDeframer → bchDecoder → lfsrDescrambler` chain (exercised only by
+`cltu_deframer → bch_decoder → lfsr_descrambler` chain (exercised only by
 `qa_lfsr_receive_chain.py`) stays GRC-exposed for isolating physical/FEC-
 layer bugs (rejected: removing its GRC exposure, since that would make
 this kind of isolated debugging harder for no benefit), but is explicitly

@@ -76,11 +76,12 @@ and edits to the repo appear to have no effect.
 
 1. Deletes the shadowing `<site-packages>/gnuradio/soarr` directory, if
    present (guarded — only deletes if the directory actually looks like a
-   gr-soarr install, e.g. contains `cltuFramer.py`/`bchEncoder.py`).
+   gr-soarr install, e.g. contains `cltu_framer.py`/`bch_encoder.py`, or
+   their pre-rename `cltuFramer.py`/`bchEncoder.py` equivalents).
 2. Writes `<site-packages>/gnuradio_soarr_workspace.pth`, pointing at
    `<repo>/python`, so the workspace source is what `sys.path` resolves
    `gnuradio.soarr` to.
-3. Verifies `gnuradio.soarr.cltuDeframer` actually resolves to the
+3. Verifies `gnuradio.soarr.cltu_deframer` actually resolves to the
    workspace, not a stale copy.
 
 Run it (inside the target conda env) after any `cmake --install` if you
@@ -89,9 +90,8 @@ notice stale behavior:
 ```powershell
 conda activate radioconda
 python tools\ensure_gnuradio_soarr_dev.py --yes   # or --dry-run to preview
-# PowerShell wrapper, equivalent (the -Python flag must be given explicitly,
-# otherwise --yes silently binds to it instead of being forwarded):
-.\tools\ensure_gnuradio_soarr_dev.ps1 -Python python --yes
+# PowerShell wrapper, equivalent:
+.\tools\ensure_gnuradio_soarr_dev.ps1 --yes
 ```
 
 ## WSL/Linux alternative: `install_gr_soarr.sh`
@@ -120,7 +120,7 @@ The 20 blocks are exposed to GNU Radio Companion via
 `grc/soarr_*.block.yml`. There is currently no example `.grc` flowgraph in
 this repo demonstrating the full TX or RX chain (see
 [architecture.md](architecture.md)'s Known Gaps) —
-`examples/dbClient_example.yaml` is a YAML *data* file for `dbClient`'s
+`examples/db_client_example.yaml` is a YAML *data* file for `db_client`'s
 type=1 config mode, not a flowgraph.
 
 ## Dependencies
@@ -132,12 +132,12 @@ pip install -r requirements.txt
 
 From [`requirements.txt`](../requirements.txt):
 
-- `construct` — bitstream parsing (used in `ccsdsReader`, `ccsdsReceiver`,
-  `sdlsHeader`, `encapsulationHeader`)
-- `PyYAML` — `dbClient`'s YAML config mode
+- `construct` — bitstream parsing (used in `ccsds_reader`, `ccsds_receiver`,
+  `sdls_header`, `encapsulation_header`)
+- `PyYAML` — `db_client`'s YAML config mode
 - `pycryptodome` — SDLS encryption/authentication
-- `numpy` — used directly by `aqusitionIdleSequencer`, `ccsdsReceiver`,
-  `cltuDeframer`, `dataCreator` (also a GNU Radio dependency, so normally
+- `numpy` — used directly by `acquisition_idle_sequencer`, `ccsds_receiver`,
+  `cltu_deframer`, `data_creator` (also a GNU Radio dependency, so normally
   already present via `radioconda`)
 - `pytest` — test framework
 

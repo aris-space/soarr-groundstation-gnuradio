@@ -128,13 +128,13 @@ import importlib.util
 import pathlib
 import sys
 
-spec = importlib.util.find_spec("gnuradio.soarr.bchDecoder")
+spec = importlib.util.find_spec("gnuradio.soarr.bch_decoder")
 if spec is None or not spec.origin:
-    print("ERROR: gnuradio.soarr.bchDecoder not found after install", file=sys.stderr)
+    print("ERROR: gnuradio.soarr.bch_decoder not found after install", file=sys.stderr)
     raise SystemExit(1)
 
 origin = pathlib.Path(spec.origin).resolve()
-print(f"bchDecoder origin: {origin}")
+print(f"bch_decoder origin: {origin}")
 PY
 
 echo "Cleaning build directory after install: ${BUILD_DIR}"

@@ -8,15 +8,15 @@
 
 from gnuradio import gr_unittest
 
-from gnuradio.soarr import lfsrScrambler, lfsrDescrambler
+from gnuradio.soarr import lfsr_scrambler, lfsr_descrambler
 import pmt
 
 
 class qa_lfsrScramberDescrambler(gr_unittest.TestCase):
 
     def setUp(self):
-        self.scrambler = lfsrScrambler()
-        self.descrambler = lfsrDescrambler()
+        self.scrambler = lfsr_scrambler()
+        self.descrambler = lfsr_descrambler()
         self.captured_output = []
 
     def tearDown(self):
@@ -54,7 +54,7 @@ class qa_lfsrScramberDescrambler(gr_unittest.TestCase):
             self._restore_blocks(pubs)
 
     def test_instance(self):
-        instance = lfsrScrambler()
+        instance = lfsr_scrambler()
         self.assertIsNotNone(instance)
 
     def test_001_roundtrip_recovers_payload(self):

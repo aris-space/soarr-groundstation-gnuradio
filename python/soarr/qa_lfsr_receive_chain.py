@@ -9,19 +9,19 @@
 from gnuradio import gr_unittest
 import pmt
 
-from gnuradio.soarr import lfsrScrambler, bchEncoder, cltuFramer, cltuDeframer, bchDecoder, lfsrDescrambler
+from gnuradio.soarr import lfsr_scrambler, bch_encoder, cltu_framer, cltu_deframer, bch_decoder, lfsr_descrambler
 
 
 class qa_lfsr_receive_chain(gr_unittest.TestCase):
 
     def setUp(self):
-        self.scrambler = lfsrScrambler()
-        self.encoder = bchEncoder()
-        self.framer = cltuFramer()
+        self.scrambler = lfsr_scrambler()
+        self.encoder = bch_encoder()
+        self.framer = cltu_framer()
 
-        self.deframer = cltuDeframer()
-        self.decoder = bchDecoder()
-        self.descrambler = lfsrDescrambler()
+        self.deframer = cltu_deframer()
+        self.decoder = bch_decoder()
+        self.descrambler = lfsr_descrambler()
 
         self.frames = []
         self.recovered = []

@@ -20,23 +20,23 @@ except ModuleNotFoundError:
     pass
 
 # import any pure python here
-from .cltuFramer import cltuFramer
-from .bchEncoder import bchEncoder
-from .lfsrScrambler import lfsrScrambler
-from .tcPrimaryHeader import tcPrimaryHeader
-from .dbClient import dbClient
-from .sdlsAuthentication import sdlsAuthentication
-from .sdlsEncryption import sdlsEncryption
-from .Injectdb import Injectdb
-from .sdlsHeader import sdlsHeader
-from .encapsulationHeader import encapsulationHeader
-from .ccsdsReader import ccsdsReader
-from .dataCreator import dataCreator
-from .bchDecoder import bchDecoder
-from .cltuDeframer import cltuDeframer
-from .lfsrDescrambler import lfsrDescrambler
-from .ccsdsReceiver import ccsdsReceiver
-from .sdlsDecryption import sdlsDecryption
-from .sdlsAuthenticationVerify import sdlsAuthenticationVerify
-from .aqusitionIdleSequencer import aqusitionIdleSequencer
-from .systemTester import SystemTester, systemTester
+from .cltu_framer import cltu_framer
+from .bch_encoder import bch_encoder
+from .lfsr_scrambler import lfsr_scrambler
+from .tc_primary_header import tc_primary_header
+from .db_client import db_client
+from .sdls_authentication import sdls_authentication
+from .sdls_encryption import sdls_encryption
+from .inject_db import inject_db
+from .sdls_header import sdls_header
+from .encapsulation_header import encapsulation_header
+from .ccsds_reader import ccsds_reader
+from .data_creator import data_creator
+from .bch_decoder import bch_decoder
+from .cltu_deframer import cltu_deframer
+from .lfsr_descrambler import lfsr_descrambler
+from .ccsds_receiver import ccsds_receiver
+from .sdls_decryption import sdls_decryption
+from .sdls_authentication_verify import sdls_authentication_verify
+from .acquisition_idle_sequencer import acquisition_idle_sequencer
+from .system_tester import system_tester

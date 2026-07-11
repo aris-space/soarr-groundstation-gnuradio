@@ -9,15 +9,15 @@
 from gnuradio import gr, gr_unittest
 import pmt
 
-from gnuradio.soarr import sdlsDecryption, sdlsEncryption
+from gnuradio.soarr import sdls_decryption, sdls_encryption
 
 
 class qa_EncryptDecrypt(gr_unittest.TestCase):
 
 	def setUp(self):
 		self.tb = gr.top_block()
-		self.enc = sdlsEncryption(state=True, nonce=b"\x00" * 14)
-		self.dec = sdlsDecryption(decryption_state=True, nonce=b"\x00" * 14)
+		self.enc = sdls_encryption(state=True, nonce=b"\x00" * 14)
+		self.dec = sdls_decryption(decryption_state=True, nonce=b"\x00" * 14)
 		self.published = []
 
 	def tearDown(self):
@@ -154,7 +154,7 @@ class qa_EncryptDecrypt(gr_unittest.TestCase):
 		enc_meta = pmt.dict_add(enc_meta, pmt.intern("crypt_key"), pmt.intern(key_hex))
 		enc_msg = pmt.cons(enc_meta, pmt.cdr(enc_msg))
 
-		dec_mismatch = sdlsDecryption(decryption_state=True, nonce=b"\x01" * 14)
+		dec_mismatch = sdls_decryption(decryption_state=True, nonce=b"\x01" * 14)
 		out_msg = self._run_decrypt(enc_msg, block=dec_mismatch)
 		self.assertIsNotNone(out_msg)
 		out_payload = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))

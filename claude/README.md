@@ -44,10 +44,10 @@ claude/
   to it rather than duplicating it, so there's one place to update when a
   rule changes.
 - Block naming (in coding-standards.md, decided by
-  [ADR-0001](adr/0001-block-naming-convention.md)) is a target snake_case
-  convention — **not yet applied**; every block is still named as it
-  exists on disk today (camelCase). CONTEXT.md and architecture.md carry
-  the same disclaimer; don't assume the rename has happened because it's
-  decided.
+  [ADR-0001](adr/0001-block-naming-convention.md)) is snake_case — applied;
+  every block's file, class, and GRC block-id now match. Message-handler
+  error handling (ADR-0003) and the docstring/PMT-shape convention
+  (ADR-0004) are still not applied to existing blocks — don't assume those
+  two are done just because naming is.
 - A PRD verification-status legend (for `prd/`) is not yet defined — decide
   it when Step 4 starts, don't invent one here ahead of that work.

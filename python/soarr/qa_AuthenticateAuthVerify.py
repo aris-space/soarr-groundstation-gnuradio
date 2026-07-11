@@ -9,15 +9,15 @@
 from gnuradio import gr, gr_unittest
 import pmt
 
-from gnuradio.soarr import sdlsAuthentication, sdlsAuthenticationVerify
+from gnuradio.soarr import sdls_authentication, sdls_authentication_verify
 
 
 class qa_AuthenticateAuthVerify(gr_unittest.TestCase):
 
 	def setUp(self):
 		self.tb = gr.top_block()
-		self.auth = sdlsAuthentication(state=True, nonce=b"\x00" * 14)
-		self.verify = sdlsAuthenticationVerify(authentication_state=True, nonce=b"\x00" * 14)
+		self.auth = sdls_authentication(state=True, nonce=b"\x00" * 14)
+		self.verify = sdls_authentication_verify(authentication_state=True, nonce=b"\x00" * 14)
 		self.published = []
 
 	def tearDown(self):
@@ -164,7 +164,7 @@ class qa_AuthenticateAuthVerify(gr_unittest.TestCase):
 		auth_meta = pmt.dict_add(auth_meta, pmt.intern("auth_key"), pmt.intern(key_hex))
 		auth_msg = pmt.cons(auth_meta, pmt.cdr(auth_msg))
 
-		verify_mismatch = sdlsAuthenticationVerify(authentication_state=True, nonce=b"\x01" * 14)
+		verify_mismatch = sdls_authentication_verify(authentication_state=True, nonce=b"\x01" * 14)
 		out_msg = self._run_verify_with(verify_mismatch, auth_msg)
 		self.assertIsNone(out_msg)
 

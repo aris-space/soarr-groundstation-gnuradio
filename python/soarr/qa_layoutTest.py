@@ -15,16 +15,16 @@ from pathlib import Path
 from Crypto.Cipher import AES
 from Crypto.Hash import CMAC
 
-from gnuradio.soarr import Injectdb
-from gnuradio.soarr import bchEncoder
-from gnuradio.soarr import cltuFramer
-from gnuradio.soarr import dbClient
-from gnuradio.soarr import encapsulationHeader
-from gnuradio.soarr import lfsrScrambler
-from gnuradio.soarr import sdlsAuthentication
-from gnuradio.soarr import sdlsEncryption
-from gnuradio.soarr import sdlsHeader
-from gnuradio.soarr import tcPrimaryHeader
+from gnuradio.soarr import inject_db
+from gnuradio.soarr import bch_encoder
+from gnuradio.soarr import cltu_framer
+from gnuradio.soarr import db_client
+from gnuradio.soarr import encapsulation_header
+from gnuradio.soarr import lfsr_scrambler
+from gnuradio.soarr import sdls_authentication
+from gnuradio.soarr import sdls_encryption
+from gnuradio.soarr import sdls_header
+from gnuradio.soarr import tc_primary_header
 
 
 LAYOUT_DB_TYPE = 0
@@ -58,17 +58,17 @@ class layout(gr.top_block):
         gr.top_block.__init__(self, "soarr_layout_test")
 
         # Row 1: Inject DB path
-        self.inject_db = Injectdb()
-        self.db_client = dbClient(type=LAYOUT_DB_TYPE)
-        self.encapsulation_header = encapsulationHeader(user_defined_field=0)
+        self.inject_db = inject_db()
+        self.db_client = db_client(type=LAYOUT_DB_TYPE)
+        self.encapsulation_header = encapsulation_header(user_defined_field=0)
 
         # Row 2: SDLS protection path
-        self.sdls_encryption = sdlsEncryption(state=LAYOUT_SDLS_ENABLED)
-        self.sdls_authentication = sdlsAuthentication(state=LAYOUT_SDLS_ENABLED)
-        self.sdls_header = sdlsHeader(iv_length_bytes=2)
+        self.sdls_encryption = sdls_encryption(state=LAYOUT_SDLS_ENABLED)
+        self.sdls_authentication = sdls_authentication(state=LAYOUT_SDLS_ENABLED)
+        self.sdls_header = sdls_header(iv_length_bytes=2)
 
         # Row 3: TC framing path
-        self.tc_primary_header = tcPrimaryHeader(scid=LAYOUT_TC_SCID, vcid=LAYOUT_TC_VCID)
+        self.tc_primary_header = tc_primary_header(scid=LAYOUT_TC_SCID, vcid=LAYOUT_TC_VCID)
         self.crc_append = digital.crc_append(
             CRC_APPEND_NUM_BITS,
             CRC_APPEND_POLYNOMIAL,
@@ -81,9 +81,9 @@ class layout(gr.top_block):
         )
 
         # Row 4: Channel coding path
-        self.lfsr_scrambler = lfsrScrambler(mask=SCRAMBLER_MASK, seed=SCRAMBLER_SEED, register_length=8)
-        self.bch_encoder = bchEncoder(polynomial=BCH_POLYNOMIAL)
-        self.cltu_framer = cltuFramer(startSequence=CLTU_START_SEQUENCE, tailSequence=CLTU_TAIL_SEQUENCE)
+        self.lfsr_scrambler = lfsr_scrambler(mask=SCRAMBLER_MASK, seed=SCRAMBLER_SEED, register_length=8)
+        self.bch_encoder = bch_encoder(polynomial=BCH_POLYNOMIAL)
+        self.cltu_framer = cltu_framer(startSequence=CLTU_START_SEQUENCE, tailSequence=CLTU_TAIL_SEQUENCE)
 
         # Internal DB request/response wiring.
         self.msg_connect((self.inject_db, "db_call"), (self.db_client, "db_call"))
@@ -266,10 +266,10 @@ class qa_layoutTest(gr_unittest.TestCase):
         TEST_VCID_COUNTER_1 = 0
         TEST_VCID_COUNTER_2 = 44
 
-        # Use a real dbClient instance with the example YAML
+        # Use a real db_client instance with the example YAML
         # to verify it can resolve two distinct SPI entries for the same SCID and that the returned metadata contains expected fields with different values.
-        yaml_path = Path(__file__).resolve().parents[2] / "examples" / "dbClient_example.yaml"
-        client = dbClient(type=1, yaml_path=str(yaml_path))
+        yaml_path = Path(__file__).resolve().parents[2] / "examples" / "db_client_example.yaml"
+        client = db_client(type=1, yaml_path=str(yaml_path))
 
         # Capture the db_callback outputs
         captured = []
@@ -328,7 +328,7 @@ class qa_layoutTest(gr_unittest.TestCase):
         TEST_VCID_COUNTER = 0
         PAYLOAD_BYTES = bytes([0x11, 0x22, 0x33])
 
-        block = tcPrimaryHeader(scid=TEST_SCID, vcid=TEST_VCID)
+        block = tc_primary_header(scid=TEST_SCID, vcid=TEST_VCID)
         captured = []
         original_pub = self._capture_specific_port(block, "out", captured)
 
@@ -362,7 +362,7 @@ class qa_layoutTest(gr_unittest.TestCase):
         SDLS_COUNTER = 0
         PAYLOAD_BYTES = bytes([0x55, 0x66, 0x77])
 
-        block = sdlsHeader(iv_length_bytes=2)
+        block = sdls_header(iv_length_bytes=2)
         captured = []
         original_pub = self._capture_specific_port(block, "out", captured)
 
@@ -396,7 +396,7 @@ class qa_layoutTest(gr_unittest.TestCase):
         COUNTER = 23
         PAYLOAD_BYTES = bytes([0x10, 0x20, 0x30, 0x40, 0x50])
 
-        block = sdlsEncryption(state=True, nonce=b"\x00" * 14)
+        block = sdls_encryption(state=True, nonce=b"\x00" * 14)
         captured = []
         original_pub = self._capture_specific_port(block, "out", captured)
         expected_ciphertext = AES.new(KEY_BYTES, AES.MODE_CTR, nonce=b"\x00" * 14, initial_value=COUNTER).encrypt(PAYLOAD_BYTES)
@@ -433,7 +433,7 @@ class qa_layoutTest(gr_unittest.TestCase):
         COUNTER = 31
         PAYLOAD_BYTES = bytes([0xA1, 0xB2, 0xC3, 0xD4])
 
-        block = sdlsAuthentication(state=True, nonce=b"\x00" * 14)
+        block = sdls_authentication(state=True, nonce=b"\x00" * 14)
         captured = []
         original_pub = self._capture_specific_port(block, "out", captured)
         mac_input = b"\x00" * 14 + COUNTER.to_bytes(2, byteorder="big", signed=False) + PAYLOAD_BYTES
@@ -471,7 +471,7 @@ class qa_layoutTest(gr_unittest.TestCase):
         FRAME_ID = 77
         PAYLOAD_BYTES = bytes([0x01, 0x02, 0x03])
 
-        block = encapsulationHeader(user_defined_field=0)
+        block = encapsulation_header(user_defined_field=0)
         captured = []
         original_pub = self._capture_specific_port(block, "out", captured)
 
@@ -500,7 +500,7 @@ class qa_layoutTest(gr_unittest.TestCase):
         FRAME_ID = 88
         PAYLOAD_BYTES = bytes([0x00])
 
-        block = lfsrScrambler(mask=0xA9, seed=0xFF, register_length=8)
+        block = lfsr_scrambler(mask=0xA9, seed=0xFF, register_length=8)
         captured = []
         original_pub = self._capture_specific_port(block, "out", captured)
 
@@ -530,7 +530,7 @@ class qa_layoutTest(gr_unittest.TestCase):
         PAYLOAD_BYTES = bytes([0x00] * 7)
         EXPECTED_PARITY_BYTE = 0xFE
 
-        block = bchEncoder(polynomial=0xC5)
+        block = bch_encoder(polynomial=0xC5)
         captured = []
         original_pub = self._capture_specific_port(block, "codewords", captured)
 
@@ -563,7 +563,7 @@ class qa_layoutTest(gr_unittest.TestCase):
         TAIL_SEQUENCE = 0xC5C5C5C5C5C5C579
         PAYLOAD_BYTES = bytes([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08])
 
-        block = cltuFramer(startSequence=START_SEQUENCE, tailSequence=TAIL_SEQUENCE)
+        block = cltu_framer(startSequence=START_SEQUENCE, tailSequence=TAIL_SEQUENCE)
         captured = []
         original_pub = self._capture_specific_port(block, "out", captured)
 

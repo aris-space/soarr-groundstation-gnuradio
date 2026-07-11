@@ -7,23 +7,23 @@
 #
 
 install(FILES
-    soarr_cltuFramer.block.yml
-    soarr_bchEncoder.block.yml
-    soarr_lfsrScrambler.block.yml
-    soarr_tcPrimaryHeader.block.yml
-    soarr_dbClient.block.yml
-    soarr_sdlsAuthentication.block.yml
-    soarr_sdlsEncryption.block.yml
-    soarr_Injectdb.block.yml
-    soarr_sdlsHeader.block.yml
-    soarr_encapsulationHeader.block.yml
-    soarr_ccsdsReader.block.yml
-    soarr_dataCreator.block.yml
-    soarr_bchDecoder.block.yml
-    soarr_cltuDeframer.block.yml
-    soarr_lfsrDescrambler.block.yml
-    soarr_ccsdsReceiver.block.yml
-    soarr_sdlsDecryption.block.yml
-    soarr_sdlsAuthenticationVerify.block.yml
-    soarr_aqusitionIdleSequencer.block.yml
-    soarr_systemTester.block.yml DESTINATION share/gnuradio/grc/blocks)
+    soarr_cltu_framer.block.yml
+    soarr_bch_encoder.block.yml
+    soarr_lfsr_scrambler.block.yml
+    soarr_tc_primary_header.block.yml
+    soarr_db_client.block.yml
+    soarr_sdls_authentication.block.yml
+    soarr_sdls_encryption.block.yml
+    soarr_inject_db.block.yml
+    soarr_sdls_header.block.yml
+    soarr_encapsulation_header.block.yml
+    soarr_ccsds_reader.block.yml
+    soarr_data_creator.block.yml
+    soarr_bch_decoder.block.yml
+    soarr_cltu_deframer.block.yml
+    soarr_lfsr_descrambler.block.yml
+    soarr_ccsds_receiver.block.yml
+    soarr_sdls_decryption.block.yml
+    soarr_sdls_authentication_verify.block.yml
+    soarr_acquisition_idle_sequencer.block.yml
+    soarr_system_tester.block.yml DESTINATION share/gnuradio/grc/blocks)

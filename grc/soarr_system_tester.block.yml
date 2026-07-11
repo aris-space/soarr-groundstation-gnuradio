@@ -1,0 +1,68 @@
+id: soarr_system_tester
+label: systemTester
+category: '[soarr]'
+
+templates:
+  imports: from gnuradio import soarr
+  make: soarr.system_tester(${repetitions}, ${mode}, ${timeout_s}, ${stats_path})
+
+#  Make one 'parameters' list entry for every parameter you want settable from the GUI.
+#     Keys include:
+#     * id (makes the value accessible as keyname, e.g. in the make entry)
+#     * label (label shown in the GUI)
+#     * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
+#     * default
+parameters:
+- id: repetitions
+  label: Repetitions
+  dtype: int
+  default: 100
+- id: mode
+  label: Mode
+  dtype: int
+  default: 0
+- id: timeout_s
+  label: Timeout (s)
+  dtype: float
+  default: 1.0
+- id: stats_path
+  label: Statistics Path
+  dtype: string
+  default: "system_tester_stats.json"
+#- id: ...
+#  label: ...
+#  dtype: ...
+
+#  Make one 'inputs' list entry per input and one 'outputs' list entry per output.
+#  Keys include:
+#      * label (an identifier for the GUI)
+#      * domain (optional - stream or message. Default is stream)
+#      * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
+#      * vlen (optional - data stream vector length. Default is 1)
+#      * optional (optional - set to 1 for optional inputs. Default is 0)
+inputs:
+- label: start
+  domain: message
+  optional: 0
+
+- label: original
+  domain: message
+  optional: 0
+
+- label: transmitted
+  domain: message
+  optional: 0
+
+- label: received
+  domain: message
+  optional: 0
+
+
+outputs:
+- label: trigger
+  domain: message
+  optional: 0
+
+#  'file_format' specifies the version of the GRC yml format used in the file
+#  and should usually not be changed.
+file_format: 1

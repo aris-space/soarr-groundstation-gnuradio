@@ -8,15 +8,15 @@
 
 from gnuradio import gr, gr_unittest
 import pmt
-from gnuradio.soarr import bchEncoder, bchDecoder
+from gnuradio.soarr import bch_encoder, bch_decoder
 
 
 class qa_bchEncoderDecoder(gr_unittest.TestCase):
 
     def setUp(self):
         self.tb = gr.top_block()
-        self.encoder = bchEncoder()
-        self.decoder = bchDecoder()
+        self.encoder = bch_encoder()
+        self.decoder = bch_decoder()
 
     def tearDown(self):
         self.tb = None
@@ -55,8 +55,8 @@ class qa_bchEncoderDecoder(gr_unittest.TestCase):
         return msg
 
     def test_instance(self):
-        self.assertIsInstance(self.encoder, bchEncoder)
-        self.assertIsInstance(self.decoder, bchDecoder)
+        self.assertIsInstance(self.encoder, bch_encoder)
+        self.assertIsInstance(self.decoder, bch_decoder)
 
     def test_001_round_trip_valid_codeword(self):
         payload_bytes = bytes([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE])
