@@ -7,10 +7,20 @@ On Windows/conda it is easy to end up with a shadowing install at:
 That directory can take precedence over your workspace code and you'll observe
 "old code" being imported.
 
+Separately, `import gnuradio.soarr` cannot resolve to the workspace at all
+unless <repo>/python/gnuradio/soarr exists as a live link to
+<repo>/python/soarr: `gnuradio` resolves to <repo>/python/gnuradio/ (a real
+package), and Python only looks for the `soarr` submodule inside that same
+directory, not elsewhere on sys.path. This link is not tracked by git (see
+.gitignore) and a plain `ln -s` silently falls back to a stale one-time copy
+on Windows accounts without the symlink privilege - this script creates a
+real NTFS junction instead, which needs no special privilege and stays live.
+
 This script:
 1) Deletes <purelib>/gnuradio/soarr if present (guarded + requires --yes)
 2) Writes a <purelib>/gnuradio_soarr_workspace.pth that points at <repo>/python
-3) Verifies that gnuradio.soarr.cltu_deframer resolves into this workspace
+3) (Re)creates <repo>/python/gnuradio/soarr as a live link to <repo>/python/soarr
+4) Verifies that gnuradio.soarr.cltu_deframer resolves into this workspace
 
 Usage (inside your target env):
         python tools/ensure_gnuradio_soarr_dev.py --yes
@@ -27,6 +37,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -48,6 +59,85 @@ def _purelib() -> Path:
 
 def _workspace_python_dir(repo_root: Path) -> Path:
     return (repo_root / "python").resolve()
+
+
+def _workspace_gnuradio_soarr_link(repo_root: Path) -> Path:
+    return repo_root / "python" / "gnuradio" / "soarr"
+
+
+def _is_reparse_point(path: Path) -> bool:
+    """True if `path` is a symlink or (on Windows) an NTFS junction.
+
+    Path.is_symlink() alone is not enough: Windows junctions are reparse
+    points too, but pathlib/os.path.islink() do not recognize them as
+    symlinks. Distinguishing "reparse point" from "genuine directory" here
+    matters for safety - shutil.rmtree() must never be used on a reparse
+    point pointing at real source (it could follow it and delete the
+    target's contents), only on a confirmed plain directory.
+    """
+    try:
+        if path.is_symlink():
+            return True
+        if sys.platform == "win32":
+            return getattr(os.lstat(path), "st_reparse_tag", 0) != 0
+    except OSError:
+        return False
+    return False
+
+
+def _ensure_workspace_gnuradio_soarr_link(*, repo_root: Path, dry_run: bool, assume_yes: bool) -> bool:
+    link_path = _workspace_gnuradio_soarr_link(repo_root)
+    target_path = (repo_root / "python" / "soarr").resolve()
+
+    if link_path.exists() or link_path.is_symlink():
+        try:
+            if _is_reparse_point(link_path) and link_path.resolve() == target_path:
+                return False  # already correct
+        except OSError:
+            pass
+
+    if dry_run:
+        print(f"DRY RUN: would (re)create {link_path} -> {target_path}")
+        return True
+
+    if not assume_yes:
+        raise RuntimeError(
+            f"{link_path} needs to be (re)created to point at {target_path}, "
+            "but --yes was not provided.\n"
+            "Re-run with --yes to proceed, or use --dry-run to preview."
+        )
+
+    if link_path.exists() or link_path.is_symlink():
+        if _is_reparse_point(link_path):
+            # Removes just the reparse point, not whatever it points to.
+            os.rmdir(link_path)
+        elif link_path.is_dir():
+            # A genuine stale copy (e.g. a prior symlink attempt that
+            # silently fell back to copying files) - safe to remove
+            # outright, it isn't pointing anywhere else.
+            shutil.rmtree(link_path)
+        else:
+            link_path.unlink()
+
+    if sys.platform == "win32":
+        # errors="replace": mklink's console output encoding varies by
+        # Windows locale (e.g. OEM code pages that aren't valid cp1252),
+        # and only the return code is actually needed here.
+        result = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(link_path), str(target_path)],
+            capture_output=True,
+            text=True,
+            errors="replace",
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Failed to create junction {link_path} -> {target_path}:\n"
+                f"{result.stderr or result.stdout}"
+            )
+    else:
+        link_path.symlink_to(target_path, target_is_directory=True)
+
+    return True
 
 
 def _looks_like_gr_soarr_install(shadow_dir: Path) -> bool:
@@ -227,6 +317,11 @@ def main(argv: list[str] | None = None) -> int:
             dry_run=True,
             assume_yes=False,
         )
+        _ensure_workspace_gnuradio_soarr_link(
+            repo_root=repo_root,
+            dry_run=True,
+            assume_yes=False,
+        )
         print("DRY RUN: would verify import resolution")
         return 0
 
@@ -240,6 +335,21 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Wrote workspace path file: {purelib / 'gnuradio_soarr_workspace.pth'}")
     else:
         print("Workspace path file already up to date")
+
+    try:
+        link_changed = _ensure_workspace_gnuradio_soarr_link(
+            repo_root=repo_root,
+            dry_run=False,
+            assume_yes=bool(args.yes),
+        )
+    except Exception as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+
+    if link_changed:
+        print(f"(Re)created workspace link: {_workspace_gnuradio_soarr_link(repo_root)}")
+    else:
+        print("Workspace gnuradio/soarr link already up to date")
 
     print("Verifying import resolution")
     _verify_import(repo_root)

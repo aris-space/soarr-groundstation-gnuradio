@@ -63,16 +63,30 @@ built-in Test Explorer will not match the documented `pytest` workflow
 until this is reconciled. Use the command-line `pytest` invocation above;
 don't rely on the Test Explorer's results.
 
-## The shadow-install problem
+## Making `gnuradio.soarr` resolve to the workspace
 
-On Windows/conda, a previous `cmake --install` can leave a real, copied
-install of the module at
+Two separate problems can each stop `import gnuradio.soarr` from resolving
+to your repo checkout, and `tools/ensure_gnuradio_soarr_dev.py` fixes both:
+
+**The shadow-install problem.** On Windows/conda, a previous
+`cmake --install` can leave a real, copied install of the module at
 `<radioconda-env>/Lib/site-packages/gnuradio/soarr`. Because that
 directory sits on `sys.path`, it **shadows** the in-repo workspace source
 (`python/soarr`) — Python silently keeps importing the old installed copy,
 and edits to the repo appear to have no effect.
 
-`tools/ensure_gnuradio_soarr_dev.py` fixes this:
+**The missing workspace link problem.** Separately,
+`import gnuradio.soarr` can't resolve to the workspace *at all* unless
+`python/gnuradio/soarr` exists as a live link to `python/soarr`:
+`gnuradio` resolves to `python/gnuradio/` (a real package with a tracked
+`__init__.py`), and Python only looks for the `soarr` submodule inside
+that same directory — not elsewhere on `sys.path`, even with the `.pth`
+file below in place. This link isn't tracked by git (see `.gitignore`),
+and on a Windows account without the symlink privilege, a plain `ln -s`
+silently falls back to a one-time, non-live copy that goes stale the next
+time a file under `python/soarr/` changes.
+
+`tools/ensure_gnuradio_soarr_dev.py` fixes both:
 
 1. Deletes the shadowing `<site-packages>/gnuradio/soarr` directory, if
    present (guarded — only deletes if the directory actually looks like a
@@ -81,7 +95,12 @@ and edits to the repo appear to have no effect.
 2. Writes `<site-packages>/gnuradio_soarr_workspace.pth`, pointing at
    `<repo>/python`, so the workspace source is what `sys.path` resolves
    `gnuradio.soarr` to.
-3. Verifies `gnuradio.soarr.cltu_deframer` actually resolves to the
+3. (Re)creates `python/gnuradio/soarr` as a real NTFS junction to
+   `python/soarr` on Windows (no special privilege needed, unlike a
+   symlink), or a plain symlink on Linux/macOS. Safe against a stale
+   pre-existing copy from an earlier failed `ln -s` — that gets removed
+   and replaced, not merged into.
+4. Verifies `gnuradio.soarr.cltu_deframer` actually resolves to the
    workspace, not a stale copy.
 
 Run it (inside the target conda env) after any `cmake --install` if you
