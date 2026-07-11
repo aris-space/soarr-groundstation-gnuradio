@@ -10,7 +10,7 @@ That directory can take precedence over your workspace code and you'll observe
 This script:
 1) Deletes <purelib>/gnuradio/soarr if present (guarded + requires --yes)
 2) Writes a <purelib>/gnuradio_soarr_workspace.pth that points at <repo>/python
-3) Verifies that gnuradio.soarr.cltuDeframer resolves into this workspace
+3) Verifies that gnuradio.soarr.cltu_deframer resolves into this workspace
 
 Usage (inside your target env):
         python tools/ensure_gnuradio_soarr_dev.py --yes
