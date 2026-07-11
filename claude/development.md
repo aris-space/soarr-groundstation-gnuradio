@@ -36,7 +36,33 @@ conda install -c conda-forge libboost-devel=1.88.0
 
 ## Configure, build, install (Windows)
 
-From the repository root:
+`tools/install_gr_soarr.ps1` is a one-shot clean rebuild script — the
+Windows/PowerShell counterpart to `install_gr_soarr.sh` below (a separate
+script, not a wrapper around it, since MSVC's Visual Studio generator needs
+native PowerShell rather than bash-over-WSL). It derives
+`CMAKE_PREFIX_PATH`/`Gnuradio_DIR`/`MPIR_*` from `$env:CONDA_PREFIX`
+instead of hardcoding a path, wipes `build/` before configuring so a stale
+cache never blocks reconfiguration, configures/builds/installs, then runs
+`ensure_gnuradio_soarr_dev.py --yes` (unless `-SkipLink`) to fix the
+shadow-install and workspace-link problems described below. Unlike the
+Linux script it does **not** delete `build/` afterward — regenerating a
+Visual Studio solution is expensive, and the usual Windows workflow is to
+reopen/incrementally rebuild it.
+
+```powershell
+conda activate radioconda
+.\tools\install_gr_soarr.ps1
+```
+
+Options: `-ModuleDir <path>` (default: this script's own repo root),
+`-Prefix <path>` (default `$env:CONDA_PREFIX`), `-Python <exe>` (default
+`python`), `-Config <name>` (default `Release`), `-Generator <name>`
+(default `Visual Studio 17 2022`), `-Platform <arch>` (default `x64`),
+`-PipInstall` (also runs `pip install -r requirements.txt`, off by
+default), `-SkipLink` (skip the `ensure_gnuradio_soarr_dev.py` step, just
+verify the plain installed import).
+
+Equivalent manual sequence, if you'd rather run each step yourself:
 
 ```powershell
 conda activate radioconda
@@ -103,8 +129,10 @@ time a file under `python/soarr/` changes.
 4. Verifies `gnuradio.soarr.cltu_deframer` actually resolves to the
    workspace, not a stale copy.
 
-Run it (inside the target conda env) after any `cmake --install` if you
-notice stale behavior:
+`tools/install_gr_soarr.ps1` above already runs this after installing. Run
+it manually (inside the target conda env) if you used the manual CMake
+sequence instead, or after any `cmake --install` if you notice stale
+behavior:
 
 ```powershell
 conda activate radioconda
@@ -113,14 +141,18 @@ python tools\ensure_gnuradio_soarr_dev.py --yes   # or --dry-run to preview
 .\tools\ensure_gnuradio_soarr_dev.ps1 --yes
 ```
 
-## WSL/Linux alternative: `install_gr_soarr.sh`
+## WSL/Linux one-shot rebuild: `install_gr_soarr.sh`
 
-`tools/install_gr_soarr.sh` is a clean-room rebuild script for WSL/Linux:
-it wipes `build/` (and any stale in-source CMake artifacts) before
-configuring, runs configure/build/install, verifies the resulting import
-origin, then cleans `build/` again. Use it instead of the manual CMake
-sequence above when you want a guaranteed-clean rebuild rather than
-reusing a possibly-stale `build/` directory.
+`tools/install_gr_soarr.sh` is the WSL/Linux counterpart to
+`install_gr_soarr.ps1` above (a separate script, not a shared one, since
+MSVC's Visual Studio generator needs native PowerShell rather than
+bash-over-WSL): it wipes `build/` (and any stale in-source CMake
+artifacts) before configuring, runs configure/build/install, verifies the
+resulting import origin, then cleans `build/` again (unlike the Windows
+script — regenerating a Makefile/Ninja build here is cheap, so there's no
+reason to keep it around). Use it instead of the manual CMake sequence
+above when you want a guaranteed-clean rebuild rather than reusing a
+possibly-stale `build/` directory.
 
 It defaults `MODULE_DIR` (the repo location) to its own repo root, resolved
 from the script's own location — works with no arguments for a normal
