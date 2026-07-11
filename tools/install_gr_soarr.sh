@@ -91,6 +91,11 @@ if ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
     exit 1
 fi
 
+if ! command -v cmake >/dev/null 2>&1; then
+    echo "ERROR: cmake not found on PATH"
+    exit 1
+fi
+
 echo "--- gr-soarr install ---"
 echo "Repo:   ${REPO_DIR}"
 echo "Source: ${SRC_DIR}"
