@@ -104,7 +104,26 @@ fi
 
 if [[ ${PIP_INSTALL} -eq 1 ]]; then
     echo "Installing Python requirements: ${SRC_DIR}/requirements.txt"
-    "${PYTHON_BIN}" -m pip install -r "${SRC_DIR}/requirements.txt"
+    # The assignment is the `if` condition itself (not a preceding statement)
+    # so a failing pip doesn't trip `set -e` before PIP_STATUS is captured.
+    # Also checks pip's own output text for the PEP 668
+    # "externally-managed-environment" failure, since some pip/Debian builds
+    # report it while still exiting 0.
+    if PIP_OUTPUT="$("${PYTHON_BIN}" -m pip install -r "${SRC_DIR}/requirements.txt" 2>&1)"; then
+        PIP_STATUS=0
+    else
+        PIP_STATUS=$?
+    fi
+    echo "${PIP_OUTPUT}"
+    if [[ ${PIP_STATUS} -ne 0 ]] || echo "${PIP_OUTPUT}" | grep -q "externally-managed-environment"; then
+        echo "ERROR: pip install failed." >&2
+        echo "On Debian/Ubuntu (PEP 668 'externally-managed-environment'), a system" >&2
+        echo "${PYTHON_BIN} usually refuses direct pip installs. This script won't" >&2
+        echo "override that automatically. Either:" >&2
+        echo "  - use a virtualenv and re-run with --python <venv-python>, or" >&2
+        echo "  - manually run: ${PYTHON_BIN} -m pip install -r ${SRC_DIR}/requirements.txt --break-system-packages" >&2
+        exit 1
+    fi
 fi
 
 echo "--- gr-soarr install ---"
