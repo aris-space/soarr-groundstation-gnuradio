@@ -7,7 +7,13 @@ set -euo pipefail
 # Build directory is always:
 #   <repo>/build
 
-MODULE_DIR="${MODULE_DIR:-$HOME/hslu/library/gr-soarr}"
+# Default MODULE_DIR to this script's own repo root (tools/.. ), mirroring
+# ensure_gnuradio_soarr_dev.py's _repo_root() — works out of the box for any
+# clone, not just the original author's machine. Override with --module-dir.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_MODULE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+MODULE_DIR="${MODULE_DIR:-$DEFAULT_MODULE_DIR}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 CONFIG="Release"
 SUDO_INSTALL=0
@@ -26,7 +32,7 @@ usage() {
 Usage: $(basename "$0") [options]
 
 Options:
-  --module-dir <path>   Repo/gr-soarr source dir (default: $HOME/hslu/library/gr-soarr)
+  --module-dir <path>   Repo/gr-soarr source dir (default: this script's own repo root)
   --prefix <path>       CMAKE_INSTALL_PREFIX (default: CONDA_PREFIX or /usr/local)
   --python <exe>        Python executable for CMake (default: python3)
   --config <name>       Build config (default: Release)
