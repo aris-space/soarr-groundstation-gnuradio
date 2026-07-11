@@ -103,16 +103,19 @@ origin, then cleans `build/` again. Use it instead of the manual CMake
 sequence above when you want a guaranteed-clean rebuild rather than
 reusing a possibly-stale `build/` directory.
 
-It defaults `MODULE_DIR` (the repo location) to `$HOME/hslu/library/gr-soarr`
-— override with `--module-dir` if your clone lives elsewhere:
+It defaults `MODULE_DIR` (the repo location) to its own repo root, resolved
+from the script's own location — works with no arguments for a normal
+clone:
 
 ```bash
-./tools/install_gr_soarr.sh --module-dir /path/to/soarr-groundstation-gnuradio
+./tools/install_gr_soarr.sh
 ```
 
-Other options: `--prefix <path>` (default `$CONDA_PREFIX` or `/usr/local`),
-`--python <exe>` (default `python3`), `--config <name>` (default
-`Release`), `--sudo-install`.
+Override with `--module-dir <path>` if you're running it against a
+different checkout. Other options: `--prefix <path>` (default
+`$CONDA_PREFIX` or `/usr/local`), `--python <exe>` (default `python3`),
+`--config <name>` (default `Release`), `--sudo-install`, `--pip-install`
+(also runs `pip install -r requirements.txt`, off by default).
 
 ## GRC workflow
 

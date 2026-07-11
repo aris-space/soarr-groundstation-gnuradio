@@ -17,6 +17,7 @@ MODULE_DIR="${MODULE_DIR:-$DEFAULT_MODULE_DIR}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 CONFIG="Release"
 SUDO_INSTALL=0
+PIP_INSTALL=0
 PREFIX="${CONDA_PREFIX:-/usr/local}"
 
 resolve_paths() {
@@ -37,6 +38,7 @@ Options:
   --python <exe>        Python executable for CMake (default: python3)
   --config <name>       Build config (default: Release)
   --sudo-install        Run install step with sudo
+  --pip-install         Also run 'pip install -r requirements.txt' (off by default)
   -h, --help            Show this help
 EOF
 }
@@ -62,6 +64,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --sudo-install)
             SUDO_INSTALL=1
+            shift
+            ;;
+        --pip-install)
+            PIP_INSTALL=1
             shift
             ;;
         -h|--help)
@@ -94,6 +100,11 @@ fi
 if ! command -v cmake >/dev/null 2>&1; then
     echo "ERROR: cmake not found on PATH"
     exit 1
+fi
+
+if [[ ${PIP_INSTALL} -eq 1 ]]; then
+    echo "Installing Python requirements: ${SRC_DIR}/requirements.txt"
+    "${PYTHON_BIN}" -m pip install -r "${SRC_DIR}/requirements.txt"
 fi
 
 echo "--- gr-soarr install ---"
