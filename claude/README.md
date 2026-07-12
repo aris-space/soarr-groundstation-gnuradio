@@ -11,7 +11,7 @@ this project is, domain vocabulary) — start there, not here.
 2. [architecture.md](architecture.md) — pipeline diagrams, block roles, open questions
 3. [development.md](development.md) — build/install/test setup, dev tooling
 4. [coding-standards.md](coding-standards.md) — naming, error handling,
-   docstring/PMT-shape rules for writing code here
+   docstring/PMT-shape, and commit message rules for writing code here
 5. `adr/` — accepted decision records:
    - [0001 — Block naming convention](adr/0001-block-naming-convention.md)
    - [0002 — Flatten repo structure](adr/0002-flatten-repo-structure.md)

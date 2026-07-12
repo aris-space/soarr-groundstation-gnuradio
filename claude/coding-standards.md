@@ -123,3 +123,60 @@ name (`iv (bytes): 8-byte SDLS initialization vector` needs the
 "seconds").
 
 See [ADR-0004](adr/0004-docstring-and-pmt-shape-convention.md) for why.
+
+## Commit messages
+
+[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):
+
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+Enforced by a `commit-msg` hook — see
+[development.md](development.md#commit-message-hook) for one-time setup.
+
+- **atomic commits** — one type per commit. Conventional Commits has no
+  way to combine two types in one message (no dual headers, no
+  comma-separated types), so a commit spanning two separate concerns
+  should be split rather than bundled — e.g. a PRD-writing session that
+  also fixes bugs it uncovers splits along the file boundary into a
+  `docs` commit (the PRD/doc files) and a `fix`/`refactor` commit (the
+  block's code/test files), not one commit covering both. Commit early
+  and often rather than batching unrelated work into one commit.
+- **type** — one of: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`,
+  `perf`, `build`, `ci`.
+- **scope** — required for block-level work: the block's snake_case name
+  (`tc_primary_header`, `sdls_header`, ...), matching the naming convention
+  above. For non-block work, an area name: `docs`, `adr`, `prd`, `tools`,
+  `grc`. Omit only when a change has no single coherent scope.
+- **subject** — imperative mood, lowercase after `: `, no trailing period,
+  ≤72 chars, single clause. If a change doesn't fit in one clause, split it
+  into multiple commits, or move the extra detail into the body — don't
+  chain it onto the subject with `;`.
+- **body** — free text. Conventional Commits itself only defines the
+  structure above (the spec's body is explicitly free-form); what goes in
+  it is this project's own rule: state **what changed and why** (motivation,
+  the problem being solved, a decision and its rationale) — not **how** it
+  was found or fixed. Leave out `/code-review`-round narration, test
+  pass/fail tallies, and TDD red/green step commentary; that detail belongs
+  in the PR/session, not the permanent log.
+- **footer** (optional) — `Refs: <path>` pointing at the relevant doc (e.g.
+  `Refs: claude/prd/tc_primary_header.md`), and/or `BREAKING CHANGE: <desc>`
+  for breaking changes (block-id rename, changed PDU shape).
+
+Example:
+
+```
+fix(tc_primary_header): validate frame_length against its bit width
+
+frame_length was masked instead of validated, so an out-of-range value
+silently wrapped (e.g. 1024 -> 0) and still published. Replaced masking
+with an explicit range check, raising the same way the other three
+packed fields already do.
+
+Refs: claude/prd/tc_primary_header.md
+```

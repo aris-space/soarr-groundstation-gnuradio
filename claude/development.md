@@ -198,7 +198,18 @@ From [`requirements.txt`](../requirements.txt):
 GNU Radio itself is not installed via this file — install it through
 `radioconda`/conda instead.
 
+## Commit message hook
+
+Commit messages follow the Conventional Commits structure documented in
+[coding-standards.md](coding-standards.md#commit-messages), enforced by a
+`commit-msg` hook at `tools/git-hooks/commit-msg`. One-time setup per clone:
+
+```
+git config core.hooksPath tools/git-hooks
+```
+
 ## Coding standards
 
-Naming, message-handler error handling, and docstring/PMT-shape rules for
-writing or modifying blocks: [coding-standards.md](coding-standards.md).
+Naming, message-handler error handling, docstring/PMT-shape, and commit
+message rules for writing or modifying blocks:
+[coding-standards.md](coding-standards.md).
