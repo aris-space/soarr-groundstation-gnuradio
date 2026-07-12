@@ -20,6 +20,15 @@
     afterward: regenerating a Visual Studio solution is expensive, and
     Windows dev workflows generally want to reopen/incrementally rebuild it.
 
+.PARAMETER Prefix
+    CMAKE_INSTALL_PREFIX. Defaults to $env:CONDA_PREFIX. If you override
+    this to somewhere other than the active conda env, be aware the
+    ensure_gnuradio_soarr_dev.py step that runs afterward still targets
+    the active env's site-packages (derived from -Python/$env:CONDA_PREFIX,
+    not from -Prefix) - the shadow-install cleanup and workspace-link fixup
+    won't see anything installed at a custom -Prefix. Use -SkipLink in
+    that case and verify the install manually instead.
+
 .EXAMPLE
     conda activate radioconda
     .\tools\install_gr_soarr.ps1
@@ -43,7 +52,13 @@ $ErrorActionPreference = "Stop"
 
 function Exit-WithError {
     param([string]$Message)
-    Write-Error $Message
+    # -ErrorAction Continue: Write-Error would otherwise inherit the
+    # script-wide $ErrorActionPreference = "Stop" and become a terminating
+    # error itself, making the `exit 1` below dead code (verified: a
+    # statement placed after Exit-WithError never runs either way, but
+    # relying on that rather than on `exit 1` is fragile - e.g. a future
+    # try/catch around a call to this function would swallow it).
+    Write-Error $Message -ErrorAction Continue
     exit 1
 }
 
@@ -91,7 +106,7 @@ if (-not $Python) {
     } else {
         Write-Warning (
             "$CandidatePython not found; falling back to 'python' on PATH, " +
-            "which may not be `$env:CONDA_PREFIX's interpreter."
+            "which may not be `$env:CONDA_PREFIX's ($env:CONDA_PREFIX) interpreter."
         )
         $Python = "python"
     }
@@ -171,7 +186,7 @@ if (-not $SkipLink) {
     if ($LASTEXITCODE -ne 0) { Exit-WithError "ensure_gnuradio_soarr_dev.py failed (exit code $LASTEXITCODE)." }
 } else {
     Write-Host "Skipping ensure_gnuradio_soarr_dev.py (-SkipLink); verifying import as installed"
-    $code = @"
+    $code = @'
 import importlib.util
 import pathlib
 import sys
@@ -183,9 +198,21 @@ if spec is None or not spec.origin:
 
 origin = pathlib.Path(spec.origin).resolve()
 print(f"bch_decoder origin: {origin}")
-"@
-    & $PythonExe -c $code
-    if ($LASTEXITCODE -ne 0) { Exit-WithError "Import verification failed (exit code $LASTEXITCODE)." }
+'@
+    # Written to a temp file rather than passed via `-c $code` directly:
+    # PowerShell's argument marshalling to a native executable mangles
+    # embedded double-quotes in a multi-line string (verified - `&
+    # python -c $multilineCode` silently strips the quotes, breaking the
+    # Python syntax). A real file sidesteps that entirely.
+    $tempScript = New-TemporaryFile
+    $tempScript = Rename-Item -Path $tempScript -NewName ($tempScript.Name + ".py") -PassThru
+    try {
+        Set-Content -Path $tempScript -Value $code -Encoding utf8
+        & $PythonExe $tempScript
+        if ($LASTEXITCODE -ne 0) { Exit-WithError "Import verification failed (exit code $LASTEXITCODE)." }
+    } finally {
+        Remove-Item -Path $tempScript -ErrorAction SilentlyContinue
+    }
 }
 
 Write-Host "Done."
