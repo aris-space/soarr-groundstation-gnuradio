@@ -47,6 +47,17 @@ class qa_ccsdsReader(gr_unittest.TestCase):
         except Exception:
             return int(pmt.to_uint64(value))
 
+    def _pmt_get_nested_int(self, meta, path):
+        """Read an integer from a nested PMT metadata path."""
+        current = meta
+        for key in path:
+            current = pmt.dict_ref(current, pmt.intern(key), pmt.PMT_NIL)
+            self.assertFalse(pmt.eqv(current, pmt.PMT_NIL), f"Missing metadata key '{key}'")
+        try:
+            return int(pmt.to_long(current))
+        except Exception:
+            return int(pmt.to_uint64(current))
+
     def _python_to_pmt(self, value):
         """Convert python scalar/dict/bytes values to PMT values."""
         if isinstance(value, int):
@@ -180,7 +191,7 @@ class qa_ccsdsReader(gr_unittest.TestCase):
         self.assertIsNotNone(instance.message_ports_out())
 
     def test_decode_full_packet_outputs_all_fields_and_unchanged_u8vector(self):
-        """Build a full CCSDS packet then decode to a PDU with parsed fields and unchanged frame bytes."""
+        """Build a full CCSDS packet and verify decode_ccsds publishes parsed metadata plus payload bytes."""
         payload_bytes = bytes([0xDE, 0xAD, 0xBE, 0xEF])
         sdls_trailer = bytes([0xA5] * 16)
         total_length = 5 + 6 + 4 + 4 + len(payload_bytes) + 16 + 2
@@ -224,78 +235,40 @@ class qa_ccsdsReader(gr_unittest.TestCase):
             )
         )
 
-        # Deconstruct the full packet with CCSDSReader field parsers.
-        tc_size = 5
-        csp_size = 6
-        sdls_header_size = 4
-        encaps_size = 4
-        fecf_size = 2
-        sdls_trailer_size = 16
+        captured = []
+        original_pub = self._capture_specific_port(instance, "debug", captured)
+        try:
+            instance.decode_ccsds(pmt.cons(pmt.make_dict(), pmt.init_u8vector(len(packet_bytes), list(packet_bytes))))
+        finally:
+            self._restore_port(instance, original_pub)
 
-        data_length = total_length - (tc_size + csp_size + encaps_size + sdls_header_size + sdls_trailer_size + fecf_size)
+        self.assertEqual(len(captured), 1)
+        out_meta = pmt.car(captured[0])
+        out_body = pmt.cdr(captured[0])
 
-        offset = 0
-        tc_header = dict(instance.tc_header().parse(packet_bytes[offset:offset + tc_size]))
-        offset += tc_size
-        csp_header = dict(instance.csp_header().parse(packet_bytes[offset:offset + csp_size]))
-        offset += csp_size
-        sdls_security_header = dict(instance.sdls_security_header().parse(packet_bytes[offset:offset + sdls_header_size]))
-        offset += sdls_header_size
-        encapsulation_header = dict(instance.encapsulation_header().parse(packet_bytes[offset:offset + encaps_size]))
-        offset += encaps_size
-        data_bytes = packet_bytes[offset:offset + data_length]
-        offset += data_length
-        sdls_security_trailer_out = packet_bytes[offset:offset + sdls_trailer_size]
-        offset += sdls_trailer_size
-        frame_error_control_field = int.from_bytes(packet_bytes[offset:offset + fecf_size], byteorder="big", signed=False)
+        self.assertTrue(pmt.is_u8vector(out_body))
+        self.assertEqual(bytes(pmt.u8vector_elements(out_body)), payload_bytes)
 
-        out_meta = pmt.make_dict()
-        out_meta = pmt.dict_add(out_meta, pmt.intern("tc_header"), self._python_to_pmt(tc_header))
-        out_meta = pmt.dict_add(out_meta, pmt.intern("csp_header"), self._python_to_pmt(csp_header))
-        out_meta = pmt.dict_add(out_meta, pmt.intern("encapsulation_header"), self._python_to_pmt(encapsulation_header))
-        out_meta = pmt.dict_add(out_meta, pmt.intern("sdls_security_header"), self._python_to_pmt(sdls_security_header))
-        out_meta = pmt.dict_add(out_meta, pmt.intern("data"), self._python_to_pmt(data_bytes))
-        out_meta = pmt.dict_add(out_meta, pmt.intern("sdls_security_trailer"), self._python_to_pmt(sdls_security_trailer_out))
-        out_meta = pmt.dict_add(out_meta, pmt.intern("frame_error_control_field"), pmt.from_long(frame_error_control_field))
-        out_body = pmt.init_u8vector(len(packet_bytes), list(packet_bytes))
-        out_msg = pmt.cons(out_meta, out_body)
-        out_body_bytes = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
+        self.assertEqual(self._pmt_get_nested_int(out_meta, ["telecommand", "tc_header", "scid"]), 0x155)
+        self.assertEqual(self._pmt_get_nested_int(out_meta, ["telecommand", "tc_header", "vcid"]), 0x12)
+        self.assertEqual(self._pmt_get_nested_int(out_meta, ["telecommand", "tc_header", "frame_length"]), frame_length)
+        self.assertEqual(self._pmt_get_nested_int(out_meta, ["telecommand", "tc_header", "fsn"]), 0x33)
+        self.assertEqual(self._pmt_get_nested_int(out_meta, ["telecommand", "frame_error_control_field"]), 0xBEEF)
+        self.assertEqual(self._pmt_get_nested_int(out_meta, ["encapsulation_header", "packet_length"]), 0x5678)
+        self.assertEqual(self._pmt_get_nested_int(out_meta, ["sdls", "security_header", "security_param_index"]), 0x1111)
+        self.assertEqual(self._pmt_get_nested_int(out_meta, ["sdls", "security_header", "initialization_vector"]), 0x2222)
 
-        self.assertEqual(out_body_bytes, packet_bytes)
-
-        tc_header = pmt.dict_ref(out_meta, pmt.intern("tc_header"), pmt.PMT_NIL)
-        csp_header = pmt.dict_ref(out_meta, pmt.intern("csp_header"), pmt.PMT_NIL)
-        encapsulation_header = pmt.dict_ref(out_meta, pmt.intern("encapsulation_header"), pmt.PMT_NIL)
-        sdls_security_header = pmt.dict_ref(out_meta, pmt.intern("sdls_security_header"), pmt.PMT_NIL)
-        data = pmt.dict_ref(out_meta, pmt.intern("data"), pmt.PMT_NIL)
-        sdls_security_trailer_out = pmt.dict_ref(out_meta, pmt.intern("sdls_security_trailer"), pmt.PMT_NIL)
-        fecf = pmt.dict_ref(out_meta, pmt.intern("frame_error_control_field"), pmt.PMT_NIL)
-
-        self.assertFalse(pmt.eqv(tc_header, pmt.PMT_NIL))
-        self.assertFalse(pmt.eqv(csp_header, pmt.PMT_NIL))
-        self.assertFalse(pmt.eqv(encapsulation_header, pmt.PMT_NIL))
-        self.assertFalse(pmt.eqv(sdls_security_header, pmt.PMT_NIL))
-        self.assertFalse(pmt.eqv(data, pmt.PMT_NIL))
+        sdls_security_trailer_out = pmt.dict_ref(
+            pmt.dict_ref(out_meta, pmt.intern("sdls"), pmt.PMT_NIL),
+            pmt.intern("security_trailer"),
+            pmt.PMT_NIL,
+        )
         self.assertFalse(pmt.eqv(sdls_security_trailer_out, pmt.PMT_NIL))
-        self.assertFalse(pmt.eqv(fecf, pmt.PMT_NIL))
-
-        self.assertEqual(self._pmt_get_int(tc_header, "scid"), 0x155)
-        self.assertEqual(self._pmt_get_int(tc_header, "vcid"), 0x12)
-        self.assertEqual(self._pmt_get_int(tc_header, "frame_length"), frame_length)
-        self.assertEqual(self._pmt_get_int(csp_header, "source"), 0x123)
-        self.assertEqual(self._pmt_get_int(csp_header, "destination"), 0x456)
-        self.assertEqual(self._pmt_get_int(encapsulation_header, "packet_length"), 0x5678)
-        self.assertEqual(self._pmt_get_int(sdls_security_header, "security_param_index"), 0x1111)
-        self.assertEqual(self._pmt_get_int(sdls_security_header, "initialization_vector"), 0x2222)
-        self.assertEqual(self._pmt_get_int(out_meta, "frame_error_control_field"), 0xBEEF)
-
-        self.assertTrue(pmt.is_u8vector(data))
-        self.assertEqual(bytes(pmt.u8vector_elements(data)), payload_bytes)
         self.assertTrue(pmt.is_u8vector(sdls_security_trailer_out))
         self.assertEqual(bytes(pmt.u8vector_elements(sdls_security_trailer_out)), sdls_trailer)
 
     def test_decode_minimal_packet_outputs_fields_and_unchanged_u8vector(self):
-        """Build a minimal CCSDS packet then decode to parsed dict fields and unchanged frame bytes."""
+        """Build a minimal CCSDS packet and verify decode_ccsds publishes the payload and header metadata."""
         payload_bytes = bytes([0x01, 0x23, 0x45, 0x67])
         total_length = 5 + len(payload_bytes) + 2
         frame_length = total_length - 1
@@ -319,52 +292,29 @@ class qa_ccsdsReader(gr_unittest.TestCase):
             )
         )
 
-        # Deconstruct the minimal packet with CCSDSReader field parsers.
-        tc_size = 5
-        fecf_size = 2
-        data_length = total_length - (tc_size + fecf_size)
+        captured = []
+        original_pub = self._capture_specific_port(instance, "debug", captured)
+        try:
+            instance.decode_ccsds(pmt.cons(pmt.make_dict(), pmt.init_u8vector(len(packet_bytes), list(packet_bytes))))
+        finally:
+            self._restore_port(instance, original_pub)
 
-        offset = 0
-        tc_header = dict(instance.tc_header().parse(packet_bytes[offset:offset + tc_size]))
-        offset += tc_size
-        data_bytes = packet_bytes[offset:offset + data_length]
-        offset += data_length
-        frame_error_control_field = int.from_bytes(packet_bytes[offset:offset + fecf_size], byteorder="big", signed=False)
+        self.assertEqual(len(captured), 1)
+        out_meta = pmt.car(captured[0])
+        out_body = pmt.cdr(captured[0])
 
-        out_meta = pmt.make_dict()
-        out_meta = pmt.dict_add(out_meta, pmt.intern("tc_header"), self._python_to_pmt(tc_header))
-        out_meta = pmt.dict_add(out_meta, pmt.intern("data"), self._python_to_pmt(data_bytes))
-        out_meta = pmt.dict_add(out_meta, pmt.intern("frame_error_control_field"), pmt.from_long(frame_error_control_field))
-        out_body = pmt.init_u8vector(len(packet_bytes), list(packet_bytes))
-        out_msg = pmt.cons(out_meta, out_body)
-        out_body_bytes = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
+        self.assertTrue(pmt.is_u8vector(out_body))
+        self.assertEqual(bytes(pmt.u8vector_elements(out_body)), payload_bytes)
 
-        self.assertEqual(out_body_bytes, packet_bytes)
+        self.assertEqual(self._pmt_get_nested_int(out_meta, ["telecommand", "tc_header", "scid"]), 0x1AA)
+        self.assertEqual(self._pmt_get_nested_int(out_meta, ["telecommand", "tc_header", "vcid"]), 0x03)
+        self.assertEqual(self._pmt_get_nested_int(out_meta, ["telecommand", "tc_header", "frame_length"]), frame_length)
+        self.assertEqual(self._pmt_get_nested_int(out_meta, ["telecommand", "tc_header", "fsn"]), 0x7E)
+        self.assertEqual(self._pmt_get_nested_int(out_meta, ["telecommand", "frame_error_control_field"]), 0x1234)
 
-        tc_header_out = pmt.dict_ref(out_meta, pmt.intern("tc_header"), pmt.PMT_NIL)
-        data_out = pmt.dict_ref(out_meta, pmt.intern("data"), pmt.PMT_NIL)
-        fecf_out = pmt.dict_ref(out_meta, pmt.intern("frame_error_control_field"), pmt.PMT_NIL)
-        csp_header_out = pmt.dict_ref(out_meta, pmt.intern("csp_header"), pmt.PMT_NIL)
-        encapsulation_header_out = pmt.dict_ref(out_meta, pmt.intern("encapsulation_header"), pmt.PMT_NIL)
-        sdls_security_header_out = pmt.dict_ref(out_meta, pmt.intern("sdls_security_header"), pmt.PMT_NIL)
-        sdls_security_trailer_out = pmt.dict_ref(out_meta, pmt.intern("sdls_security_trailer"), pmt.PMT_NIL)
-
-        self.assertFalse(pmt.eqv(tc_header_out, pmt.PMT_NIL))
-        self.assertFalse(pmt.eqv(data_out, pmt.PMT_NIL))
-        self.assertFalse(pmt.eqv(fecf_out, pmt.PMT_NIL))
-        self.assertTrue(pmt.eqv(csp_header_out, pmt.PMT_NIL))
-        self.assertTrue(pmt.eqv(encapsulation_header_out, pmt.PMT_NIL))
-        self.assertTrue(pmt.eqv(sdls_security_header_out, pmt.PMT_NIL))
-        self.assertTrue(pmt.eqv(sdls_security_trailer_out, pmt.PMT_NIL))
-
-        self.assertEqual(self._pmt_get_int(tc_header_out, "scid"), 0x1AA)
-        self.assertEqual(self._pmt_get_int(tc_header_out, "vcid"), 0x03)
-        self.assertEqual(self._pmt_get_int(tc_header_out, "frame_length"), frame_length)
-        self.assertEqual(self._pmt_get_int(tc_header_out, "fsn"), 0x7E)
-        self.assertEqual(self._pmt_get_int(out_meta, "frame_error_control_field"), 0x1234)
-
-        self.assertTrue(pmt.is_u8vector(data_out))
-        self.assertEqual(bytes(pmt.u8vector_elements(data_out)), payload_bytes)
+        self.assertTrue(pmt.dict_has_key(out_meta, pmt.intern("sdls")))
+        self.assertTrue(pmt.dict_has_key(out_meta, pmt.intern("telecommand")))
+        self.assertFalse(pmt.dict_has_key(out_meta, pmt.intern("encapsulation_header")))
 
 
 if __name__ == '__main__':
