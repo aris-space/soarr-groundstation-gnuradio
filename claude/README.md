@@ -26,6 +26,7 @@ this project is, domain vocabulary) — start there, not here.
    - [sdls_authentication](prd/sdls_authentication.md)
    - [sdls_header](prd/sdls_header.md)
    - [tc_primary_header](prd/tc_primary_header.md)
+   - [lfsr_scrambler](prd/lfsr_scrambler.md)
 
 ## Folder map
 
