@@ -6,6 +6,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
+from unittest.mock import patch
+
 from gnuradio import gr, gr_unittest
 from Crypto.Cipher import AES
 import pmt
@@ -16,7 +18,7 @@ class qa_sdls_encryption(gr_unittest.TestCase):
 
     def setUp(self):
         self.tb = gr.top_block()
-        self.block = sdls_encryption(state=True, nonce=b"\x00" * 14)
+        self.block = sdls_encryption(encryption_state=True, nonce=b"\x00" * 14)
         self.published = []
 
     def tearDown(self):
@@ -52,7 +54,7 @@ class qa_sdls_encryption(gr_unittest.TestCase):
         self.assertIsNotNone(instance)
 
     def test_001_state_false_passthrough(self):
-        self.block.state = False
+        self.block.encryption_state = False
         msg = self._make_pdu(bytes([9, 8]), counter=5)
 
         original_pub = self._capture_pub()
@@ -69,7 +71,7 @@ class qa_sdls_encryption(gr_unittest.TestCase):
         self.assertEqual(out_payload, bytes([9, 8]))
 
     def test_002_aes_ctr_encrypts_payload_and_removes_key(self):
-        self.block.state = True
+        self.block.encryption_state = True
         key_hex = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
         counter = 0x1234
         payload = bytes([1, 2, 3, 4])
@@ -231,6 +233,44 @@ class qa_sdls_encryption(gr_unittest.TestCase):
         ).decrypt(ciphertext)
 
         self.assertEqual(recovered, plaintext)
+
+    # Additional: an internal failure past key/counter extraction (e.g. a
+    # future encryption-library incompatibility) is caught, logged, and
+    # dropped - not left to raise out of the real message handler.
+    def test_013_internal_encryption_failure_is_dropped_not_raised(self):
+        msg = self._make_pdu(bytes([1, 2, 3]), counter=1)
+
+        original_pub = self._capture_pub()
+        try:
+            with patch.object(
+                sdls_encryption,
+                "_encrypt_payload",
+                side_effect=RuntimeError("simulated encryption failure"),
+            ):
+                self.block.add_encryption(msg)  # must not raise
+        finally:
+            self._restore_pub(original_pub)
+
+        self.assertEqual(len(self.published), 0)
+
+    # Additional: a publish failure in the encryption_state=False
+    # passthrough branch is also caught and dropped, not left to raise -
+    # the encrypted-path publish (test_013) isn't the only publish call
+    # in this handler.
+    def test_014_passthrough_publish_failure_is_dropped_not_raised(self):
+        self.block.encryption_state = False
+        msg = self._make_pdu(bytes([9, 8]), counter=5)
+
+        original_pub = self.block.message_port_pub
+
+        def _raise(port, out_msg):
+            raise RuntimeError("simulated publish failure")
+
+        self.block.message_port_pub = _raise
+        try:
+            self.block.add_encryption(msg)  # must not raise
+        finally:
+            self.block.message_port_pub = original_pub
 
 
 if __name__ == '__main__':

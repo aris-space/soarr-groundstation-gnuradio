@@ -63,7 +63,7 @@ class layout(gr.top_block):
         self.encapsulation_header = encapsulation_header(user_defined_field=0)
 
         # Row 2: SDLS protection path
-        self.sdls_encryption = sdls_encryption(state=LAYOUT_SDLS_ENABLED)
+        self.sdls_encryption = sdls_encryption(encryption_state=LAYOUT_SDLS_ENABLED)
         self.sdls_authentication = sdls_authentication(state=LAYOUT_SDLS_ENABLED)
         self.sdls_header = sdls_header(iv_length_bytes=2)
 
@@ -396,7 +396,7 @@ class qa_layoutTest(gr_unittest.TestCase):
         COUNTER = 23
         PAYLOAD_BYTES = bytes([0x10, 0x20, 0x30, 0x40, 0x50])
 
-        block = sdls_encryption(state=True, nonce=b"\x00" * 14)
+        block = sdls_encryption(encryption_state=True, nonce=b"\x00" * 14)
         captured = []
         original_pub = self._capture_specific_port(block, "out", captured)
         expected_ciphertext = AES.new(KEY_BYTES, AES.MODE_CTR, nonce=b"\x00" * 14, initial_value=COUNTER).encrypt(PAYLOAD_BYTES)

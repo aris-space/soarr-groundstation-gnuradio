@@ -16,7 +16,7 @@ class qa_EncryptDecrypt(gr_unittest.TestCase):
 
 	def setUp(self):
 		self.tb = gr.top_block()
-		self.enc = sdls_encryption(state=True, nonce=b"\x00" * 14)
+		self.enc = sdls_encryption(encryption_state=True, nonce=b"\x00" * 14)
 		self.dec = sdls_decryption(decryption_state=True, nonce=b"\x00" * 14)
 		self.published = []
 
@@ -178,7 +178,7 @@ class qa_EncryptDecrypt(gr_unittest.TestCase):
 			self.assertEqual(out_payload, payload)
 
 	def test_007_both_blocks_disabled_passthrough(self):
-		self.enc.state = False
+		self.enc.encryption_state = False
 		self.dec.decryption_state = False
 		key_hex = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
 		counter = 0x6666
