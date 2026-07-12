@@ -8,28 +8,72 @@
 from gnuradio import gr
 import pmt
 
+REGISTER_LENGTH_REQUIRED = 8
+
+
 class lfsr_scrambler(gr.basic_block):
-    def __init__(self, mask=0xA9,seed=0xFF,register_length=8):
+    """
+    Apply the CCSDS 231.0-B-3 TC pseudo-randomizer to a PDU's payload.
+
+    Flow:
+    - Receive a PDU on `in`
+    - XOR the payload against a fixed LFSR-generated bit sequence,
+      restarting from `seed` on every message (per-frame reset)
+    - Publish the scrambled PDU on `out`, metadata unchanged
+    """
+
+    def __init__(self, seed=0xFF, register_length=8):
+        """
+        Args:
+            seed (int): initial 8-bit LFSR register state. Only the low
+                `register_length` bits are used.
+            register_length (int): LFSR register width in bits. Only `8`
+                is supported (the CCSDS 231.0-B-3 randomizer is defined
+                for an 8-bit register).
+
+        Raises:
+            ValueError: register_length is not 8.
+        """
         gr.basic_block.__init__(self,
             name="LFSR Scrambler",
             in_sig=None,
             out_sig=None)
 
-        
+        if register_length != REGISTER_LENGTH_REQUIRED:
+            raise ValueError(
+                f"CCSDS randomizer requires register_length={REGISTER_LENGTH_REQUIRED}, got {register_length}."
+            )
+
         # Store parameters
-        self.mask = mask
         self.seed = seed
-        self.reg_length = register_length
+        self.register_length = register_length
 
         # Define message ports
         self.message_port_register_in(pmt.intern("in"))
         self.message_port_register_out(pmt.intern("out"))
-        
+
         # Register handler for incoming messages
         self.set_msg_handler(pmt.intern("in"), self.handle_msg)
 
     def handle_msg(self, msg):
-        # 1. Unpack the PDU (metadata and data vector)
+        """
+        Args:
+            msg (pmt_pair): PDU with metadata dict and u8vector payload.
+                No metadata keys are read or required.
+
+        Publishes:
+            "out" (pmt_pair): PDU with the payload XORed against the
+                randomizer sequence; metadata unchanged, length preserved.
+
+        Drops when:
+            - msg is not a PDU pair (error - malformed input at the TX boundary, not raw RF noise)
+            - payload is not a u8vector (error - same)
+            - scrambling or publishing fails (error - same)
+        """
+        if not pmt.is_pair(msg):
+            self.logger.error("Input message is not a pair.")
+            return
+
         meta = pmt.car(msg)
         body = pmt.cdr(msg)
 
@@ -37,34 +81,34 @@ class lfsr_scrambler(gr.basic_block):
             self.logger.error("Input message body is not a PDU (u8vector).")
             return
 
-        pdu_data = pmt.u8vector_elements(body)
-        
-        # 2. Apply the scrambler logic
-        # Use the configured parameters
+        # Full body from here on wrapped in catch-log-drop, including the
+        # final publish - a raise anywhere in here must never escape this
+        # handler.
         try:
+            pdu_data = pmt.u8vector_elements(body)
             scrambled_data = self.apply_scrambling(pdu_data)
-        except ValueError as err:
-            self.logger.error(str(err))
-            return
-        
-        # 3. Create and publish a new PDU
-        new_pdu = pmt.cons(meta, pmt.init_u8vector(len(scrambled_data), scrambled_data))
 
-        self.message_port_pub(pmt.intern("out"), new_pdu)
-        self.logger.info(f"OK")
-        
+            new_pdu = pmt.cons(meta, pmt.init_u8vector(len(scrambled_data), scrambled_data))
+            self.message_port_pub(pmt.intern("out"), new_pdu)
+            self.logger.info("OK")
+        except Exception as exc:
+            self.logger.error(f"Failed to scramble or publish message: {exc}")
+            return
 
     def apply_scrambling(self, data):
-        # CCSDS bit transition generator sequence (h(x) = x^8 + x^6 + x^4 + x^3 + x^2 + x + 1)
-        # represented as recurrence over generated scramble bits:
-        # b[n] = b[n-2] ^ b[n-4] ^ b[n-5] ^ b[n-6] ^ b[n-7] ^ b[n-8]
-        if self.reg_length != 8:
-            raise ValueError("CCSDS randomizer requires register_length=8")
+        """
+        Args:
+            data: sequence of payload bytes to scramble.
 
+        Returns:
+            bytearray: `data` XORed (MSB first) against the CCSDS
+                231.0-B-3 randomizer sequence (h(x) = x^8 + x^6 + x^4 +
+                x^3 + x^2 + x + 1), regenerated from `seed` on every call.
+        """
         total_bits = len(data) * 8
         scramble_seq = [
-            (self.seed >> (self.reg_length - 1 - i)) & 1
-            for i in range(self.reg_length)
+            (self.seed >> (self.register_length - 1 - i)) & 1
+            for i in range(self.register_length)
         ]
 
         while len(scramble_seq) < total_bits:

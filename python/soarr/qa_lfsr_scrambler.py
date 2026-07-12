@@ -41,15 +41,13 @@ class qa_lfsr_scrambler(gr_unittest.TestCase):
         self.assertIsNotNone(instance)
 
     def test_001_default_parameters(self):
-        self.assertEqual(self.scrambler.mask, 0xA9)
         self.assertEqual(self.scrambler.seed, 0xFF)
-        self.assertEqual(self.scrambler.reg_length, 8)
+        self.assertEqual(self.scrambler.register_length, 8)
 
     def test_002_custom_parameters(self):
-        custom = lfsr_scrambler(mask=0xA9, seed=0xAB, register_length=8)
-        self.assertEqual(custom.mask, 0xA9)
+        custom = lfsr_scrambler(seed=0xAB, register_length=8)
         self.assertEqual(custom.seed, 0xAB)
-        self.assertEqual(custom.reg_length, 8)
+        self.assertEqual(custom.register_length, 8)
 
     def test_003_known_sequence_first_40_bits(self):
         # CCSDS first 40 randomizer bits:
@@ -109,10 +107,46 @@ class qa_lfsr_scrambler(gr_unittest.TestCase):
         self._scramble_and_capture(pmt.make_dict(), bad_payload)
         self.assertEqual(len(self.captured_output), 0)
 
-    def test_010_invalid_register_length(self):
-        invalid = lfsr_scrambler(register_length=7)
+    # Additional: register_length is rejected at construction time, matching
+    # every other reviewed block's precedent (fail fast, not on first message).
+    def test_010_invalid_register_length_raises_at_construction(self):
         with self.assertRaises(ValueError):
-            invalid.apply_scrambling(bytes([0x00]))
+            lfsr_scrambler(register_length=7)
+
+    # Additional: a non-pair input must not crash the handler - dropped
+    # cleanly (logged, no publish) instead of pmt.car raising out of it.
+    def test_012_non_pair_input_is_dropped_not_raised(self):
+        captured = []
+        original_pub = self.scrambler.message_port_pub
+
+        def _capture(port, msg):
+            captured.append((port, msg))
+
+        self.scrambler.message_port_pub = _capture
+        try:
+            self.scrambler.handle_msg(pmt.intern("not-a-pair"))  # must not raise
+        finally:
+            self.scrambler.message_port_pub = original_pub
+
+        self.assertEqual(len(captured), 0)
+
+    # Additional: a failure past field extraction (e.g. publish itself
+    # raising) is caught, logged, and dropped - not left to raise out of
+    # the real message handler.
+    def test_013_internal_publish_failure_is_dropped_not_raised(self):
+        meta = pmt.make_dict()
+        payload = pmt.init_u8vector(2, [1, 2])
+        msg = pmt.cons(meta, payload)
+
+        def _raise(port, out_msg):
+            raise RuntimeError("simulated publish failure")
+
+        original_pub = self.scrambler.message_port_pub
+        self.scrambler.message_port_pub = _raise
+        try:
+            self.scrambler.handle_msg(msg)  # must not raise
+        finally:
+            self.scrambler.message_port_pub = original_pub
 
     def test_011_randomizer_period_255_bits(self):
         # A maximal-length 8-bit CCSDS randomizer repeats every 255 bits.

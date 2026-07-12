@@ -32,7 +32,6 @@ LAYOUT_SDLS_ENABLED = True
 LAYOUT_TC_SCID = 0 # Default
 LAYOUT_TC_VCID = 0 # Default
 
-SCRAMBLER_MASK = 0xA9
 SCRAMBLER_SEED = 0xFF
 
 BCH_POLYNOMIAL = 0xC5
@@ -86,7 +85,7 @@ class layout(gr.top_block):
         )
 
         # Row 4: Channel coding path
-        self.lfsr_scrambler = lfsr_scrambler(mask=SCRAMBLER_MASK, seed=SCRAMBLER_SEED, register_length=8)
+        self.lfsr_scrambler = lfsr_scrambler(seed=SCRAMBLER_SEED, register_length=8)
         self.bch_encoder = bch_encoder(polynomial=BCH_POLYNOMIAL)
         self.cltu_framer = cltu_framer(startSequence=CLTU_START_SEQUENCE, tailSequence=CLTU_TAIL_SEQUENCE)
 
@@ -506,7 +505,7 @@ class qa_layoutTest(gr_unittest.TestCase):
         FRAME_ID = 88
         PAYLOAD_BYTES = bytes([0x00])
 
-        block = lfsr_scrambler(mask=0xA9, seed=0xFF, register_length=8)
+        block = lfsr_scrambler(seed=0xFF, register_length=8)
         captured = []
         original_pub = self._capture_specific_port(block, "out", captured)
 
