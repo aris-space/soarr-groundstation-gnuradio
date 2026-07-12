@@ -29,6 +29,7 @@ this project is, domain vocabulary) — start there, not here.
    - [lfsr_scrambler](prd/lfsr_scrambler.md)
    - [bch_encoder](prd/bch_encoder.md)
    - [cltu_framer](prd/cltu_framer.md)
+   - [acquisition_idle_sequencer](prd/acquisition_idle_sequencer.md)
 
 ## Folder map
 
