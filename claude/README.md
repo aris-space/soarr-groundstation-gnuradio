@@ -23,6 +23,7 @@ this project is, domain vocabulary) — start there, not here.
    signal-flow order per the parent plan's Step 4). In progress:
    - [encapsulation_header](prd/encapsulation_header.md)
    - [sdls_encryption](prd/sdls_encryption.md)
+   - [sdls_authentication](prd/sdls_authentication.md)
 
 ## Folder map
 
