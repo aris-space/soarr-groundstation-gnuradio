@@ -168,7 +168,11 @@ Enforced by a `commit-msg` hook — see
   the problem being solved, a decision and its rationale) — not **how** it
   was found or fixed. Leave out `/code-review`-round narration, test
   pass/fail tallies, and TDD red/green step commentary; that detail belongs
-  in the PR/session, not the permanent log.
+  in the PR/session, not the permanent log. Describe only what this
+  commit actually contains — not work planned for a later commit, and not
+  an external plan/roadmap's phase or step number. The commit log outlives
+  any particular planning document or session, so a message should be
+  self-explanatory to a reader who has neither.
 - **footer** (optional) — `Refs: <path>` pointing at the relevant doc (e.g.
   `Refs: claude/prd/tc_primary_header.md`), and/or `BREAKING CHANGE: <desc>`
   for breaking changes (block-id rename, changed PDU shape).
