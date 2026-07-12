@@ -66,6 +66,6 @@ class cltuFramer(gr.basic_block):
 
         # finds last codeword of an message => Message is done
         if pmt.dict_has_key(meta,pmt.intern("filled")):
-            self.logger.info("OK")
+            self.logger.info("OK\n")
         
 
