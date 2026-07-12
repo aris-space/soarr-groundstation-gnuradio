@@ -96,9 +96,18 @@ support for SDLS's other permitted MAC schemes.
   16-bit ceiling, while `db_client` models `sdls_counter` as 32-bit.
 - **Default `nonce` is all-zero** (`b"\x00" * 14`) unless explicitly
   overridden — same as `sdls_encryption`.
-- **The nested `sdls_counter` fallback lookup path is untested** — same
-  gap as `sdls_encryption`, no test in `qa_sdls_authentication.py` or
-  `qa_AuthenticateAuthVerify.py` exercises it.
+- **The nested `sdls_counter` fallback lookup path is not an edge case —
+  it's the only path `sdls_counter` takes in the real pipeline, and it
+  has zero test coverage** (same finding as `sdls_encryption`'s PRD, and
+  verified the same way directly in `inject_db.py`: `sdls_counter` is
+  assigned *by* the `db_client` response, so `inject_db`'s merge logic
+  always nests it under `sdls.security_header.sdls_counter`, never
+  top-level). No test in `qa_sdls_authentication.py` or
+  `qa_AuthenticateAuthVerify.py` constructs that shape, and
+  `qa_layoutTest.py::test_002_end_to_end_message_routing` — the one test
+  that runs the real wired topology — shims this block's real handler
+  out. The code path this block's `sdls_counter` handling actually takes
+  in production has never been run by any test in this repo.
 - **`sdls_authentication_verify.py` (RX) is not yet reviewed/fixed** —
   still has the ambiguous `PMT_NIL`-comparison counter lookup this block's
   `_extract_counter` no longer has (see above), and its `verify_message`
