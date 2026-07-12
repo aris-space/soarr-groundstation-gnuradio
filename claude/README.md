@@ -27,6 +27,7 @@ this project is, domain vocabulary) — start there, not here.
    - [sdls_header](prd/sdls_header.md)
    - [tc_primary_header](prd/tc_primary_header.md)
    - [lfsr_scrambler](prd/lfsr_scrambler.md)
+   - [bch_encoder](prd/bch_encoder.md)
 
 ## Folder map
 

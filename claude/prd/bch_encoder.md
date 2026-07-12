@@ -1,0 +1,143 @@
+# bch_encoder
+
+## Purpose
+
+Applies CCSDS 231.0-B-4 (63,56) BCH forward-error-correction encoding to
+a PDU's payload: splits it into 56-bit information chunks (padding the
+last chunk with a fixed fill pattern if needed), computes 7 complemented
+parity bits per chunk, and appends a filler bit — producing one 8-byte
+BCH codeword per chunk. See [architecture.md](../architecture.md).
+
+## Pipeline position
+
+TX chain, between `lfsr_scrambler` and `cltu_framer`:
+
+```
+lfsr_scrambler.out → bch_encoder.message
+bch_encoder.codewords → cltu_framer.in
+```
+
+Confirmed via `python/soarr/qa_layoutTest.py:104-105`'s `msg_connect`
+wiring.
+
+## Message ports
+
+| Port | Direction | PMT shape | Example |
+|---|---|---|---|
+| `message` | input | PDU: `(metadata_dict . payload_u8vector)`. No required metadata keys. Payload of any length ≥ 1 byte. | `pmt.cons({}, u8vector(payload))` |
+| `codewords` | output | PDU: `(metadata_dict . codeword_u8vector)`, always exactly 8 bytes (7 info + 1 parity/filler byte). **One `codewords` PDU is published per 56-bit chunk the input payload splits into** — a single input PDU spanning multiple codewords produces multiple output PDUs, not one. The metadata dict is reused across all of a message's codewords, with `filled` (bool) added only to the last one. | `pmt.cons({}, u8vector(8 bytes))`, possibly repeated |
+
+This multi-publish-per-input behavior differs from every other TX block
+reviewed so far in this pass (all 1-input-PDU-in → 1-PDU-out) — it
+matches `cltu_framer`'s own contract, which requires exactly 8 bytes per
+input PDU (`cltu_framer.py:54-56`, rejects anything else) and checks for
+the `filled` key (`cltu_framer.py:68`) purely to emit a distinct `"OK\n"`
+log line marking the end of a multi-codeword message — no control-flow
+effect downstream.
+
+## Parameters
+
+| Name | Type | Default | Notes |
+|---|---|---|---|
+| `polynomial` | int | `0xC5` | Generator polynomial g(x) = x^7 + x^6 + x^2 + 1, as an 8-bit value with bit 7 set (the implicit leading term is stored explicitly, not implied). Not validated — see Known issues. |
+
+## Behavior / edge cases / current error handling
+
+**Algorithm** — payload bytes are expanded to individual bits (MSB
+first), padded to a multiple of 56 bits with an alternating `0,1,0,1,...`
+fill pattern (packs to `0x55` bytes) if not already aligned, then each
+56-bit chunk is: converted back to 7 bytes, divided (GF(2) polynomial
+long division) by `polynomial` to get a 7-bit remainder, complemented,
+and packed as `[7 parity bits][1 filler bit, always 0]` into an 8th byte
+appended to the chunk's 7 information bytes — an 8-byte codeword,
+published immediately as its own PDU.
+
+**Empty payload**: rejected before any processing (`len(payload_bytes) ==
+0` → logged, no publish) — the one input-shape condition this block
+explicitly rejects.
+
+**`filled` metadata**: added (`True`/`False`, whether padding was needed)
+only to the metadata dict of the *last* codeword's PDU in a message;
+earlier codewords' PDUs carry the original metadata unchanged, without
+the key at all — consumed downstream only by `cltu_framer`'s cosmetic
+log line (see Pipeline position above).
+
+**Error handling** (intended to comply with
+[coding-standards.md](../coding-standards.md),
+[ADR-0003](../adr/0003-message-handler-error-policy.md), but currently
+does not — see Known issues):
+
+- `encodeBCH` calls `pmt.car(msg)`/`pmt.cdr(msg)` unconditionally before
+  any shape check — no `pmt.is_pair(msg)` guard exists anywhere in the
+  method.
+- Payload extraction (`payload_bytes = bytes(pmt.u8vector_elements(...))`)
+  and the empty-payload check both sit *outside* the `try/except
+  Exception` block that wraps the rest of the method (encoding loop,
+  PDU construction, and every `message_port_pub` call) — a deviation from
+  the pattern established in every other block reviewed this pass, where
+  payload extraction is the first line *inside* the try.
+- The handler method is named `encodeBCH` — camelCase, inconsistent with
+  every sibling block's snake_case handler name (`handle_msg`,
+  `build_header`).
+
+**Docstrings**: partial. The class docstring and `_compute_parity_bits`
+already have real content (method/citation, not `gr_modtool`'s
+placeholder), unlike most blocks reviewed so far — but neither follows
+[ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)'s
+Args/Returns/Raises or Args/Publishes/Drops-when structure, and
+`__init__`, `_bytes_to_bits`, `_bits_to_bytes`, and `_apply_fill_bits`
+have no docstrings at all.
+
+## CCSDS reference
+
+CCSDS 231.0-B-4 (TC Synchronization and Channel Coding) — the (63,56)
+BCH code: generator polynomial `g(x) = x^7 + x^6 + x^2 + 1` (`0xC5`),
+complemented parity bits per §3.3.1, one filler bit (`0`) appended after
+the 7 parity bits to complete each 64-bit/8-byte codeword. Stated per the
+code's own pre-existing docstring citation; not independently verified
+against the standard from this repo alone (same caveat as
+`lfsr_scrambler.md`'s CCSDS reference). `qa_layoutTest.py::test_010_bch_encoder_real_handler`
+checks a hand-derivable known-answer case (an all-zero 7-byte payload
+produces parity byte `0xFE` — all 7 parity bits set, filler bit `0`,
+matching the algorithm's zero-dividend case), not just self-consistency.
+
+## Known issues / TODOs
+
+- **`encodeBCH` crashes on a non-pair input.** `pmt.car`/`pmt.cdr` are
+  called unconditionally before any shape check; reproduced directly:
+  `encodeBCH(pmt.intern("not-a-pair"))` raises `ValueError: pmt_car:
+  wrong_type not-a-pair` out of the handler, violating ADR-0003.
+- **catch-log-drop coverage is incomplete.** Payload extraction and the
+  empty-payload check sit outside the try/except, unlike every other
+  reviewed block's precedent.
+- **`polynomial` is unvalidated.** Any int is accepted at construction;
+  the GF(2) division loop assumes an 8-bit value with bit 7 set (a
+  degree-7 polynomial). A value without bit 7 set won't crash, but
+  silently produces mathematically wrong parity bits with no diagnostic.
+  CCSDS 231.0-B-4 mandates one fixed polynomial for interoperability, the
+  same argument made for `lfsr_scrambler`'s randomizer polynomial.
+- **`encodeBCH` naming inconsistency** — camelCase, unlike every sibling
+  block's snake_case handler name.
+- **Docstrings incomplete** — `__init__` and three private helpers have
+  none; `encodeBCH`'s and `_compute_parity_bits`'s existing docstrings
+  don't follow the ADR-0004 template.
+
+## Test coverage
+
+- `python/soarr/qa_bch_encoder.py` — 26 test methods (`test_instance` +
+  `test_001`–`test_025`): construction with default/custom polynomial (no
+  validation exercised, per the known issue above), single- and
+  multi-codeword encoding across a wide range of boundary sizes (exactly
+  1/2/3/4/7/8 codewords, with and without fill bits), fill-pattern
+  correctness (`0x55` bytes), parity-bit complementing, an algebraic
+  affine/linearity property of the complemented code (`test_010`, a
+  structural correctness check, not a hand-derived known-answer case),
+  single-bit-flip changing the parity (error-detection property), PDU
+  metadata preserved with `filled` added only to the last codeword
+  (`test_012`), and a non-u8vector body dropped cleanly (`test_015`).
+- `python/soarr/qa_layoutTest.py::test_010_bch_encoder_real_handler` —
+  same pattern as the other TX blocks' "real handler" tests: builds a
+  fresh, standalone instance and calls `encodeBCH` directly, checking the
+  hand-derivable known-answer parity byte described in CCSDS reference
+  above, not the `msg_connect` wiring itself (shimmed out in
+  `test_002_end_to_end_message_routing` via `_bind_passthrough`).
