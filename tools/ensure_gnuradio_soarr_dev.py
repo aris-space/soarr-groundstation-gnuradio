@@ -148,10 +148,9 @@ def _looks_like_gr_soarr_install(shadow_dir: Path) -> bool:
     if not shadow_dir.exists() or not shadow_dir.is_dir():
         return False
 
-    # Covers both today's camelCase filenames and the target snake_case
-    # names from claude/coding-standards.md (ADR-0001, not yet executed) —
-    # keeps this guardrail working before, during, and after that rename
-    # without needing a second edit later.
+    # Covers both current snake_case filenames (see coding-standards.md,
+    # ADR-0001) and the pre-rename camelCase equivalents, so this guardrail
+    # still recognizes a shadow-install left over from before that rename.
     expected_any = {
         "__init__.py",
         "cltuFramer.py",
