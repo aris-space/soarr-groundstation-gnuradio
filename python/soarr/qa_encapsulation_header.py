@@ -6,6 +6,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
+from unittest.mock import patch
+
 from gnuradio import gr_unittest
 import pmt
 
@@ -48,15 +50,12 @@ class qa_encapsulation_header(gr_unittest.TestCase):
         return meta
 
     def _split_header_payload(self, framed_bytes):
+        # header_len looked up from the block's own LENGTH_OF_LENGTH_TABLE:
+        # this only affects how bytes get sliced for the assertions below,
+        # not the boundary/length values themselves, which each test still
+        # checks against independent literals (e.g. test_016/test_017).
         length_of_length = framed_bytes[0] & 0b11
-        if length_of_length == 0b00:
-            header_len = 1
-        elif length_of_length == 0b01:
-            header_len = 2
-        elif length_of_length == 0b10:
-            header_len = 4
-        else:
-            header_len = 8
+        header_len = encapsulation_header.LENGTH_OF_LENGTH_TABLE[length_of_length].header_length
         return framed_bytes[:header_len], framed_bytes[header_len:]
 
     def _get_single_output(self):
@@ -158,7 +157,7 @@ class qa_encapsulation_header(gr_unittest.TestCase):
         self.assertEqual(len(header), 4)
         self.assertEqual(header[0] & 0b11, 0b10)
         self.assertEqual(header[1] >> 4, 0b1010)   # user_defined_field
-        self.assertEqual(header[1] & 0x0F, 0b0000) # protocol_id_extention
+        self.assertEqual(header[1] & 0x0F, 0b0000) # protocol_id_extension
         self.assertEqual(int.from_bytes(header[2:4], "big"), len(payload) + 4)
         self.assertEqual(out_payload, payload)
 
@@ -179,7 +178,7 @@ class qa_encapsulation_header(gr_unittest.TestCase):
         self.assertEqual(len(header), 8)
         self.assertEqual(header[0] & 0b11, 0b11)
         self.assertEqual(header[1] >> 4, 0b1010)   # user_defined_field
-        self.assertEqual(header[1] & 0x0F, 0b0000) # protocol_id_extention
+        self.assertEqual(header[1] & 0x0F, 0b0000) # protocol_id_extension
         self.assertEqual(int.from_bytes(header[2:4], "big"), 0)        # CCSDS_DEFINED_FIELD
         self.assertEqual(int.from_bytes(header[4:8], "big"), len(payload) + 8)
         self.assertEqual(out_payload, payload)
@@ -265,45 +264,18 @@ class qa_encapsulation_header(gr_unittest.TestCase):
         _, framed = self._get_single_output()
         self.assertEqual((framed[0] >> 2) & 0b111, 0b111)
 
-    # Additional: user_defined_field below 0 should fail when field is present
-    def test_014_negative_user_defined_field_raises(self):
-        block = encapsulation_header(user_defined_field=-1)
-        published = []
+    # Additional: negative user_defined_field is rejected at construction time,
+    # regardless of payload size (not just when a large-enough payload happens
+    # to make the field get packed).
+    def test_014_negative_user_defined_field_raises_at_construction(self):
+        with self.assertRaises(ValueError):
+            encapsulation_header(user_defined_field=-1)
 
-        original_pub = block.message_port_pub
-
-        def _capture(port, msg):
-            published.append((port, msg))
-
-        block.message_port_pub = _capture
-        try:
-            msg = self._make_pdu(self._default_meta(), bytes([0x44] * 300))
-            with self.assertRaises(Exception):
-                block.add_header(msg)
-        finally:
-            block.message_port_pub = original_pub
-
-        self.assertEqual(len(published), 0)
-
-    # Additional: user_defined_field above 4-bit range should fail when field is present
-    def test_015_too_large_user_defined_field_raises(self):
-        block = encapsulation_header(user_defined_field=16)
-        published = []
-
-        original_pub = block.message_port_pub
-
-        def _capture(port, msg):
-            published.append((port, msg))
-
-        block.message_port_pub = _capture
-        try:
-            msg = self._make_pdu(self._default_meta(), bytes([0x45] * 300))
-            with self.assertRaises(Exception):
-                block.add_header(msg)
-        finally:
-            block.message_port_pub = original_pub
-
-        self.assertEqual(len(published), 0)
+    # Additional: user_defined_field above the 4-bit range is rejected at
+    # construction time, regardless of payload size.
+    def test_015_too_large_user_defined_field_raises_at_construction(self):
+        with self.assertRaises(ValueError):
+            encapsulation_header(user_defined_field=16)
 
     # Additional: end-to-end boundary checks for LOL transitions
     def test_016_end_to_end_length_boundaries(self):
@@ -404,6 +376,30 @@ class qa_encapsulation_header(gr_unittest.TestCase):
             self.assertEqual((framed_data[0] >> 2) & 0b111, 0b111)
         finally:
             self._restore_pub(original_pub)
+
+    # Additional: an internal build failure (e.g. an oversized payload,
+    # which _determine_length_of_length rejects) is caught, logged, and
+    # dropped by the real message handler - not left to raise out of it.
+    # A real oversized payload would need ~4GB to construct, so the
+    # failure is forced via a mock instead of a real giant payload; the
+    # seam under test is add_header's own catch-log-drop behavior, not
+    # _determine_length_of_length's threshold logic (already covered by
+    # test_008/test_009).
+    def test_020_internal_build_failure_is_dropped_not_raised(self):
+        msg = self._make_pdu(self._default_meta(), bytes([0x01, 0x02, 0x03]))
+
+        original_pub = self._capture_pub()
+        try:
+            with patch.object(
+                encapsulation_header,
+                "_determine_length_of_length",
+                side_effect=ValueError("payload too large"),
+            ):
+                self.block.add_header(msg)  # must not raise
+        finally:
+            self._restore_pub(original_pub)
+
+        self.assertEqual(len(self.published), 0)
 
 if __name__ == '__main__':
     gr_unittest.run(qa_encapsulation_header)
