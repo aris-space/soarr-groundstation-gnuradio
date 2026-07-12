@@ -16,7 +16,7 @@ class qa_AuthenticateAuthVerify(gr_unittest.TestCase):
 
 	def setUp(self):
 		self.tb = gr.top_block()
-		self.auth = sdls_authentication(state=True, nonce=b"\x00" * 14)
+		self.auth = sdls_authentication(authentication_state=True, nonce=b"\x00" * 14)
 		self.verify = sdls_authentication_verify(authentication_state=True, nonce=b"\x00" * 14)
 		self.published = []
 
@@ -125,7 +125,7 @@ class qa_AuthenticateAuthVerify(gr_unittest.TestCase):
 		self.assertIsNone(out_msg)
 
 	def test_003_auth_disabled_verify_enabled(self):
-		self.auth.state = False
+		self.auth.authentication_state = False
 		key_hex = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
 		counter = 0x3333
 		payload = bytes([9, 8, 7])

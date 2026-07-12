@@ -6,6 +6,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
+from unittest.mock import patch
+
 from gnuradio import gr, gr_unittest
 from Crypto.Hash import CMAC
 from Crypto.Cipher import AES
@@ -17,7 +19,7 @@ class qa_sdls_authentication(gr_unittest.TestCase):
 
     def setUp(self):
         self.tb = gr.top_block()
-        self.block = sdls_authentication(state=True)
+        self.block = sdls_authentication(authentication_state=True)
         self.published = []
 
     def tearDown(self):
@@ -61,7 +63,7 @@ class qa_sdls_authentication(gr_unittest.TestCase):
         self.assertIsNotNone(instance)
 
     def test_001_state_false_passthrough(self):
-        self.block.state = False
+        self.block.authentication_state = False
         msg = self._make_pdu(bytes([9, 8]), counter=5)
 
         original_pub = self._capture_pub()
@@ -78,7 +80,7 @@ class qa_sdls_authentication(gr_unittest.TestCase):
         self.assertEqual(out_payload, bytes([9, 8]))
 
     def test_002_authentication_appends_tag_without_encrypting_payload(self):
-        self.block.state = True
+        self.block.authentication_state = True
         key_hex = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
         counter = 1
         payload = bytes([1, 2, 3, 4])
@@ -108,7 +110,7 @@ class qa_sdls_authentication(gr_unittest.TestCase):
         self.assertEqual(len(out_payload), len(payload) + 16)
 
     def test_003_invalid_key_length_no_output(self):
-        self.block.state = True
+        self.block.authentication_state = True
         msg = self._make_pdu(bytes([1, 2, 3]), key_hex="0011", counter=1)
 
         original_pub = self._capture_pub()
@@ -120,7 +122,7 @@ class qa_sdls_authentication(gr_unittest.TestCase):
         self.assertEqual(len(self.published), 0)
 
     def test_004_counter_overflow_no_output(self):
-        self.block.state = True
+        self.block.authentication_state = True
         msg = self._make_pdu(bytes([1, 2, 3]), counter=65536)
 
         original_pub = self._capture_pub()
@@ -132,7 +134,7 @@ class qa_sdls_authentication(gr_unittest.TestCase):
         self.assertEqual(len(self.published), 0)
 
     def test_005_missing_auth_key_no_output(self):
-        self.block.state = True
+        self.block.authentication_state = True
         meta = pmt.make_dict()
         meta = pmt.dict_add(meta, pmt.intern("sdls_counter"), pmt.from_long(1))
         msg = self._make_pdu_from_parts(meta, pmt.init_u8vector(2, [1, 2]))
@@ -146,7 +148,7 @@ class qa_sdls_authentication(gr_unittest.TestCase):
         self.assertEqual(len(self.published), 0)
 
     def test_006_missing_counter_no_output(self):
-        self.block.state = True
+        self.block.authentication_state = True
         meta = pmt.make_dict()
         meta = pmt.dict_add(
             meta,
@@ -164,7 +166,7 @@ class qa_sdls_authentication(gr_unittest.TestCase):
         self.assertEqual(len(self.published), 0)
 
     def test_007_non_dict_meta_no_output(self):
-        self.block.state = True
+        self.block.authentication_state = True
         msg = self._make_pdu_from_parts(pmt.PMT_T, pmt.init_u8vector(2, [1, 2]))
 
         original_pub = self._capture_pub()
@@ -176,7 +178,7 @@ class qa_sdls_authentication(gr_unittest.TestCase):
         self.assertEqual(len(self.published), 0)
 
     def test_008_non_u8vector_payload_no_output(self):
-        self.block.state = True
+        self.block.authentication_state = True
         meta = pmt.make_dict()
         meta = pmt.dict_add(
             meta,
@@ -195,7 +197,7 @@ class qa_sdls_authentication(gr_unittest.TestCase):
         self.assertEqual(len(self.published), 0)
 
     def test_009_authentication_tag_changes_with_counter(self):
-        self.block.state = True
+        self.block.authentication_state = True
         key_hex = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
         payload = bytes([0xAA, 0xBB, 0xCC, 0xDD])
 
@@ -219,7 +221,7 @@ class qa_sdls_authentication(gr_unittest.TestCase):
         self.assertNotEqual(tag_1, tag_2)
 
     def test_010_receiver_verifies_tag_and_detects_tamper(self):
-        self.block.state = True
+        self.block.authentication_state = True
         key_hex = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
         counter = 0x1234
         payload = bytes([0x10, 0x20, 0x30, 0x40, 0x50])
@@ -245,6 +247,45 @@ class qa_sdls_authentication(gr_unittest.TestCase):
         tampered_payload = bytearray(rx_payload)
         tampered_payload[0] ^= 0x01
         self.assertFalse(self._verify_tag(key_hex, counter, bytes(tampered_payload), rx_tag))
+
+    # Additional: an internal failure past key/counter extraction (e.g. a
+    # future crypto-library incompatibility) is caught, logged, and
+    # dropped - not left to raise out of the real message handler.
+    def test_011_internal_tag_failure_is_dropped_not_raised(self):
+        self.block.authentication_state = True
+        msg = self._make_pdu(bytes([1, 2, 3]), counter=1)
+
+        original_pub = self._capture_pub()
+        try:
+            with patch.object(
+                sdls_authentication,
+                "_get_authentication_tag",
+                side_effect=RuntimeError("simulated tag failure"),
+            ):
+                self.block.add_authentication(msg)  # must not raise
+        finally:
+            self._restore_pub(original_pub)
+
+        self.assertEqual(len(self.published), 0)
+
+    # Additional: a publish failure in the authentication_state=False
+    # passthrough branch is also caught and dropped, not left to raise -
+    # the tagging-path publish (test_011) isn't the only publish call in
+    # this handler.
+    def test_012_passthrough_publish_failure_is_dropped_not_raised(self):
+        self.block.authentication_state = False
+        msg = self._make_pdu(bytes([9, 8]), counter=5)
+
+        original_pub = self.block.message_port_pub
+
+        def _raise(port, out_msg):
+            raise RuntimeError("simulated publish failure")
+
+        self.block.message_port_pub = _raise
+        try:
+            self.block.add_authentication(msg)  # must not raise
+        finally:
+            self.block.message_port_pub = original_pub
 
 
 if __name__ == '__main__':

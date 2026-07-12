@@ -4,7 +4,7 @@ category: '[soarr]/SDLS'
 
 templates:
   imports: from gnuradio import soarr
-  make: soarr.sdls_authentication(${state}, bytes.fromhex('{:028x}'.format(${nonce_hex})))
+  make: soarr.sdls_authentication(${authentication_state}, bytes.fromhex('{:028x}'.format(${nonce_hex})))
 
 #  Make one 'parameters' list entry for every parameter you want settable from the GUI.
 #     Keys include:
@@ -13,7 +13,7 @@ templates:
 #     * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
 #     * default
 parameters:
-- id: state
+- id: authentication_state
   label: Authentication State
   dtype: enum
   options: ['True', 'False']

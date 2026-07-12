@@ -64,7 +64,7 @@ class layout(gr.top_block):
 
         # Row 2: SDLS protection path
         self.sdls_encryption = sdls_encryption(encryption_state=LAYOUT_SDLS_ENABLED)
-        self.sdls_authentication = sdls_authentication(state=LAYOUT_SDLS_ENABLED)
+        self.sdls_authentication = sdls_authentication(authentication_state=LAYOUT_SDLS_ENABLED)
         self.sdls_header = sdls_header(iv_length_bytes=2)
 
         # Row 3: TC framing path
@@ -433,7 +433,7 @@ class qa_layoutTest(gr_unittest.TestCase):
         COUNTER = 31
         PAYLOAD_BYTES = bytes([0xA1, 0xB2, 0xC3, 0xD4])
 
-        block = sdls_authentication(state=True, nonce=b"\x00" * 14)
+        block = sdls_authentication(authentication_state=True, nonce=b"\x00" * 14)
         captured = []
         original_pub = self._capture_specific_port(block, "out", captured)
         mac_input = b"\x00" * 14 + COUNTER.to_bytes(2, byteorder="big", signed=False) + PAYLOAD_BYTES
