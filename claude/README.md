@@ -19,8 +19,9 @@ this project is, domain vocabulary) — start there, not here.
    - [0004 — Docstring and PMT shape convention](adr/0004-docstring-and-pmt-shape-convention.md)
    - [0005 — RX path canonical block](adr/0005-rx-path-canonical-block.md)
    - [0006 — Rename gr-sage to gr-soarr](adr/0006-rename-sage-to-soarr.md)
-6. `prd/` — one requirements doc per block (20 total). **Not yet
-   populated** — see the parent plan's Step 4.
+6. `prd/` — one requirements doc per block (20 total, written in
+   signal-flow order per the parent plan's Step 4). In progress:
+   - [encapsulation_header](prd/encapsulation_header.md)
 
 ## Folder map
 
@@ -31,7 +32,7 @@ claude/
 ├── development.md
 ├── coding-standards.md
 ├── adr/                 six accepted ADRs
-└── prd/                 empty — future per-block work
+└── prd/                 one per block, 20 total (in progress)
 ```
 
 ## Doc conventions
@@ -49,5 +50,7 @@ claude/
   error handling (ADR-0003) and the docstring/PMT-shape convention
   (ADR-0004) are still not applied to existing blocks — don't assume those
   two are done just because naming is.
-- A PRD verification-status legend (for `prd/`) is not yet defined — decide
-  it when Step 4 starts, don't invent one here ahead of that work.
+- PRDs carry no verification-status marker (no "Draft"/"Reviewed" field) —
+  like ADRs and the root docs before them, a PRD is only committed after
+  being reviewed and signed off in the same interview process that writes
+  it, so a status field would just duplicate that.
