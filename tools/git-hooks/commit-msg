@@ -1,0 +1,60 @@
+#!/usr/bin/env python
+"""Validate commit messages against gr-soarr's Conventional Commits rules.
+
+See claude/coding-standards.md's "Commit messages" section for the rules
+this enforces and why. Setup: git config core.hooksPath tools/git-hooks
+"""
+
+import re
+import sys
+
+TYPES = ("feat", "fix", "docs", "refactor", "test", "chore", "perf", "build", "ci")
+SUBJECT_RE = re.compile(
+    r"^(" + "|".join(TYPES) + r")(\([a-z0-9_.-]+\))?!?: (.+)$"
+)
+
+
+def fail(message):
+    sys.stderr.write("commit-msg hook: " + message + "\n")
+    sys.stderr.write(
+        "\nExpected: <type>(<scope>): <subject>\n"
+        "  type   one of: " + ", ".join(TYPES) + "\n"
+        "  scope  snake_case block name, or an area (docs/adr/prd/tools/grc)\n"
+        "  subject imperative, lowercase after ': ', no trailing '.', <=72 chars\n"
+        "\nSee claude/coding-standards.md's Commit messages section.\n"
+    )
+    sys.exit(1)
+
+
+def main():
+    commit_msg_path = sys.argv[1]
+    with open(commit_msg_path, "r", encoding="utf-8") as f:
+        lines = f.read().splitlines()
+
+    lines = [line for line in lines if not line.startswith("#")]
+    while lines and lines[-1] == "":
+        lines.pop()
+
+    if not lines:
+        fail("empty commit message")
+
+    subject = lines[0]
+    match = SUBJECT_RE.match(subject)
+    if not match:
+        fail("subject line doesn't match '<type>(<scope>): <subject>':\n  " + subject)
+
+    if len(subject) > 72:
+        fail(f"subject line is {len(subject)} chars, must be <=72:\n  " + subject)
+
+    description = match.group(3)
+    if description.endswith("."):
+        fail("subject must not end with a period:\n  " + subject)
+
+    if len(lines) > 1 and lines[1] != "":
+        fail("line 2 must be blank to separate subject from body:\n  " + lines[1])
+
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
