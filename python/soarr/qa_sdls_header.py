@@ -6,6 +6,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
+from unittest.mock import patch
+
 from gnuradio import gr_unittest
 import pmt
 
@@ -219,6 +221,37 @@ class qa_sdls_header(gr_unittest.TestCase):
         self.assertEqual(len(self.published), 1)
         out_payload = bytes(pmt.u8vector_elements(pmt.cdr(self.published[0][1])))
         self.assertEqual(out_payload, b"\x00\x01\xAA\xBB\x10\x20")
+
+    # Additional: iv_length_bytes is rejected at construction time,
+    # matching the GRC block.yml's own asserts range (0-16), instead of
+    # being silently accepted and only failing later/differently.
+    def test_011_iv_length_bytes_out_of_range_raises_at_construction(self):
+        with self.assertRaises(ValueError):
+            sdls_header(iv_length_bytes=17)
+        with self.assertRaises(ValueError):
+            sdls_header(iv_length_bytes=-1)
+
+    # Additional: an internal failure past spi/counter extraction (e.g. a
+    # future encoding-library incompatibility) is caught, logged, and
+    # dropped - not left to raise out of the real message handler.
+    def test_012_internal_build_failure_is_dropped_not_raised(self):
+        spi = bytes([0x12, 0x34])
+        sdls_counter = bytes([0xAA, 0xBB])
+        payload = bytes([0x01, 0x02, 0x03])
+        msg = self._make_pdu(payload, spi=spi, sdls_counter=sdls_counter)
+
+        original_pub = self._capture_pub()
+        try:
+            with patch.object(
+                self.block._header_struct,
+                "build",
+                side_effect=RuntimeError("simulated build failure"),
+            ):
+                self.block.add_header(msg)  # must not raise
+        finally:
+            self._restore_pub(original_pub)
+
+        self.assertEqual(len(self.published), 0)
 
 
 if __name__ == '__main__':
