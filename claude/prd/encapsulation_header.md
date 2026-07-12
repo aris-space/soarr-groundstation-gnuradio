@@ -79,10 +79,10 @@ VCA/Bitstream encapsulation, is unimplemented).
   `encapsulation_header()` method (RX-side parsing) and
   `sdls_authentication_verify.py`'s `_build_encapsulation_header` (RX-side
   rebuild, needed to reconstruct the authenticated bytes for CMAC
-  verification). Confirmed field-for-field consistent with this block as
-  of this writing, but all three must be kept in manual sync if this
-  format ever changes — there's no shared source of truth. (Out of scope
-  to fix here — would mean changing two other blocks' files.)
+  verification). Confirmed field-for-field consistent with this block,
+  but all three must be kept in manual sync if this format ever changes —
+  there's no shared source of truth. (Out of scope to fix here — would
+  mean changing two other blocks' files.)
 
 ## Test coverage
 
@@ -95,8 +95,8 @@ VCA/Bitstream encapsulation, is unimplemented).
   including a multi-key integrity sweep across all size variants), field
   omission for LOL=01, protocol-id selection on empty vs. non-empty
   payload, exact `packet_length` byte encoding at key boundaries
-  (`test_017`), the two `user_defined_field` range checks now proven at
-  construction time (`test_014`, `test_015`), and a mock-forced internal
+  (`test_017`), the two `user_defined_field` range checks at construction
+  time (`test_014`, `test_015`), and a mock-forced internal
   build failure proven to be caught and dropped rather than raised through
   the real handler (`test_020` — a real oversized payload would need
   ~4GB to construct, so the failure is forced via

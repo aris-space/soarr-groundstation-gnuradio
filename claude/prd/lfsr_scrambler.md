@@ -32,12 +32,11 @@ Confirmed via `python/soarr/qa_layoutTest.py:103-104`'s `msg_connect` wiring.
 | `seed` | int | `0xFF` | Initial 8-bit LFSR register state. Only the low `register_length` bits are used (extracted bit-by-bit); higher bits are silently ignored, not validated. |
 | `register_length` | int | `8` | Validated in `__init__` (raises `ValueError` if not `8`) — the CCSDS 231.0-B-3 randomizer is only defined for an 8-bit register. |
 
-A `mask` parameter previously existed here (stored but never read by
-`apply_scrambling`, which hardcodes the CCSDS generator polynomial
-directly) — removed during this pass, along with its GRC yaml entry, per
-CCSDS 231.0-B-3 mandating one fixed polynomial for interoperability (see
-Known issues). The identical dead parameter still exists in the sibling
-`lfsr_descrambler` block, out of scope here.
+This block has no `mask`/polynomial parameter — `apply_scrambling`
+hardcodes the CCSDS generator polynomial directly, since CCSDS 231.0-B-3
+mandates one fixed polynomial for TX/RX interoperability and no caller in
+this repo ever varies it. The sibling `lfsr_descrambler` block still
+exposes an unused `mask` parameter of its own; out of scope here.
 
 ## Behavior / edge cases / current error handling
 
@@ -80,22 +79,8 @@ known-answer test, not just a self-consistency check.
 
 ## Known issues / TODOs
 
-- **`mask` removed.** Was a dead parameter (stored, never read — see
-  Parameters above) shared with the sibling `lfsr_descrambler` block. Fixed
-  here by deletion (constructor signature, GRC yaml, and both call sites in
-  `qa_layoutTest.py`) rather than making the polynomial genuinely
-  configurable: CCSDS 231.0-B-3 mandates one fixed polynomial for TX/RX
-  interoperability, and no caller in this repo ever varied it. `lfsr_descrambler`
-  still has the identical dead parameter — out of scope for this PRD.
-- **`self.reg_length` renamed to `self.register_length`** to match the
-  constructor parameter name and the sibling `lfsr_descrambler`'s own
-  attribute name (`lfsr_descrambler.py:24`), removing the unexplained
-  rename.
-
-All other findings from this pass (`register_length` validated too late,
-`handle_msg` crashing on a non-pair input, incomplete catch-log-drop
-coverage, missing docstrings) were fixed directly — see Behavior and
-Parameters above for the current, compliant state.
+None outstanding — see Behavior and Parameters above for the current
+implementation.
 
 ## Test coverage
 

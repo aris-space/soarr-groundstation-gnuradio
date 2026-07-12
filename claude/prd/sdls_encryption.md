@@ -16,8 +16,7 @@ encapsulation_header.out → sdls_encryption.in
 sdls_encryption.out → sdls_authentication.in
 ```
 
-RX counterpart: `sdls_decryption` (not yet documented — later in this
-plan's block order).
+RX counterpart: `sdls_decryption` — no PRD yet.
 
 ## Message ports
 

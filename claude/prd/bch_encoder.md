@@ -28,8 +28,8 @@ wiring.
 | `codewords` | output | PDU: `(metadata_dict . codeword_u8vector)`, always exactly 8 bytes (7 info + 1 parity/filler byte). **One `codewords` PDU is published per 56-bit chunk the input payload splits into** — a single input PDU spanning multiple codewords produces multiple output PDUs, not one. The metadata dict is reused across all of a message's codewords, with `filled` (bool) added only to the last one. | `pmt.cons({}, u8vector(8 bytes))`, possibly repeated |
 
 This multi-publish-per-input behavior differs from every other TX block
-reviewed so far in this pass (all 1-input-PDU-in → 1-PDU-out) — it
-matches `cltu_framer`'s own contract, which requires exactly 8 bytes per
+in this pipeline (all 1-input-PDU-in → 1-PDU-out) — it matches
+`cltu_framer`'s own contract, which requires exactly 8 bytes per
 input PDU (`cltu_framer.py:54-56`, rejects anything else) and checks for
 the `filled` key (`cltu_framer.py:68`) purely to emit a distinct `"OK\n"`
 log line marking the end of a multi-codeword message — no control-flow
@@ -75,15 +75,13 @@ checks `msg` is a pair and its payload is a u8vector before use; the full
 body past those two checks — payload extraction, the empty-payload check,
 the encoding loop, PDU construction, and every `message_port_pub` call —
 is wrapped in catch-log-drop (`except Exception`), all logged at `error`
-(this TX-side block isn't in the raw-RF `warn` list). The handler was
-renamed from `encodeBCH` to `encode_bch`, matching every sibling block's
-snake_case handler naming.
+(this TX-side block isn't in the raw-RF `warn` list). The handler name,
+`encode_bch`, matches every sibling block's snake_case convention.
 
 **Docstrings** (compliant with
 [ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)): full
 `Args`/`Raises` for `__init__`, `Args`/`Publishes`/`Drops when` for
-`encode_bch`, `Args`/`Returns` for `_compute_parity_bits` (reformatted
-from its pre-existing but non-Google-style content). `_bytes_to_bits`,
+`encode_bch`, `Args`/`Returns` for `_compute_parity_bits`. `_bytes_to_bits`,
 `_bits_to_bytes`, and `_apply_fill_bits` intentionally have no docstring
 — ADR-0004 permits omitting one for trivial private helpers with no PMT
 involvement, which all three are.
@@ -103,13 +101,9 @@ matching the algorithm's zero-dividend case), not just self-consistency.
 
 ## Known issues / TODOs
 
-None outstanding from this pass — the crash on non-pair input, the
-incomplete catch-log-drop coverage, the unvalidated `polynomial`
-parameter, the camelCase handler name, and the incomplete docstrings were
-all fixed directly; see Behavior and Parameters above for the current,
-compliant state. `filled`'s reuse with different semantics in
-`lfsr_descrambler` (Message ports above) is a naming overlap to be aware
-of, not a bug in this block.
+`filled`'s reuse with different semantics in `lfsr_descrambler` (Message
+ports above) is a naming overlap to be aware of, not a bug in this
+block.
 
 ## Test coverage
 

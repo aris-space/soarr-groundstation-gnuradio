@@ -39,8 +39,7 @@ account for those 2 bytes in `frame_length` without adding them itself
 ## Behavior / edge cases / current error handling
 
 **Field lookup** — `scid`, `vcid`, `bypass`, `control` each check
-`dict_msg[key]` first (via a shared `_lookup_with_fallback` helper,
-removing what was previously four near-identical inline lookup blocks),
+`dict_msg[key]` first (via a shared `_lookup_with_fallback` helper),
 falling back to `telecommand.tc_header[key]` only if the top-level key is
 absent, defaulting to the constructor's value if neither is present (and,
 for `scid`/`vcid` specifically, the default is written back into the
@@ -64,21 +63,19 @@ Every one of `scid`/`vcid`/`frame_length`/`frame_sequence_number` is then
 explicitly validated against its field's bit width (dropped, logged, if
 out of range) — **not** silently masked/truncated at pack time. This
 matters for values that can come from caller-supplied metadata, not just
-the (already constructor-validated) `scid`/`vcid` defaults: a payload
-large enough to push the computed `frame_length` past 1023 (10 bits)
-would previously wrap silently via bitmasking into a different, wrong,
-unlogged value instead of being rejected.
+the (already constructor-validated) `scid`/`vcid` defaults: without this
+check, a payload large enough to push the computed `frame_length` past
+1023 (10 bits) would wrap silently via bitmasking into a different,
+wrong, unlogged value instead of being rejected.
 
 **Error handling** (compliant with
 [coding-standards.md](../coding-standards.md),
 [ADR-0003](../adr/0003-message-handler-error-policy.md)): every rejection
 logs at `error` (this TX-side block isn't in the raw-RF `warn` list).
-Field extraction (`_try_get_int`/`_try_get_bool`, now built on one shared
+Field extraction (`_try_get_int`/`_try_get_bool`, built on one shared
 `_try_get` helper) logs at `error` when a value is *present but not
-convertible* — previously silent for `scid`/`vcid`/`bypass`/`control`/
-`vcid_counter` (only `frame_length` had any diagnostic, via a
-since-removed, separate pair of near-duplicate helper methods that were
-otherwise unused — one, `_pmt_dict_get_bool`, was entirely dead code).
+convertible*, for every field this block reads
+(`scid`/`vcid`/`bypass`/`control`/`vcid_counter`/`frame_length`).
 The full body past the three input-shape checks — field extraction,
 validation, header packing, and the publish call — is wrapped in
 catch-log-drop.
@@ -87,8 +84,7 @@ catch-log-drop.
 [ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)): full
 `Args`/`Returns` for the extraction helpers, `Args`/`Raises` for
 `__init__`, `Args`/`Publishes`/`Drops when` for `build_header`. The class
-docstring already had real content before this pass (unlike every other
-block reviewed so far, which had `gr_modtool`'s unfilled placeholder).
+docstring has real content, not `gr_modtool`'s unfilled placeholder.
 
 ## CCSDS reference
 
@@ -111,20 +107,15 @@ bytes. See [TFPH](../../CONTEXT.md) in the glossary.
   block's real handler out. The code path this block's `vcid_counter`
   handling actually takes in production has never been run by any test
   in this repo.
-- **`frame_length`'s `is_crc_used=True` → `additional_crc_bytes=2`
-  assumption previously didn't match the real integration test's
-  configured CRC width** — `qa_layoutTest.py` configured its real
-  `digital.crc_append` for a 32-bit (4-byte) CRC-32, while this block
-  (correctly, per CCSDS 232.0-B-4's actual 2-byte FECF) assumes 2 bytes.
-  Fixed as part of this pass: `qa_layoutTest.py`'s CRC parameters now use
-  the real CCSDS FECF configuration (CRC-16/CCITT, poly `0x1021`, init
-  `0xFFFF`, no reflection, no final XOR) instead of arbitrary CRC-32
-  parameters. No test decodes/checks the `frame_length` *field value*
-  itself against a wired, real `digital.crc_append` — `test_002` was
-  updated for the new total-length expectation, but doesn't decode the
-  TFPH `frame_length` field specifically (and couldn't, easily, since
-  `tc_primary_header`'s real handler is shimmed out in that test). A
-  `/code-review` pass double-checked this claim and confirmed it holds.
+- **No test decodes/checks the `frame_length` *field value* itself
+  against a wired, real `digital.crc_append`.** `qa_layoutTest.py`'s real
+  `digital.crc_append` is configured for CCSDS 232.0-B-4's actual 2-byte
+  FECF (CRC-16/CCITT, poly `0x1021`, init `0xFFFF`, no reflection, no
+  final XOR), matching this block's `additional_crc_bytes=2` assumption
+  under `is_crc_used=True` — but `test_002` only checks the new
+  total-length expectation, not the TFPH `frame_length` field
+  specifically (and couldn't, easily, since `tc_primary_header`'s real
+  handler is shimmed out in that test).
 - **Duplicate `test_001` method names** in `qa_tc_primary_header.py`
   (`test_001_crc_disabled_can_be_instantiated` and
   `test_001_missing_vcid_counter_emits_no_output`) — both run correctly

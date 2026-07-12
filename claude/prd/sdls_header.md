@@ -36,7 +36,7 @@ consume it but never remove it.
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `iv_length_bytes` | int | `2` | Fixed byte width `sdls_counter` is padded/validated to. Validated in `__init__` against the same `0–16` range the GRC yaml's `asserts` already enforced at flowgraph-build time only — the Python constructor previously accepted anything silently (see Known Issues in the fix history; now fixed). |
+| `iv_length_bytes` | int | `2` | Fixed byte width `sdls_counter` is padded/validated to. Validated in `__init__` against the same `0–16` range the GRC yaml's `asserts` enforce at flowgraph-build time. |
 
 ## Behavior / edge cases / current error handling
 
@@ -67,15 +67,11 @@ keys are deleted from the outgoing metadata after use.
 **Error handling** (compliant with
 [coding-standards.md](../coding-standards.md),
 [ADR-0003](../adr/0003-message-handler-error-policy.md)): every rejection
-logs at `error` (this TX-side block isn't in the raw-RF `warn` list).
-This block already had partial exception handling before this pass (a
-`try`/`except ValueError` around just the extraction calls); it's now a
-single catch-log-drop around the full body past input-shape validation,
+logs at `error` (this TX-side block isn't in the raw-RF `warn` list). A
+single catch-log-drop wraps the full body past input-shape validation,
 including header packing and the publish call. `_extract_dictionary_key`
-now signals every failure the same way (log + return `None`) instead of
-mixing that with a `raise ValueError` for the "value too long" case —
-previously the one inconsistent signal in the method, caught incidentally
-by the (formerly narrower) `try`/`except`.
+signals every failure the same way (log + return `None`), including the
+"value too long" case.
 
 **Docstrings** (compliant with
 [ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)): full

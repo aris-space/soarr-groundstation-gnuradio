@@ -18,9 +18,8 @@ sdls_encryption.out → sdls_authentication.in
 sdls_authentication.out → sdls_header.in
 ```
 
-RX counterpart: `sdls_authentication_verify` (not yet documented — later
-in this plan's block order; already uses the `authentication_state`
-parameter name this block is renamed to match, below).
+RX counterpart: `sdls_authentication_verify` — no PRD yet. It uses the
+same `authentication_state` parameter name as this block.
 
 ## Message ports
 
@@ -33,7 +32,7 @@ parameter name this block is renamed to match, below).
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `authentication_state` | bool | `True` | `False` makes the block a pure passthrough — input republished on `out` unchanged, no validation, no metadata mutation. Renamed from `state` to match `sdls_authentication_verify`'s existing `authentication_state` parameter — not a new convention, matching the name its own RX counterpart already uses. |
+| `authentication_state` | bool | `True` | `False` makes the block a pure passthrough — input republished on `out` unchanged, no validation, no metadata mutation. Matches `sdls_authentication_verify`'s own `authentication_state` parameter name — not a new convention. |
 | `nonce` | bytes | `b"\x00" * 14` (all-zero) | Fixed for the block's lifetime, combined with the per-message `sdls_counter` into the 16-byte block prepended to the payload before CMAC (see Behavior). Never transmitted — RX's `sdls_authentication_verify` must be configured with the identical value out-of-band. **Independent of `sdls_encryption`'s `nonce`** — a separate parameter, separate key (`auth_key` vs. `crypt_key`), by design: using distinct key/nonce material for encryption vs. authentication is standard practice, not a bug, even though both currently default to the same all-zero value. Validated in `__init__` (`TypeError`/`ValueError` if not exactly 14 bytes). |
 
 ## Behavior / edge cases / current error handling
@@ -55,10 +54,10 @@ underlying AES-CMAC).
 ambiguous `PMT_NIL` comparison), falling back to the nested
 `dict_msg["sdls"]["security_header"]["sdls_counter"]` path only if the
 top-level key is genuinely absent. Rejected if neither is present,
-non-integer, or outside `0–65535`. **Not yet symmetric with RX**:
-`sdls_authentication_verify._extract_counter` still uses the older
-ambiguous `PMT_NIL`-comparison pattern this fix replaced here — that
-block hasn't been reviewed/fixed yet (see Known Issues).
+non-integer, or outside `0–65535`. **Not symmetric with RX**:
+`sdls_authentication_verify._extract_counter` still uses an ambiguous
+`PMT_NIL`-comparison pattern that this block's own counter lookup avoids
+(via `pmt.dict_has_key`) — see Known Issues.
 
 **Tag computation**: `data_to_authenticate = (nonce ‖ counter_2_bytes_big_endian) ‖ payload`, then `CMAC.new(auth_key, ciphermod=AES).update(data_to_authenticate).digest()`
 — a 16-byte AES-CMAC tag, appended to (not replacing) the payload.
@@ -108,9 +107,10 @@ support for SDLS's other permitted MAC schemes.
   that runs the real wired topology — shims this block's real handler
   out. The code path this block's `sdls_counter` handling actually takes
   in production has never been run by any test in this repo.
-- **`sdls_authentication_verify.py` (RX) is not yet reviewed/fixed** —
-  still has the ambiguous `PMT_NIL`-comparison counter lookup this block's
-  `_extract_counter` no longer has (see above), and its `verify_message`
+- **`sdls_authentication_verify.py` (RX) has known issues of its own,
+  out of scope for this PRD** — it has the ambiguous `PMT_NIL`-comparison
+  counter lookup this block's own counter lookup avoids (see above), and
+  its `verify_message`
   contains an entire alternate MAC-input construction path (triggered when
   `dict_msg["sdls"]["security_trailer"]` is present, optionally prefixing
   a reconstructed encapsulation header) that this block never produces —
