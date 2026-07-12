@@ -14,6 +14,9 @@ OUTPUT_SIZE = 64  # 8 bytes * 8 bits/byte (56 bits + 7 parity + 1 filler)
 PARITY_BITS = 7  # BCH code generates 7 parity bits
 FILLER_BITS = 1  # Appended filler bit
 
+POLYNOMIAL_MIN = 0x80  # 8-bit value, bit 7 set (degree-7 generator polynomial)
+POLYNOMIAL_MAX = 0xFF
+
 class bch_encoder(gr.basic_block):
     """
     BCH (63,56) Encoder block implementing CCSDS 231.0-B-4 standard.
@@ -21,32 +24,50 @@ class bch_encoder(gr.basic_block):
     generator polynomial g(x) = x^7 + x^6 + x^2 + 1.
     """
     def __init__(self, polynomial=0xC5):
+        """
+        Args:
+            polynomial (int): BCH generator polynomial g(x), as an 8-bit
+                value with bit 7 set (the implicit leading x^7 term is
+                stored explicitly, not implied). Default 0xC5 is CCSDS
+                231.0-B-4's g(x) = x^7 + x^6 + x^2 + 1.
+
+        Raises:
+            ValueError: polynomial is outside the valid 8-bit,
+                bit-7-set range (0x80-0xFF).
+        """
         gr.basic_block.__init__(self,
             name="bch_encoder",
             in_sig=None,
             out_sig=None
         )
 
-        # Message Ports
-        self.message_port_register_in(pmt.intern("message"))
-        self.message_port_register_out(pmt.intern("codewords"))
-        self.set_msg_handler(pmt.intern("message"), self.encodeBCH)
+        if not (POLYNOMIAL_MIN <= polynomial <= POLYNOMIAL_MAX):
+            raise ValueError(
+                f"polynomial must be an 8-bit value with bit 7 set ({POLYNOMIAL_MIN}-{POLYNOMIAL_MAX}), got {polynomial}."
+            )
 
         # Generator polynomial g(x) = x^7 + x^6 + x^2 + 1 in binary: 11000101 (0xC5)
         # Represents feedback taps for the LFSR
         self.polynomial = polynomial
 
+        # Message Ports
+        self.message_port_register_in(pmt.intern("message"))
+        self.message_port_register_out(pmt.intern("codewords"))
+        self.set_msg_handler(pmt.intern("message"), self.encode_bch)
+
     def _compute_parity_bits(self, data_bits):
         """
         Compute complemented parity bits for the CCSDS (63,56) BCH code.
 
-        Method:
-        - Build m(x) from the 56 information bits (MSB-first)
-        - Compute remainder r(x) of x^7 * m(x) divided by g(x)
-        - Complement the 7 parity bits per CCSDS 231.0-B-4 §3.3.1
+        Builds m(x) from the 56 information bits (MSB-first), computes
+        the remainder r(x) of x^7 * m(x) divided by g(x) (`self.polynomial`),
+        then complements the 7 parity bits per CCSDS 231.0-B-4 Section 3.3.1.
+
+        Args:
+            data_bits: 7 bytes (56 bits) of information to encode.
 
         Returns:
-        - 7 bits as bytes-like values [P6, ..., P0], already complemented
+            bytes: 7 bits as [P6, ..., P0], already complemented.
         """
         message = int.from_bytes(data_bits, "big")
         dividend = message << PARITY_BITS
@@ -87,12 +108,30 @@ class bch_encoder(gr.basic_block):
         fill_bits = [(i % 2) for i in range(fill_count)]  # 0,1,0,1,...
         return bits + fill_bits, fill_count
 
-    def encodeBCH(self, msg):
+    def encode_bch(self, msg):
         """
-        Encode incoming PDU with BCH parity bits.
-        Input: PDU with 56-bit information payload
-        Output: PDU with 64-bit encoded data (56 info + 7 parity + 1 filler)
+        Args:
+            msg (pmt_pair): PDU with metadata dict and u8vector payload,
+                at least 1 byte. No metadata keys are read or required.
+
+        Publishes:
+            "codewords" (pmt_pair): one PDU per 56-bit chunk of the
+                payload (padded with CCSDS fill bits if not aligned),
+                each an 8-byte BCH codeword (7 info bytes + 1 parity/
+                filler byte). The metadata dict is reused across all of
+                a message's codewords; "filled" (bool) is added only to
+                the last one.
+
+        Drops when:
+            - msg is not a PDU pair (error - malformed input at the TX boundary, not raw RF noise)
+            - payload is not a u8vector (error - same)
+            - payload is empty (error - same, nothing to encode)
+            - encoding or publishing fails (error - same)
         """
+        if not pmt.is_pair(msg):
+            self.logger.error("Input message is not a pair.")
+            return
+
         # Unpack PDU to get meta and body
         meta = pmt.car(msg)
         body_pmt = pmt.cdr(msg)
@@ -101,14 +140,17 @@ class bch_encoder(gr.basic_block):
             self.logger.error("Input message body is not a PDU (u8vector).")
             return
 
-        # Convert body to bytes for processing
-        payload_bytes = bytes(pmt.u8vector_elements(body_pmt))
-
-        if len(payload_bytes) == 0:
-            self.logger.error("Input payload is empty.")
-            return
-
+        # Full body from here on wrapped in catch-log-drop, including the
+        # final publish - a raise anywhere in here must never escape this
+        # handler.
         try:
+            # Convert body to bytes for processing
+            payload_bytes = bytes(pmt.u8vector_elements(body_pmt))
+
+            if len(payload_bytes) == 0:
+                self.logger.error("Input payload is empty.")
+                return
+
             # Apply CCSDS fill pattern to complete integral 56-bit codewords.
             information_bits = self._bytes_to_bits(payload_bytes)
             stuffed_bits, fill_count = self._apply_fill_bits(information_bits)
@@ -122,11 +164,8 @@ class bch_encoder(gr.basic_block):
 
                 parity_bits = self._compute_parity_bits(info_bytes)
 
-                # Add parity bits (7 bits) + trailing filler bit (1 bit) per codeword.
-                parity_byte = 0
-                for bit in parity_bits:
-                    parity_byte = (parity_byte << 1) | bit
-                parity_byte = (parity_byte << FILLER_BITS)
+                # Pack parity bits (7 bits) + trailing filler bit (1 bit) per codeword.
+                parity_byte = self._bits_to_bytes(list(parity_bits) + [0] * FILLER_BITS)[0]
 
                 output_data = bytearray()
                 output_data.extend(info_bytes)
@@ -145,9 +184,9 @@ class bch_encoder(gr.basic_block):
                 # Send the encoded PDU out
                 self.message_port_pub(pmt.intern("codewords"), encoded_pdu)
             
-            self.logger.info(f"OK")
-            
-        except Exception as e:
-            self.logger.error(f"BCH encoding error: {str(e)}")
+            self.logger.info("OK")
+
+        except Exception as exc:
+            self.logger.error(f"Failed to encode or publish message: {exc}")
             return
 

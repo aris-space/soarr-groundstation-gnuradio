@@ -217,7 +217,7 @@ class qa_layoutTest(gr_unittest.TestCase):
         self._bind_passthrough(self.tb.sdls_header, "add_header", "in", "out")
         self._bind_passthrough(self.tb.tc_primary_header, "build_header", "in", "out")
         self._bind_passthrough(self.tb.lfsr_scrambler, "handle_msg", "in", "out")
-        self._bind_passthrough(self.tb.bch_encoder, "encodeBCH", "message", "codewords")
+        self._bind_passthrough(self.tb.bch_encoder, "encode_bch", "message", "codewords")
         self._bind_passthrough(self.tb.cltu_framer, "addSequences", "in", "out")
 
         # Capture the pdu_out outputs
@@ -544,7 +544,7 @@ class qa_layoutTest(gr_unittest.TestCase):
         msg = pmt.cons(meta, pmt.init_u8vector(len(PAYLOAD_BYTES), list(PAYLOAD_BYTES)))
 
         try:
-            block.encodeBCH(msg)
+            block.encode_bch(msg)
         finally:
             self._restore_port(block, original_pub)
 

@@ -33,13 +33,19 @@ matches `cltu_framer`'s own contract, which requires exactly 8 bytes per
 input PDU (`cltu_framer.py:54-56`, rejects anything else) and checks for
 the `filled` key (`cltu_framer.py:68`) purely to emit a distinct `"OK\n"`
 log line marking the end of a multi-codeword message — no control-flow
-effect downstream.
+effect downstream of *this* block. The same key name is reused with real
+control-flow weight elsewhere in the codebase, on the RX side:
+`lfsr_descrambler.py:103-105` triggers a sequence reset when `filled` is
+present in its own (unrelated) input metadata. The two are structurally
+disconnected — nothing wires `bch_encoder`'s output metadata into
+`lfsr_descrambler` — but it's the same key name doing two different jobs
+in two different blocks, worth knowing before reusing it a third time.
 
 ## Parameters
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `polynomial` | int | `0xC5` | Generator polynomial g(x) = x^7 + x^6 + x^2 + 1, as an 8-bit value with bit 7 set (the implicit leading term is stored explicitly, not implied). Not validated — see Known issues. |
+| `polynomial` | int | `0xC5` | Generator polynomial g(x) = x^7 + x^6 + x^2 + 1, as an 8-bit value with bit 7 set (the implicit leading term is stored explicitly, not implied). Validated in `__init__` (raises `ValueError` if outside `0x80`-`0xFF`). |
 
 ## Behavior / edge cases / current error handling
 
@@ -62,31 +68,25 @@ earlier codewords' PDUs carry the original metadata unchanged, without
 the key at all — consumed downstream only by `cltu_framer`'s cosmetic
 log line (see Pipeline position above).
 
-**Error handling** (intended to comply with
+**Error handling** (compliant with
 [coding-standards.md](../coding-standards.md),
-[ADR-0003](../adr/0003-message-handler-error-policy.md), but currently
-does not — see Known issues):
+[ADR-0003](../adr/0003-message-handler-error-policy.md)): `encode_bch`
+checks `msg` is a pair and its payload is a u8vector before use; the full
+body past those two checks — payload extraction, the empty-payload check,
+the encoding loop, PDU construction, and every `message_port_pub` call —
+is wrapped in catch-log-drop (`except Exception`), all logged at `error`
+(this TX-side block isn't in the raw-RF `warn` list). The handler was
+renamed from `encodeBCH` to `encode_bch`, matching every sibling block's
+snake_case handler naming.
 
-- `encodeBCH` calls `pmt.car(msg)`/`pmt.cdr(msg)` unconditionally before
-  any shape check — no `pmt.is_pair(msg)` guard exists anywhere in the
-  method.
-- Payload extraction (`payload_bytes = bytes(pmt.u8vector_elements(...))`)
-  and the empty-payload check both sit *outside* the `try/except
-  Exception` block that wraps the rest of the method (encoding loop,
-  PDU construction, and every `message_port_pub` call) — a deviation from
-  the pattern established in every other block reviewed this pass, where
-  payload extraction is the first line *inside* the try.
-- The handler method is named `encodeBCH` — camelCase, inconsistent with
-  every sibling block's snake_case handler name (`handle_msg`,
-  `build_header`).
-
-**Docstrings**: partial. The class docstring and `_compute_parity_bits`
-already have real content (method/citation, not `gr_modtool`'s
-placeholder), unlike most blocks reviewed so far — but neither follows
-[ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)'s
-Args/Returns/Raises or Args/Publishes/Drops-when structure, and
-`__init__`, `_bytes_to_bits`, `_bits_to_bytes`, and `_apply_fill_bits`
-have no docstrings at all.
+**Docstrings** (compliant with
+[ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)): full
+`Args`/`Raises` for `__init__`, `Args`/`Publishes`/`Drops when` for
+`encode_bch`, `Args`/`Returns` for `_compute_parity_bits` (reformatted
+from its pre-existing but non-Google-style content). `_bytes_to_bits`,
+`_bits_to_bytes`, and `_apply_fill_bits` intentionally have no docstring
+— ADR-0004 permits omitting one for trivial private helpers with no PMT
+involvement, which all three are.
 
 ## CCSDS reference
 
@@ -103,41 +103,34 @@ matching the algorithm's zero-dividend case), not just self-consistency.
 
 ## Known issues / TODOs
 
-- **`encodeBCH` crashes on a non-pair input.** `pmt.car`/`pmt.cdr` are
-  called unconditionally before any shape check; reproduced directly:
-  `encodeBCH(pmt.intern("not-a-pair"))` raises `ValueError: pmt_car:
-  wrong_type not-a-pair` out of the handler, violating ADR-0003.
-- **catch-log-drop coverage is incomplete.** Payload extraction and the
-  empty-payload check sit outside the try/except, unlike every other
-  reviewed block's precedent.
-- **`polynomial` is unvalidated.** Any int is accepted at construction;
-  the GF(2) division loop assumes an 8-bit value with bit 7 set (a
-  degree-7 polynomial). A value without bit 7 set won't crash, but
-  silently produces mathematically wrong parity bits with no diagnostic.
-  CCSDS 231.0-B-4 mandates one fixed polynomial for interoperability, the
-  same argument made for `lfsr_scrambler`'s randomizer polynomial.
-- **`encodeBCH` naming inconsistency** — camelCase, unlike every sibling
-  block's snake_case handler name.
-- **Docstrings incomplete** — `__init__` and three private helpers have
-  none; `encodeBCH`'s and `_compute_parity_bits`'s existing docstrings
-  don't follow the ADR-0004 template.
+None outstanding from this pass — the crash on non-pair input, the
+incomplete catch-log-drop coverage, the unvalidated `polynomial`
+parameter, the camelCase handler name, and the incomplete docstrings were
+all fixed directly; see Behavior and Parameters above for the current,
+compliant state. `filled`'s reuse with different semantics in
+`lfsr_descrambler` (Message ports above) is a naming overlap to be aware
+of, not a bug in this block.
 
 ## Test coverage
 
-- `python/soarr/qa_bch_encoder.py` — 26 test methods (`test_instance` +
-  `test_001`–`test_025`): construction with default/custom polynomial (no
-  validation exercised, per the known issue above), single- and
-  multi-codeword encoding across a wide range of boundary sizes (exactly
-  1/2/3/4/7/8 codewords, with and without fill bits), fill-pattern
-  correctness (`0x55` bytes), parity-bit complementing, an algebraic
-  affine/linearity property of the complemented code (`test_010`, a
-  structural correctness check, not a hand-derived known-answer case),
-  single-bit-flip changing the parity (error-detection property), PDU
-  metadata preserved with `filled` added only to the last codeword
-  (`test_012`), and a non-u8vector body dropped cleanly (`test_015`).
+- `python/soarr/qa_bch_encoder.py` — 30 test methods (`test_instance` +
+  `test_001`–`test_029`): construction with default and a genuinely
+  different custom polynomial, single- and multi-codeword encoding across
+  a wide range of boundary sizes (exactly 1/2/3/4/7/8 codewords, with and
+  without fill bits), fill-pattern correctness (`0x55` bytes), parity-bit
+  complementing, an algebraic affine/linearity property of the
+  complemented code (`test_010`, a structural correctness check, not a
+  hand-derived known-answer case), single-bit-flip changing the parity
+  (error-detection property), PDU metadata preserved with `filled` added
+  only to the last codeword (`test_012`), a non-u8vector body dropped
+  cleanly (`test_015`), an invalid `polynomial` raising at construction
+  (`test_026`), a non-pair input dropped cleanly instead of crashing the
+  handler (`test_027`), an empty payload dropped cleanly (`test_028`),
+  and a mock-forced publish failure proven to be caught and dropped
+  rather than raised through the real handler (`test_029`).
 - `python/soarr/qa_layoutTest.py::test_010_bch_encoder_real_handler` —
   same pattern as the other TX blocks' "real handler" tests: builds a
-  fresh, standalone instance and calls `encodeBCH` directly, checking the
+  fresh, standalone instance and calls `encode_bch` directly, checking the
   hand-derivable known-answer parity byte described in CCSDS reference
   above, not the `msg_connect` wiring itself (shimmed out in
   `test_002_end_to_end_message_routing` via `_bind_passthrough`).

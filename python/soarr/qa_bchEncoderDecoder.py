@@ -41,7 +41,7 @@ class qa_bchEncoderDecoder(gr_unittest.TestCase):
             meta = pmt.make_dict()
 
         payload = pmt.init_u8vector(len(payload_bytes), list(payload_bytes))
-        captured = self._capture_message_port(self.encoder, "encodeBCH", pmt.cons(meta, payload))
+        captured = self._capture_message_port(self.encoder, "encode_bch", pmt.cons(meta, payload))
         self.assertEqual(len(captured), 1)
         port, msg = captured[0]
         self.assertEqual(pmt.symbol_to_string(port), "codewords")

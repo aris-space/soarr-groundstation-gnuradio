@@ -24,7 +24,7 @@ class qa_bch_encoder(gr_unittest.TestCase):
         self.captured_output = []
 
     def _encode_and_capture(self, meta, payload):
-        """Run encodeBCH directly and capture message_port_pub outputs."""
+        """Run encode_bch directly and capture message_port_pub outputs."""
         self.captured_output = []
 
         original_pub = self.encoder.message_port_pub
@@ -35,7 +35,7 @@ class qa_bch_encoder(gr_unittest.TestCase):
         self.encoder.message_port_pub = _capture
         try:
             pdu = pmt.cons(meta, payload)
-            self.encoder.encodeBCH(pdu)
+            self.encoder.encode_bch(pdu)
         finally:
             self.encoder.message_port_pub = original_pub
 
@@ -65,8 +65,8 @@ class qa_bch_encoder(gr_unittest.TestCase):
         self.assertEqual(instance.polynomial, 0xC5)
 
     def test_002_custom_polynomial(self):
-        """Test encoder initialization with custom polynomial."""
-        custom_poly = 0xC5
+        """Test encoder initialization with a custom (non-default, valid) polynomial."""
+        custom_poly = 0x89
         instance = bch_encoder(polynomial=custom_poly)
         self.assertEqual(instance.polynomial, custom_poly)
 
@@ -442,6 +442,75 @@ class qa_bch_encoder(gr_unittest.TestCase):
             info_idx = cw * 8
             data_idx = cw * 7
             self.assertEqual(out_bytes[info_idx:info_idx + 7], input_data[data_idx:data_idx + 7])
+
+    # Additional: polynomial is rejected at construction time - must be
+    # an 8-bit value with bit 7 set (a valid degree-7 generator polynomial),
+    # matching every other reviewed block's fail-fast-at-construction precedent.
+    def test_026_invalid_polynomial_raises_at_construction(self):
+        with self.assertRaises(ValueError):
+            bch_encoder(polynomial=0x00)
+        with self.assertRaises(ValueError):
+            bch_encoder(polynomial=0x7F)
+        with self.assertRaises(ValueError):
+            bch_encoder(polynomial=0x100)
+        with self.assertRaises(ValueError):
+            bch_encoder(polynomial=-1)
+
+    # Additional: a non-pair input must not crash the handler - dropped
+    # cleanly (logged, no publish) instead of pmt.car raising out of it.
+    def test_027_non_pair_input_is_dropped_not_raised(self):
+        captured = []
+        original_pub = self.encoder.message_port_pub
+
+        def _capture(port, msg):
+            captured.append((port, msg))
+
+        self.encoder.message_port_pub = _capture
+        try:
+            self.encoder.encode_bch(pmt.intern("not-a-pair"))  # must not raise
+        finally:
+            self.encoder.message_port_pub = original_pub
+
+        self.assertEqual(len(captured), 0)
+
+    # Additional: an empty payload is dropped cleanly, still covered now
+    # that the check moved inside the catch-log-drop try.
+    def test_028_empty_payload_is_dropped_not_raised(self):
+        meta = pmt.make_dict()
+        payload = pmt.init_u8vector(0, [])
+        msg = pmt.cons(meta, payload)
+
+        original_pub = self.encoder.message_port_pub
+        captured = []
+
+        def _capture(port, out_msg):
+            captured.append((port, out_msg))
+
+        self.encoder.message_port_pub = _capture
+        try:
+            self.encoder.encode_bch(msg)  # must not raise
+        finally:
+            self.encoder.message_port_pub = original_pub
+
+        self.assertEqual(len(captured), 0)
+
+    # Additional: a failure past field extraction (e.g. publish itself
+    # raising) is caught, logged, and dropped - not left to raise out of
+    # the real message handler.
+    def test_029_internal_publish_failure_is_dropped_not_raised(self):
+        meta = pmt.make_dict()
+        payload = pmt.init_u8vector(7, [0] * 7)
+        msg = pmt.cons(meta, payload)
+
+        def _raise(port, out_msg):
+            raise RuntimeError("simulated publish failure")
+
+        original_pub = self.encoder.message_port_pub
+        self.encoder.message_port_pub = _raise
+        try:
+            self.encoder.encode_bch(msg)  # must not raise
+        finally:
+            self.encoder.message_port_pub = original_pub
 
 
 if __name__ == '__main__':

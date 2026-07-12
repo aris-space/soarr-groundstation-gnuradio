@@ -44,7 +44,7 @@ class qa_lfsr_receive_chain(gr_unittest.TestCase):
 
         def _scrambler_pub(port, msg):
             if pmt.eqv(port, pmt.intern("out")):
-                self.encoder.encodeBCH(msg)
+                self.encoder.encode_bch(msg)
 
         def _encoder_pub(port, msg):
             if pmt.eqv(port, pmt.intern("codewords")):

@@ -53,7 +53,7 @@ class qa_bch_decoder(gr_unittest.TestCase):
             meta = pmt.make_dict()
             payload_u8 = pmt.init_u8vector(len(payload), payload)
             pdu = pmt.cons(meta, payload_u8)
-            encoder.encodeBCH(pdu)
+            encoder.encode_bch(pdu)
         finally:
             encoder.message_port_pub = original_pub
         

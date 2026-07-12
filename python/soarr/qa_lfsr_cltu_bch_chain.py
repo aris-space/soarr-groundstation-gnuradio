@@ -36,7 +36,7 @@ class qa_lfsr_cltu_bch_chain(gr_unittest.TestCase):
         def _scrambler_pub(port, msg):
             if pmt.eqv(port, pmt.intern("out")):
                 # Scrambler output goes into the encoder
-                self.encoder.encodeBCH(msg)
+                self.encoder.encode_bch(msg)
 
         def _encoder_pub(port, msg):
             if pmt.eqv(port, pmt.intern("codewords")):
