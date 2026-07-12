@@ -61,3 +61,12 @@ claude/
   like ADRs and the root docs before them, a PRD is only committed after
   being reviewed and signed off in the same interview process that writes
   it, so a status field would just duplicate that.
+- A PRD describes the block it documents **only from its current
+  state** — not the editorial process that produced the doc, and not a
+  prior, superseded version of anything it documents. Git history already
+  preserves how and why a change happened; a PRD's job is to be an
+  accurate snapshot of what exists now, not a diary of how it got there.
+  A historical mapping (e.g. old-to-new naming) belongs in a doc whose
+  purpose is to be that record — see
+  [coding-standards.md](coding-standards.md)'s block-level rename table
+  for the one place that applies here — not repeated ad hoc in PRD prose.
