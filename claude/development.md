@@ -135,3 +135,8 @@ From [`requirements.txt`](../requirements.txt):
 
 GNU Radio itself is not installed via this file — install it through
 `radioconda`/conda instead.
+
+## Coding standards
+
+Naming, message-handler error handling, and docstring/PMT-shape rules for
+writing or modifying blocks: [coding-standards.md](coding-standards.md).

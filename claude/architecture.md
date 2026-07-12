@@ -5,10 +5,11 @@ SDLS, SPI, IV, etc.) are defined once in [CONTEXT.md](../CONTEXT.md) — not
 repeated here.
 
 **Naming note:** every block below is named as it exists on disk today
-(camelCase, e.g. `ccsdsReader`). [ADR-0001](adr/0001-block-naming-convention.md)
-decided a target snake_case naming (`ccsds_reader`) — that rename has **not**
-been executed yet. This diagram describes the codebase as it actually is,
-not the target state.
+(camelCase, e.g. `ccsdsReader`). [coding-standards.md](coding-standards.md)
+(decided in [ADR-0001](adr/0001-block-naming-convention.md)) sets a target
+snake_case naming (`ccsds_reader`) — that rename has **not** been executed
+yet. This diagram describes the codebase as it actually is, not the target
+state.
 
 ## Legend
 
