@@ -40,12 +40,17 @@ BCH_POLYNOMIAL = 0xC5
 CLTU_START_SEQUENCE = 0xEB90
 CLTU_TAIL_SEQUENCE = 0xC5C5C5C5C5C5C579
 
-CRC_APPEND_NUM_BITS = 32
-CRC_APPEND_POLYNOMIAL = 0x4C11DB7
-CRC_APPEND_INITIAL_VALUE = 0xFFFFFFFF
-CRC_APPEND_FINAL_XOR = 0xFFFFFFFF
-CRC_APPEND_INPUT_REFLECTED = True
-CRC_APPEND_RESULT_REFLECTED = True
+# CCSDS 232.0-B-4's FECF: 16-bit CRC-CCITT (poly 0x1021, init 0xFFFF, no
+# reflection, no final XOR) - not the 32-bit CRC-32/Ethernet parameters
+# this previously used, which didn't match either the FECF's real 2-byte
+# width (CONTEXT.md) or tc_primary_header's own additional_crc_bytes=2
+# assumption.
+CRC_APPEND_NUM_BITS = 16
+CRC_APPEND_POLYNOMIAL = 0x1021
+CRC_APPEND_INITIAL_VALUE = 0xFFFF
+CRC_APPEND_FINAL_XOR = 0x0000
+CRC_APPEND_INPUT_REFLECTED = False
+CRC_APPEND_RESULT_REFLECTED = False
 CRC_APPEND_SWAP_ENDIANNESS = False
 CRC_APPEND_SKIP_HEADER_BYTES = 0
 
@@ -242,7 +247,8 @@ class qa_layoutTest(gr_unittest.TestCase):
         self._restore_port(self.tb.cltu_framer, original_pub)
 
         # Verify the captured message. With the real GNU Radio CRC append block in the chain,
-        # payload should be the original payload plus a 4-byte CRC while metadata is preserved.
+        # payload should be the original payload plus a 2-byte FECF (CCSDS 232.0-B-4)
+        # while metadata is preserved.
         self.assertEqual(len(captured), 1)
         out_msg = captured[0]
         out_meta = pmt.car(out_msg)
@@ -251,7 +257,7 @@ class qa_layoutTest(gr_unittest.TestCase):
 
         self.assertEqual(self._pmt_get_int(out_meta, "frame_sequence_number"), FRAME_SEQUENCE_NUMBER)
         self.assertEqual(out_bytes[:len(PAYLOAD_BYTES)], PAYLOAD_BYTES)
-        self.assertEqual(len(out_bytes), len(PAYLOAD_BYTES) + 4)
+        self.assertEqual(len(out_bytes), len(PAYLOAD_BYTES) + 2)
 
     def test_003_dbclient_distinct_spi_entries_for_same_scid(self):
         """Verify one SCID can resolve to multiple distinct SPI entries with unique material."""
