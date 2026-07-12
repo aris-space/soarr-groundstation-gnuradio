@@ -2,6 +2,7 @@
 construct
 PyYAML
 pycryptodome
+numpy
 
 # GNU Radio Python bindings/runtime
 # Prefer installing via conda/radioconda when possible.

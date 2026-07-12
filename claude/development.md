@@ -125,12 +125,20 @@ type=1 config mode, not a flowgraph.
 
 ## Dependencies
 
+```powershell
+conda activate radioconda
+pip install -r requirements.txt
+```
+
 From [`requirements.txt`](../requirements.txt):
 
 - `construct` — bitstream parsing (used in `ccsdsReader`, `ccsdsReceiver`,
   `sdlsHeader`, `encapsulationHeader`)
 - `PyYAML` — `dbClient`'s YAML config mode
 - `pycryptodome` — SDLS encryption/authentication
+- `numpy` — used directly by `aqusitionIdleSequencer`, `ccsdsReceiver`,
+  `cltuDeframer`, `dataCreator` (also a GNU Radio dependency, so normally
+  already present via `radioconda`)
 - `pytest` — test framework
 
 GNU Radio itself is not installed via this file — install it through
