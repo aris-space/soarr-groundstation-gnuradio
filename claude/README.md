@@ -22,6 +22,7 @@ this project is, domain vocabulary) — start there, not here.
 6. `prd/` — one requirements doc per block (20 total, written in
    signal-flow order per the parent plan's Step 4). In progress:
    - [encapsulation_header](prd/encapsulation_header.md)
+   - [sdls_encryption](prd/sdls_encryption.md)
 
 ## Folder map
 
