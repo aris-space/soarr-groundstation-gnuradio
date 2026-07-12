@@ -156,12 +156,12 @@ Enforced by a `commit-msg` hook — see
 - **subject** — imperative mood, lowercase after `: `, no trailing period,
   ≤72 chars, single clause. If a change doesn't fit in one clause, split it
   into multiple commits, or move the extra detail into the body — don't
-  chain it onto the subject with `;`. Name the resulting change itself
-  (what's different after the commit), not the activity that produced it
-  — `remove unused mask param, fix crash on bad input`, not `close two
-  /code-review rounds of ADR-0003/0004 gaps`. Process narration (review
-  rounds, standard/ADR names, TDD steps) belongs in the body's rationale
-  at most, per the body rule below — never in the subject.
+  chain it onto the subject with `;`. Name the resulting change itself —
+  what's different after the commit — not the activity that produced it.
+  A subject describing the work performed (a review pass, an
+  investigation, a series of fixes) describes process, not change;
+  process narration belongs in the body's rationale at most, per the body
+  rule below, never in the subject.
 - **body** — free text. Conventional Commits itself only defines the
   structure above (the spec's body is explicitly free-form); what goes in
   it is this project's own rule: state **what changed and why** (motivation,
