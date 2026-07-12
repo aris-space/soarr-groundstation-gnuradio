@@ -87,7 +87,7 @@ class layout(gr.top_block):
         # Row 4: Channel coding path
         self.lfsr_scrambler = lfsr_scrambler(seed=SCRAMBLER_SEED, register_length=8)
         self.bch_encoder = bch_encoder(polynomial=BCH_POLYNOMIAL)
-        self.cltu_framer = cltu_framer(startSequence=CLTU_START_SEQUENCE, tailSequence=CLTU_TAIL_SEQUENCE)
+        self.cltu_framer = cltu_framer(start_sequence=CLTU_START_SEQUENCE, tail_sequence=CLTU_TAIL_SEQUENCE)
 
         # Internal DB request/response wiring.
         self.msg_connect((self.inject_db, "db_call"), (self.db_client, "db_call"))
@@ -218,7 +218,7 @@ class qa_layoutTest(gr_unittest.TestCase):
         self._bind_passthrough(self.tb.tc_primary_header, "build_header", "in", "out")
         self._bind_passthrough(self.tb.lfsr_scrambler, "handle_msg", "in", "out")
         self._bind_passthrough(self.tb.bch_encoder, "encode_bch", "message", "codewords")
-        self._bind_passthrough(self.tb.cltu_framer, "addSequences", "in", "out")
+        self._bind_passthrough(self.tb.cltu_framer, "add_sequences", "in", "out")
 
         # Capture the pdu_out outputs
         captured = []
@@ -568,7 +568,7 @@ class qa_layoutTest(gr_unittest.TestCase):
         TAIL_SEQUENCE = 0xC5C5C5C5C5C5C579
         PAYLOAD_BYTES = bytes([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08])
 
-        block = cltu_framer(startSequence=START_SEQUENCE, tailSequence=TAIL_SEQUENCE)
+        block = cltu_framer(start_sequence=START_SEQUENCE, tail_sequence=TAIL_SEQUENCE)
         captured = []
         original_pub = self._capture_specific_port(block, "out", captured)
 
@@ -577,7 +577,7 @@ class qa_layoutTest(gr_unittest.TestCase):
         msg = pmt.cons(meta, pmt.init_u8vector(len(PAYLOAD_BYTES), list(PAYLOAD_BYTES)))
 
         try:
-            block.addSequences(msg)
+            block.add_sequences(msg)
         finally:
             self._restore_port(block, original_pub)
 

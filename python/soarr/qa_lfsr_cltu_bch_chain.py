@@ -41,7 +41,7 @@ class qa_lfsr_cltu_bch_chain(gr_unittest.TestCase):
         def _encoder_pub(port, msg):
             if pmt.eqv(port, pmt.intern("codewords")):
                 # Encoder emits codeword PDUs which are then framed
-                self.framer.addSequences(msg)
+                self.framer.add_sequences(msg)
 
         def _framer_pub(port, msg):
             # Framer is now the last stage; capture its outputs
@@ -125,7 +125,7 @@ class qa_lfsr_cltu_bch_chain(gr_unittest.TestCase):
         reference_frames = bytearray()
         for i in range(0, len(reference_codewords), 8):
             codeword = reference_codewords[i:i+8]
-            frame = struct.pack("!H", self.framer.startSequence) + codeword + struct.pack("!Q", self.framer.tailSequence)
+            frame = struct.pack("!H", self.framer.start_sequence) + codeword + struct.pack("!Q", self.framer.tail_sequence)
             reference_frames.extend(frame)
 
         self.assertEqual(chain_output, bytes(reference_frames))
@@ -173,7 +173,7 @@ class qa_lfsr_cltu_bch_chain(gr_unittest.TestCase):
         reference_frames = bytearray()
         for i in range(0, len(reference_codewords), 8):
             codeword = reference_codewords[i:i+8]
-            frame = struct.pack("!H", self.framer.startSequence) + codeword + struct.pack("!Q", self.framer.tailSequence)
+            frame = struct.pack("!H", self.framer.start_sequence) + codeword + struct.pack("!Q", self.framer.tail_sequence)
             reference_frames.extend(frame)
 
         chain_output = bytearray()
@@ -214,7 +214,7 @@ class qa_lfsr_cltu_bch_chain(gr_unittest.TestCase):
         reference_frames = bytearray()
         for i in range(0, len(reference_codewords), 8):
             codeword = reference_codewords[i:i+8]
-            frame = struct.pack("!H", self.framer.startSequence) + codeword + struct.pack("!Q", self.framer.tailSequence)
+            frame = struct.pack("!H", self.framer.start_sequence) + codeword + struct.pack("!Q", self.framer.tail_sequence)
             reference_frames.extend(frame)
 
         chain_output = bytearray()
@@ -254,7 +254,7 @@ class qa_lfsr_cltu_bch_chain(gr_unittest.TestCase):
         reference_frames = bytearray()
         for i in range(0, len(reference_codewords), 8):
             codeword = reference_codewords[i:i+8]
-            frame = struct.pack("!H", self.framer.startSequence) + codeword + struct.pack("!Q", self.framer.tailSequence)
+            frame = struct.pack("!H", self.framer.start_sequence) + codeword + struct.pack("!Q", self.framer.tail_sequence)
             reference_frames.extend(frame)
 
         chain_output = bytearray()

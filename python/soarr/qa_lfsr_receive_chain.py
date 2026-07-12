@@ -48,7 +48,7 @@ class qa_lfsr_receive_chain(gr_unittest.TestCase):
 
         def _encoder_pub(port, msg):
             if pmt.eqv(port, pmt.intern("codewords")):
-                self.framer.addSequences(msg)
+                self.framer.add_sequences(msg)
 
         def _framer_pub(port, msg):
             if pmt.eqv(port, pmt.intern("out")):

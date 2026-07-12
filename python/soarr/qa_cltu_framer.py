@@ -36,7 +36,7 @@ class qa_cltu_framer(gr_unittest.TestCase):
 
         dut.message_port_pub = _capture
         try:
-            dut.addSequences(pdu)
+            dut.add_sequences(pdu)
         finally:
             dut.message_port_pub = original_pub
 
@@ -50,15 +50,15 @@ class qa_cltu_framer(gr_unittest.TestCase):
 
     def test_instance(self):
         Log.info("Testing CLTU Framer instantiation")
-        dut = cltu_framer(startSequence=START, tailSequence=END)
+        dut = cltu_framer(start_sequence=START, tail_sequence=END)
 
         self.assertIsNotNone(dut)
-        self.assertEqual(dut.startSequence, START)
-        self.assertEqual(dut.tailSequence, END)
+        self.assertEqual(dut.start_sequence, START)
+        self.assertEqual(dut.tail_sequence, END)
         self.assertEqual(dut.name(), "CLTU Framer")
 
     def test_001_functionality_check(self):
-        dut = cltu_framer(startSequence=START, tailSequence=END)
+        dut = cltu_framer(start_sequence=START, tail_sequence=END)
         input_dict = pmt.make_dict()
         input_dict = pmt.dict_add(input_dict, pmt.intern("test_key"), pmt.from_long(777))
         input_data = [i % 256 for i in range(1, 9)]
@@ -78,7 +78,7 @@ class qa_cltu_framer(gr_unittest.TestCase):
         self.assertEqual(input_dict, output_dict)
 
     def test_002_empty_payload(self):
-        dut = cltu_framer(startSequence=START, tailSequence=END)
+        dut = cltu_framer(start_sequence=START, tail_sequence=END)
         input_pdu = self._make_pdu([])
 
         captured = self._run_and_capture(dut, input_pdu)
@@ -86,7 +86,7 @@ class qa_cltu_framer(gr_unittest.TestCase):
         self.assertEqual(len(captured), 0)
 
     def test_003_wrong_payload_size(self):
-        dut = cltu_framer(startSequence=START, tailSequence=END)
+        dut = cltu_framer(start_sequence=START, tail_sequence=END)
         input_data = [0x01, 0x02, 0x03]
         input_pdu = self._make_pdu(input_data)
 
@@ -95,7 +95,7 @@ class qa_cltu_framer(gr_unittest.TestCase):
         self.assertEqual(len(captured), 0)
 
     def test_004_non_u8vector_payload(self):
-        dut = cltu_framer(startSequence=START, tailSequence=END)
+        dut = cltu_framer(start_sequence=START, tail_sequence=END)
         input_pdu = pmt.cons(pmt.make_dict(), pmt.intern("This is not a u8vector"))
 
         captured = self._run_and_capture(dut, input_pdu)
@@ -105,7 +105,7 @@ class qa_cltu_framer(gr_unittest.TestCase):
     def test_005_custom_sequences(self):
         custom_start = 0x1234
         custom_end = 0xABCD_ABCD_ABCD_ABCD
-        dut = cltu_framer(startSequence=custom_start, tailSequence=custom_end)
+        dut = cltu_framer(start_sequence=custom_start, tail_sequence=custom_end)
 
         input_data = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]
         input_pdu = self._make_pdu(input_data)
@@ -119,7 +119,7 @@ class qa_cltu_framer(gr_unittest.TestCase):
         self._assert_single_output_payload(captured, expected_payload)
 
     def test_006_runtime_sequence_modification(self):
-        dut = cltu_framer(startSequence=START, tailSequence=END)
+        dut = cltu_framer(start_sequence=START, tail_sequence=END)
         input_data = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11]
 
         first_pdu = self._make_pdu(input_data)
@@ -127,8 +127,8 @@ class qa_cltu_framer(gr_unittest.TestCase):
 
         new_start = 0x9999
         new_end = 0x7777_7777_7777_7777
-        dut.startSequence = new_start
-        dut.tailSequence = new_end
+        dut.start_sequence = new_start
+        dut.tail_sequence = new_end
 
         second_pdu = self._make_pdu(input_data)
         second_captured = self._run_and_capture(dut, second_pdu)
@@ -144,7 +144,7 @@ class qa_cltu_framer(gr_unittest.TestCase):
         self._assert_single_output_payload(second_captured, expected_2)
 
     def test_007_multiple_consecutive_messages(self):
-        dut = cltu_framer(startSequence=START, tailSequence=END)
+        dut = cltu_framer(start_sequence=START, tail_sequence=END)
         input_data = [0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0]
 
         captured = []
@@ -156,7 +156,7 @@ class qa_cltu_framer(gr_unittest.TestCase):
         dut.message_port_pub = _capture
         try:
             for _ in range(5):
-                dut.addSequences(self._make_pdu(input_data))
+                dut.add_sequences(self._make_pdu(input_data))
         finally:
             dut.message_port_pub = original_pub
 
@@ -171,7 +171,7 @@ class qa_cltu_framer(gr_unittest.TestCase):
             self.assertEqual(payload, expected_payload)
 
     def test_008_all_zero_payload(self):
-        dut = cltu_framer(startSequence=START, tailSequence=END)
+        dut = cltu_framer(start_sequence=START, tail_sequence=END)
         input_data = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
         input_pdu = self._make_pdu(input_data)
 
@@ -184,7 +184,7 @@ class qa_cltu_framer(gr_unittest.TestCase):
         self._assert_single_output_payload(captured, expected_payload)
 
     def test_009_all_max_payload(self):
-        dut = cltu_framer(startSequence=START, tailSequence=END)
+        dut = cltu_framer(start_sequence=START, tail_sequence=END)
         input_data = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]
         input_pdu = self._make_pdu(input_data)
 
@@ -197,7 +197,7 @@ class qa_cltu_framer(gr_unittest.TestCase):
         self._assert_single_output_payload(captured, expected_payload)
 
     def test_010_empty_metadata_dict(self):
-        dut = cltu_framer(startSequence=START, tailSequence=END)
+        dut = cltu_framer(start_sequence=START, tail_sequence=END)
         input_dict = pmt.make_dict()
         input_data = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
         input_pdu = self._make_pdu(input_data, input_dict)
@@ -211,7 +211,7 @@ class qa_cltu_framer(gr_unittest.TestCase):
         self.assertEqual(output_dict, input_dict)
 
     def test_011_rich_metadata_preservation(self):
-        dut = cltu_framer(startSequence=START, tailSequence=END)
+        dut = cltu_framer(start_sequence=START, tail_sequence=END)
 
         input_dict = pmt.make_dict()
         input_dict = pmt.dict_add(input_dict, pmt.intern("id"), pmt.from_long(123))
@@ -236,7 +236,7 @@ class qa_cltu_framer(gr_unittest.TestCase):
         self.assertEqual(output_dict, input_dict)
 
     def test_012_payload_size_boundary_7_bytes(self):
-        dut = cltu_framer(startSequence=START, tailSequence=END)
+        dut = cltu_framer(start_sequence=START, tail_sequence=END)
         input_data = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
         input_pdu = self._make_pdu(input_data)
 
@@ -245,7 +245,7 @@ class qa_cltu_framer(gr_unittest.TestCase):
         self.assertEqual(len(captured), 0)
 
     def test_013_payload_size_boundary_9_bytes(self):
-        dut = cltu_framer(startSequence=START, tailSequence=END)
+        dut = cltu_framer(start_sequence=START, tail_sequence=END)
         input_data = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09]
         input_pdu = self._make_pdu(input_data)
 
@@ -272,8 +272,54 @@ class qa_cltu_framer(gr_unittest.TestCase):
         expected_payload = start_bytes + bytes(input_data) + tail_bytes
 
         self.assertEqual(payload, expected_payload)
-        self.assertEqual(dut.startSequence, default_start)
-        self.assertEqual(dut.tailSequence, default_end)
+        self.assertEqual(dut.start_sequence, default_start)
+        self.assertEqual(dut.tail_sequence, default_end)
+
+    # Additional: start_sequence/tail_sequence are rejected at construction
+    # time if they don't fit their packed width, matching every other
+    # reviewed block's fail-fast-at-construction precedent.
+    def test_015_invalid_sequences_raise_at_construction(self):
+        with self.assertRaises(ValueError):
+            cltu_framer(start_sequence=0x10000)
+        with self.assertRaises(ValueError):
+            cltu_framer(start_sequence=-1)
+        with self.assertRaises(ValueError):
+            cltu_framer(tail_sequence=0x10000000000000000)
+        with self.assertRaises(ValueError):
+            cltu_framer(tail_sequence=-1)
+
+    # Additional: a non-pair input must not crash the handler - dropped
+    # cleanly (logged, no publish) instead of pmt.car raising out of it.
+    def test_016_non_pair_input_is_dropped_not_raised(self):
+        dut = cltu_framer(start_sequence=START, tail_sequence=END)
+        captured = []
+        original_pub = dut.message_port_pub
+
+        def _capture(port, msg):
+            captured.append((port, msg))
+
+        dut.message_port_pub = _capture
+        try:
+            dut.add_sequences(pmt.intern("not-a-pair"))  # must not raise
+        finally:
+            dut.message_port_pub = original_pub
+
+        self.assertEqual(len(captured), 0)
+
+    # Additional: start_sequence/tail_sequence are directly mutable at
+    # runtime (test_006), which bypasses __init__'s validation entirely -
+    # a bad reassigned value must be caught and dropped, not left to raise
+    # struct.error out of the real message handler.
+    def test_017_bad_runtime_reassigned_sequence_is_dropped_not_raised(self):
+        dut = cltu_framer(start_sequence=START, tail_sequence=END)
+        dut.start_sequence = 0x10000  # out of range for struct '!H'
+
+        input_data = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
+        input_pdu = self._make_pdu(input_data)
+
+        captured = self._run_and_capture(dut, input_pdu)  # must not raise
+
+        self.assertEqual(len(captured), 0)
 
 
 if __name__ == "__main__":
