@@ -178,9 +178,12 @@ class tcPrimaryHeader(gr.basic_block):
         control = self._pmt_dict_get_bool(dict_msg, "control", self.control)
 
         # Check for frame_length
-        frame_length = self._pmt_dict_get_int(dict_msg, "frame_length", None)
-        if frame_length is None:
-            self.logger.warn(f"Metadata missing 'frame_length' key; using payload length: {len(payload_bytes) + 5 - 1}")
+        if pmt.dict_has_key(dict_msg, pmt.intern("frame_length")):
+            frame_length = self._pmt_dict_get_int(dict_msg, "frame_length", None)
+            if frame_length is None:
+                # if not provided: calculate it
+                self.logger.debug(f"Metadata missing 'frame_length' key; using payload length: {len(payload_bytes) + 5 - 1}")
+        else:
             frame_length = len(payload_bytes) + 5 - 1
 
         # Extract vcid_counter (required) - maps to frame_sequence_number in CCSDS header
