@@ -36,6 +36,7 @@ this project is, domain vocabulary) — start there, not here.
    - [cltu_deframer](prd/cltu_deframer.md)
    - [bch_decoder](prd/bch_decoder.md)
    - [lfsr_descrambler](prd/lfsr_descrambler.md)
+   - [ccsds_receiver](prd/ccsds_receiver.md)
 
 ## Folder map
 
