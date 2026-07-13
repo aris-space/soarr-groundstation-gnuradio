@@ -178,12 +178,19 @@ class qa_sdls_authentication_verify(gr_unittest.TestCase):
 
         self.assertEqual(len(self.published), 0)
 
-    def test_007_non_dict_meta_raises(self):
+    def test_007_non_dict_meta_dropped_cleanly(self):
         msg = self._make_pdu_from_parts(pmt.PMT_T, pmt.init_u8vector(2, [1, 2]))
-        with self.assertRaises(ValueError):
-            self.block.verify_message(msg)
 
-    def test_008_non_u8vector_payload_raises(self):
+        original_pub = self._capture_pub()
+        try:
+            result = self.block.verify_message(msg)
+        finally:
+            self._restore_pub(original_pub)
+
+        self.assertIsNone(result)
+        self.assertEqual(len(self.published), 0)
+
+    def test_008_non_u8vector_payload_dropped_cleanly(self):
         meta = pmt.make_dict()
         meta = pmt.dict_add(
             meta,
@@ -192,8 +199,15 @@ class qa_sdls_authentication_verify(gr_unittest.TestCase):
         )
         meta = pmt.dict_add(meta, pmt.intern("sdls_counter"), pmt.from_long(1))
         msg = self._make_pdu_from_parts(meta, pmt.from_long(123))
-        with self.assertRaises(ValueError):
-            self.block.verify_message(msg)
+
+        original_pub = self._capture_pub()
+        try:
+            result = self.block.verify_message(msg)
+        finally:
+            self._restore_pub(original_pub)
+
+        self.assertIsNone(result)
+        self.assertEqual(len(self.published), 0)
 
     def test_009_invalid_tag_no_output(self):
         key_hex = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
@@ -290,6 +304,51 @@ class qa_sdls_authentication_verify(gr_unittest.TestCase):
         self.assertTrue(pmt.eqv(out_port, pmt.intern("out")))
         out_payload = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
         self.assertEqual(out_payload, payload)
+
+    def test_015_publish_failure_dropped_cleanly(self):
+        key_hex = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
+        counter = 0x1234
+        payload = bytes([1, 2, 3, 4])
+        tagged_payload = self._make_tagged_payload(key_hex, counter, payload)
+        msg = self._make_pdu(tagged_payload, key_hex=key_hex, counter=counter)
+
+        def _raise_on_publish(port, out_msg):
+            raise RuntimeError("forced publish failure")
+
+        self.block.message_port_pub = _raise_on_publish
+        result = self.block.verify_message(msg)
+        self.assertIsNone(result)
+
+    def test_016_top_level_counter_pmt_nil_not_confused_with_absent(self):
+        """A top-level sdls_counter explicitly set to PMT_NIL is present,
+        not absent - it must not be silently overridden by a nested
+        sdls.security_header.sdls_counter fallback. Tags the payload with
+        the nested counter (5) so a lookup that wrongly falls back to it
+        would successfully verify and publish - this must NOT happen."""
+        key_hex = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
+        nested_counter = 5
+        payload = bytes([1, 2, 3, 4])
+        tagged_payload = self._make_tagged_payload(key_hex, nested_counter, payload)
+
+        meta = pmt.make_dict()
+        meta = pmt.dict_add(meta, pmt.intern("auth_key"), pmt.intern(key_hex))
+        meta = pmt.dict_add(meta, pmt.intern("sdls_counter"), pmt.PMT_NIL)
+
+        nested_header = pmt.make_dict()
+        nested_header = pmt.dict_add(nested_header, pmt.intern("sdls_counter"), pmt.from_long(nested_counter))
+        nested_sdls = pmt.make_dict()
+        nested_sdls = pmt.dict_add(nested_sdls, pmt.intern("security_header"), nested_header)
+        meta = pmt.dict_add(meta, pmt.intern("sdls"), nested_sdls)
+
+        msg = self._make_pdu_from_parts(meta, pmt.init_u8vector(len(tagged_payload), list(tagged_payload)))
+
+        original_pub = self._capture_pub()
+        try:
+            self.block.verify_message(msg)
+        finally:
+            self._restore_pub(original_pub)
+
+        self.assertEqual(len(self.published), 0)
 
 
 if __name__ == '__main__':

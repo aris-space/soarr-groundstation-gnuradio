@@ -4,11 +4,10 @@
 
 Verifies the CMAC authentication tag `sdls_authentication` appended on
 TX, over a CTR-style counter block plus the payload, and strips the tag
-before republishing. The RX-side counterpart to `sdls_authentication`
-(see [its PRD](sdls_authentication.md), which already documents several
-of this block's own gaps from the TX side — cross-referenced throughout
-below rather than repeated). Verify-then-decrypt order: this runs before
-`sdls_decryption`, so the tag it checks covers still-encrypted bytes.
+before republishing. The RX-side counterpart to
+[sdls_authentication](sdls_authentication.md). Verify-then-decrypt
+order: this runs before `sdls_decryption`, so the tag it checks covers
+still-encrypted bytes.
 
 ## Pipeline position
 
@@ -43,27 +42,34 @@ independently confirm the wiring above; it matches
 
 ## Behavior / edge cases / current error handling
 
-**`authentication_state=False`**: republishes the input PDU on `out`
-completely unchanged — no shape validation, no key/counter extraction,
-no exception handling around the publish call (unlike
-`sdls_authentication`'s own passthrough path, which wraps its publish in
-catch-log-drop).
+**`authentication_state=False`**: `verify_message` still runs its three
+shape checks first, unconditionally, before ever looking at
+`authentication_state` — logged at `error` and dropped on failure
+exactly as it would for `authentication_state=True` (see Error handling
+below); only past those does it check the flag and, if `False`,
+republish the input PDU on `out` completely unchanged, with no
+key/counter extraction. **Still opposite order from the TX sibling**:
+`sdls_authentication.add_authentication` checks `authentication_state`
+*first*, before any shape validation — this block checks shape first,
+`authentication_state` second. Both blocks now wrap their passthrough
+publish in catch-log-drop.
 
 **`auth_key`/`sdls_counter` lookup** (`_extract_secret`,
 `_extract_counter`): same shapes/rules as
 [sdls_authentication.md](sdls_authentication.md) documents for its own
 `_extract_secret`/`_extract_counter` — a PMT symbol hex string or
 u8vector for the key (rejected if not exactly 32 bytes), an integer PMT
-counter checked first at `dict_msg["sdls_counter"]`, falling back to
-the nested `dict_msg["sdls"]["security_header"]["sdls_counter"]` path.
-**Not implemented the same way as the TX sibling**: both of this
-block's lookups use `pmt.dict_ref(..., default=pmt.PMT_NIL)` followed by
-`pmt.eqv(value, pmt.PMT_NIL)` to detect absence — `sdls_authentication`'s
-own `_extract_counter` instead checks `pmt.dict_has_key(...)` first,
-unambiguously distinguishing "key absent" from "key present with value
-`PMT_NIL`" (see [sdls_authentication.md](sdls_authentication.md#behavior--edge-cases--current-error-handling),
-which documents this exact asymmetry from the TX side). This block has
-the ambiguous pattern in *both* lookups, not just the counter one.
+counter checked first at `dict_msg["sdls_counter"]` via
+`pmt.dict_has_key` (matching the TX sibling's own `_extract_counter`,
+not the ambiguous `pmt.eqv(..., pmt.PMT_NIL)` ordering this method used
+before), falling back to the nested
+`dict_msg["sdls"]["security_header"]["sdls_counter"]` path only if the
+top-level key is genuinely absent. `_extract_secret` still uses the
+`pmt.dict_ref(..., default=pmt.PMT_NIL)`/`pmt.eqv(..., pmt.PMT_NIL)`
+pattern to detect an absent `auth_key` — matching
+`sdls_authentication._extract_secret`'s own current implementation,
+which has the identical pattern; not an asymmetry between the two
+blocks.
 
 **Two distinct tag-input reconstructions**, selected by whether
 `dict_msg["sdls"]["security_trailer"]` is present:
@@ -88,56 +94,41 @@ the ambiguous pattern in *both* lookups, not just the counter one.
    `sdls_authentication` originally tagged before `ccsds_reader` split
    the encapsulation header out of the payload.
 
-[sdls_authentication.md](sdls_authentication.md#known-issues--todos)
-already flags this second path as "untested, unexplained" from the TX
-side, since `sdls_authentication` itself never produces a
-`security_trailer`-shaped output — confirmed here too:
+`sdls_authentication` itself never produces a `security_trailer`-shaped
+output (see [sdls_authentication.md](sdls_authentication.md#known-issues--todos)),
+so this path is untested through the real TX→RX pipeline:
 `qa_sdls_authentication_verify.py::test_013`/`test_014` exercise it
 directly (constructing the metadata shape by hand), but no test in this
-repo produces that shape via the real TX→RX pipeline.
+repo produces that shape via the real pipeline.
 
 **Tag verification** (`_verify_tag`): `CMAC.new(secret, ciphermod=AES).update(counter_bytes + mac_payload).verify(tag)`
 — on `ValueError` (mismatch), returns `False` rather than propagating,
 consistent with pycryptodome's own `verify()` contract.
 
-**Error handling**: `verify_message` checks `pmt.is_pair(msg)`,
-`pmt.is_u8vector(payload_u8vector)`, and `pmt.is_dict(dict_msg)`, but
-**raises `ValueError` for all three** instead of catch-log-drop — the
-first raise's message text even reads "Expected a PMT pair for
-**decryption** input," misdescribing this as the decryption block, not
-authentication-verify. `sdls_authentication`'s own `add_authentication`
-(the TX sibling) already handles the identical three checks with
-log-and-drop instead of raising — direct precedent for what this block's
-fix should look like. Past those three checks, **nothing in
-`verify_message` is wrapped in any exception handling at all** — not the
-passthrough path, not the key/counter extraction, not tag
-reconstruction or verification, not the final publish. An unexpected
-failure anywhere in that path (e.g. a `_build_encapsulation_header`
-integer-conversion error, or a `message_port_pub` failure) would crash
-the handler thread.
+**Error handling** (compliant with
+[coding-standards.md](../coding-standards.md),
+[ADR-0003](../adr/0003-message-handler-error-policy.md)): `verify_message`
+checks `pmt.is_pair(msg)`, `pmt.is_u8vector(payload_u8vector)`, and
+`pmt.is_dict(dict_msg)` as early-return guards, each logged at `error`;
+the full body past those three checks — the `authentication_state=False`
+passthrough, key/counter extraction, tag reconstruction and
+verification, and the final publish — is wrapped in catch-log-drop
+(`except Exception`), also logged at `error`. Every log call this block
+makes reporting a drop condition is at `error`, matching that this block
+isn't on the raw-RF `warn` list; `sdls_authentication`'s own equivalent
+log calls are likewise all at `error`.
 
-Every log call this block makes (11 total: 6 in `_extract_secret`/
-`_extract_counter`, 1 in `_split_payload_tag`, 1 for the counter-range
-check, 2 in `verify_message`'s own "failed to extract" messages, 1 for
-tag-verification failure) is currently at either `warn` (10 of them) or
-`error` (1 — the counter-range check, already correct). Since this
-block isn't on the raw-RF `warn` list, **all 10 `warn` calls are at the
-wrong level** — the reverse of the error→warn fix every RX block earlier
-in this pipeline (`cltu_deframer` through `ccsds_reader`) needed;
-`sdls_authentication`'s own equivalent log calls are already all at
-`error`, confirming which level this block's should be too.
-
-**Docstrings**: none of ADR-0004's required coverage is present. The
-class itself still carries `gr_modtool`'s placeholder
-(`"""docstring for block sdls_authentication_verify"""`); `__init__` and
-`verify_message` (the message handler) have no docstring. Every private
-helper — `_extract_secret`, `_extract_counter` (PMT-touching),
-`_build_ctr_counter_block`, `_split_payload_tag`, `_verify_tag` (non-PMT,
-plain bytes/int), `_pmt_dict_get_int`, `_build_encapsulation_header`
-(PMT-touching) — has none either.
-`sdls_authentication.py`'s equivalent methods already carry full
-ADR-0004-compliant docstrings, directly reusable as a template for the
-PMT-touching ones here.
+**Docstrings** (compliant with
+[ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)): a real
+class-level summary; full `Args`/`Raises` for `__init__`; full
+`Args`/`Publishes`/`Drops when` for `verify_message` (the message
+handler); full `Args`/`Returns` for the PMT-touching helpers
+(`_extract_secret`, `_extract_counter`, `_pmt_dict_get_int`,
+`_build_encapsulation_header`). `_build_ctr_counter_block`,
+`_split_payload_tag`, `_verify_tag` (non-PMT, plain bytes/int) have
+none, permitted as-is by
+[coding-standards.md](../coding-standards.md)'s exemption for that
+category.
 
 **Naming**: file, class, GRC block-id, both constructor parameters, and
 every method name are already snake_case.
@@ -152,22 +143,13 @@ no algorithm agility.
 
 ## Known issues / TODOs
 
-- **`verify_message` raises instead of catch-log-drop, and has no
-  exception handling anywhere past its three shape checks** — the
-  largest ADR-0003 gap, matching the same category of issue found and
-  fixed in several RX blocks earlier in this pass
-  (`ccsds_receiver`, `ccsds_reader`). `sdls_authentication.add_authentication`
-  is a direct, already-fixed template for the equivalent checks.
-- **10 of 11 log calls are at the wrong level (`warn` instead of
-  `error`)** — this block is not on the raw-RF `warn` list;
-  `sdls_authentication`'s identical log calls are already correctly at
-  `error`.
-- **Both `_extract_secret` and `_extract_counter` use an ambiguous
-  `PMT_NIL`-comparison to detect an absent key**, unlike
-  `sdls_authentication._extract_counter`'s `pmt.dict_has_key`-first
-  pattern — see Behavior above and
-  [sdls_authentication.md](sdls_authentication.md)'s own note on this
-  asymmetry (documented from the TX side before this PRD existed).
+- **`_extract_secret` still uses the ambiguous `PMT_NIL`-comparison
+  pattern** to detect an absent `auth_key`, rather than
+  `_extract_counter`'s now-fixed `pmt.dict_has_key`-first check — see
+  Behavior above. Matches `sdls_authentication._extract_secret`'s own
+  current implementation, so this isn't an RX-specific gap; fixing it
+  would mean fixing the identical pattern in both blocks together, not
+  resolved here.
 - **The trailer-in-metadata tag-reconstruction path
   (`_build_encapsulation_header`) independently reimplements
   `ccsds_reader.encapsulation_header()`'s bit-packing logic** in a
@@ -175,27 +157,33 @@ no algorithm agility.
   convention, not by any shared code, and this path has never been
   exercised through the real ccsds_reader→sdls_authentication_verify
   pipeline in any test (see Behavior above).
-- **The first raised `ValueError`'s message text says "decryption"**,
-  not verification/authentication — a copy-paste artifact from another
-  block's boilerplate.
+- **`verify_message` still checks shape before `authentication_state`**,
+  the opposite order from `sdls_authentication.add_authentication` (see
+  Behavior above) — a structural difference between the two blocks, not
+  resolved here.
 
 ## Test coverage
 
-- `python/soarr/qa_sdls_authentication_verify.py` — 15 test methods
-  (`test_instance` + `test_001`-`test_014`): `authentication_state=False`
+- `python/soarr/qa_sdls_authentication_verify.py` — 17 test methods
+  (`test_instance` + `test_001`-`test_016`): `authentication_state=False`
   passthrough (`test_001`), a valid tag verifying and `auth_key` removed
   from the output metadata (`test_002`), invalid key length and counter
   overflow each dropped with no publish (`test_003`, `test_004`), missing
   `auth_key`/missing `sdls_counter` each dropped with no publish
   (`test_005`, `test_006`), non-dict metadata and non-u8vector payload
-  each raising `ValueError` through the handler — the current, unfixed
-  behavior (`test_007`, `test_008`), a tampered tag failing verification
-  with no publish (`test_009`), a too-short payload (no room for a
-  16-byte tag) dropped with no publish (`test_010`), constructor `nonce`
-  type/length validation (`test_011`, `test_012`), and the two
-  trailer-in-metadata reconstruction paths described in Behavior above
-  — with (`test_013`) and without (`test_014`) the payload already
-  containing the reconstructed encapsulation-header prefix.
+  each dropped cleanly instead of raising (`test_007`, `test_008`), a
+  tampered tag failing verification with no publish (`test_009`), a
+  too-short payload (no room for a 16-byte tag) dropped with no publish
+  (`test_010`), constructor `nonce` type/length validation (`test_011`,
+  `test_012`), the two trailer-in-metadata reconstruction paths
+  described in Behavior above — with (`test_013`) and without
+  (`test_014`) the payload already containing the reconstructed
+  encapsulation-header prefix, a mock-forced publish failure proven to
+  be caught and dropped rather than raised through the real handler
+  (`test_015`), and a top-level `sdls_counter` explicitly set to
+  `PMT_NIL` (present, not absent) correctly rejected rather than
+  silently falling back to a nested counter that would otherwise verify
+  successfully (`test_016`).
 - `python/soarr/qa_AuthenticateAuthVerify.py` — 10 test methods
   (`test_instance` + `test_001`-`test_009`), pairing this block with the
   real `sdls_authentication`: a full authenticate-then-verify round trip,
