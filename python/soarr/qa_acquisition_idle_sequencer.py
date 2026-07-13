@@ -69,8 +69,8 @@ class qa_acquisition_idle_sequencer(gr_unittest.TestCase):
 
         self.tb.connect(instance, head, snk)
 
-        # publish pdu and run
-        instance.message_port_pub(pmt.intern("in"), pdu)
+        # feed pdu directly into the handler and run
+        instance.handle_msg(pdu)
         self.tb.run()
 
         out_data = snk.data()
@@ -91,6 +91,49 @@ class qa_acquisition_idle_sequencer(gr_unittest.TestCase):
         out = list(snk.data())
         # every output byte should equal idle_byte
         self.assertTrue(all(b == idle_byte for b in out))
+
+    # Additional: idle_sequence/acquisition_sequence are rejected at
+    # construction time if any value doesn't fit a single byte, matching
+    # every other reviewed block's fail-fast-at-construction precedent.
+    def test_005_invalid_idle_sequence_raises_at_construction(self):
+        with self.assertRaises(ValueError):
+            acquisition_idle_sequencer(idle_sequence=256)
+        with self.assertRaises(ValueError):
+            acquisition_idle_sequencer(idle_sequence=-1)
+
+    def test_006_invalid_acquisition_sequence_raises_at_construction(self):
+        with self.assertRaises(ValueError):
+            acquisition_idle_sequencer(acquisition_sequence=[0xAA, 256])
+        with self.assertRaises(ValueError):
+            acquisition_idle_sequencer(acquisition_sequence=[-1])
+
+    # Additional: a malformed `in` message (not a pair, or a non-u8vector
+    # payload) is dropped cleanly - no crash, nothing queued.
+    def test_007_malformed_message_is_dropped_not_queued(self):
+        instance = acquisition_idle_sequencer()
+
+        instance.handle_msg(pmt.intern("not-a-pair"))
+        self.assertEqual(len(instance._pdu_queue), 0)
+
+        bad_pdu = pmt.cons(pmt.make_dict(), pmt.intern("not-a-u8vector"))
+        instance.handle_msg(bad_pdu)
+        self.assertEqual(len(instance._pdu_queue), 0)
+
+    # Additional: the default tsb_tag_name=None must not crash work() -
+    # this is a regression guard for a previously reproduced native
+    # access violation (add_item_tag called with a None tag key).
+    def test_008_default_tsb_tag_name_does_not_crash(self):
+        instance = acquisition_idle_sequencer(initial_acquisition=True)
+        self.assertIsNone(instance.tsb_tag_key)
+
+        head = blocks.head(gr.sizeof_char, 32)
+        snk = blocks.vector_sink_b()
+
+        self.tb.connect(instance, head, snk)
+        self.tb.run()  # must not crash
+
+        self.assertEqual(len(snk.data()), 32)
+
 
 if __name__ == '__main__':
     gr_unittest.run(qa_acquisition_idle_sequencer)
