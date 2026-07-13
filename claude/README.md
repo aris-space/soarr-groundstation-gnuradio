@@ -32,6 +32,7 @@ this project is, domain vocabulary) — start there, not here.
    - [acquisition_idle_sequencer](prd/acquisition_idle_sequencer.md)
    - [inject_db](prd/inject_db.md)
    - [db_client](prd/db_client.md)
+   - [data_creator](prd/data_creator.md)
 
 ## Folder map
 
