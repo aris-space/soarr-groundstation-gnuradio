@@ -31,6 +31,7 @@ this project is, domain vocabulary) — start there, not here.
    - [cltu_framer](prd/cltu_framer.md)
    - [acquisition_idle_sequencer](prd/acquisition_idle_sequencer.md)
    - [inject_db](prd/inject_db.md)
+   - [db_client](prd/db_client.md)
 
 ## Folder map
 
