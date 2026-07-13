@@ -24,6 +24,7 @@ from gnuradio.soarr import lfsr_scrambler
 from gnuradio.soarr import sdls_authentication
 from gnuradio.soarr import sdls_encryption
 from gnuradio.soarr import sdls_header
+from gnuradio.soarr import system_tester
 from gnuradio.soarr import tc_primary_header
 
 
@@ -89,6 +90,9 @@ class layout(gr.top_block):
         self.bch_encoder = bch_encoder(polynomial=BCH_POLYNOMIAL)
         self.cltu_framer = cltu_framer(start_sequence=CLTU_START_SEQUENCE, tail_sequence=CLTU_TAIL_SEQUENCE)
 
+        # Row 5: Ground tooling, not part of the signal chain (fed manually by tests, not msg_connect-wired).
+        self.system_tester = system_tester(stats_path=None)
+
         # Internal DB request/response wiring.
         self.msg_connect((self.inject_db, "db_call"), (self.db_client, "db_call"))
         self.msg_connect((self.db_client, "db_callback"), (self.inject_db, "db_callback"))
@@ -134,6 +138,7 @@ class qa_layoutTest(gr_unittest.TestCase):
         self.assertIsNotNone(self.tb.lfsr_scrambler)
         self.assertIsNotNone(self.tb.bch_encoder)
         self.assertIsNotNone(self.tb.cltu_framer)
+        self.assertIsNotNone(self.tb.system_tester)
 
 
     def test_001_simple_setup(self):
@@ -590,6 +595,98 @@ class qa_layoutTest(gr_unittest.TestCase):
 
         self.assertTrue(pmt.dict_has_key(out_meta, pmt.intern("frame_id")))
         self.assertEqual(out_bytes, bytes.fromhex("EB90") + PAYLOAD_BYTES + bytes.fromhex("C5C5C5C5C5C5C579"))
+
+    def test_012_system_tester_tracks_real_tx_chain_output(self):
+        """Verify system_tester tracks a packet through the real, unmodified TX chain.
+
+        telecommand.tc_header.vcid_counter survives every block in this
+        chain unchanged (confirmed directly: tc_primary_header only
+        deletes a top-level vcid_counter key, and inject_db never writes
+        one there - only nested), so it's read from cltu_framer's real
+        captured output as-is, with no patching. bch_encoder splits the
+        encoded frame into 7-byte blocks, so cltu_framer publishes one
+        CLTU per block for a single injected packet; every chunk's
+        payload bytes are concatenated into one combined blob before
+        being handed to handle_received, since system_tester tracks one
+        payload per packet and isn't chunk-aware. There is no RX/decode
+        chain in this test file, so the received blob is the fully
+        encoded transmission unit, not a byte match for the original
+        payload - this test verifies packet tracking through the real
+        chain, not round-trip byte equality.
+        """
+        VCID_COUNTER = 0
+        PAYLOAD_BYTES = bytes([0xAA, 0xBB, 0xCC, 0xDD])
+
+        # Must match self.db_client's type=0 dummy-mode defaults (scid=0x155,
+        # spi=1) so the query resolves to its one dummy entry.
+        DB_QUERY_SCID = 0x155
+        DB_QUERY_SPI = 1
+        DB_QUERY_BYPASS = False
+        DB_QUERY_CONTROL = False
+
+        original_tc_header = pmt.dict_add(pmt.make_dict(), pmt.intern("vcid_counter"), pmt.from_long(VCID_COUNTER))
+        original_telecommand = pmt.dict_add(pmt.make_dict(), pmt.intern("tc_header"), original_tc_header)
+        original_meta = pmt.dict_add(pmt.make_dict(), pmt.intern("telecommand"), original_telecommand)
+        original_pdu = pmt.cons(original_meta, pmt.init_u8vector(len(PAYLOAD_BYTES), list(PAYLOAD_BYTES)))
+        self.tb.system_tester.handle_original(original_pdu)
+
+        captured = []
+        original_pub = self._capture_specific_port(self.tb.cltu_framer, "out", captured)
+
+        query_meta = pmt.make_dict()
+        query_meta = pmt.dict_add(query_meta, pmt.intern("scid"), pmt.from_long(DB_QUERY_SCID))
+        query_meta = pmt.dict_add(query_meta, pmt.intern("spi"), pmt.from_long(DB_QUERY_SPI))
+        query_meta = pmt.dict_add(query_meta, pmt.intern("bypass"), pmt.from_bool(DB_QUERY_BYPASS))
+        query_meta = pmt.dict_add(query_meta, pmt.intern("control"), pmt.from_bool(DB_QUERY_CONTROL))
+        query_pdu = pmt.cons(query_meta, pmt.init_u8vector(len(PAYLOAD_BYTES), list(PAYLOAD_BYTES)))
+
+        self.tb.start()
+        self.tb.inject_db.to_basic_block()._post(pmt.intern("in"), query_pdu)
+
+        # Wait for the chunk count to go quiet. A generous quiet window
+        # (200ms) guards against declaring done while a chunk is still
+        # mid-flight through the chain's 9 message-passing hops - the
+        # exact count is then checked below against EXPECTED_CHUNK_COUNT,
+        # so an early exit here fails loudly instead of silently scoring
+        # a partial capture as a complete packet.
+        last_len = -1
+        stable_checks = 0
+        for _ in range(1000):
+            if len(captured) == last_len:
+                stable_checks += 1
+                if stable_checks >= 40:
+                    break
+            else:
+                stable_checks = 0
+                last_len = len(captured)
+            time.sleep(0.005)
+
+        self.tb.stop()
+        self.tb.wait()
+        self._restore_port(self.tb.cltu_framer, original_pub)
+
+        # This chain's overhead is fixed and deterministic for this
+        # payload/config: +2 (encapsulation_header) +16
+        # (sdls_authentication's CMAC tag) +4 (sdls_header's 2-byte SPI +
+        # iv_length_bytes=2 counter) +5 (tc_primary_header) +2
+        # (crc_append's 16-bit FECF) - sdls_encryption/lfsr_scrambler
+        # don't change length. bch_encoder then splits the result into
+        # 7-byte blocks, and cltu_framer wraps each into one 18-byte
+        # frame (2-byte start + 8-byte codeword + 8-byte tail), so it
+        # publishes ceil(encoded_length / 7) messages for this packet.
+        ENCODED_FRAME_LENGTH = len(PAYLOAD_BYTES) + 2 + 16 + 4 + 5 + 2
+        EXPECTED_CHUNK_COUNT = -(-ENCODED_FRAME_LENGTH // 7)
+        self.assertEqual(len(captured), EXPECTED_CHUNK_COUNT)
+
+        received_meta = pmt.car(captured[0])
+        combined_payload = b"".join(bytes(pmt.u8vector_elements(pmt.cdr(msg))) for msg in captured)
+        received_pdu = pmt.cons(received_meta, pmt.init_u8vector(len(combined_payload), list(combined_payload)))
+        self.tb.system_tester.handle_received(received_pdu)
+
+        stats = self.tb.system_tester.get_stats()
+        self.assertEqual(stats["generated_packets"], 1)
+        self.assertEqual(stats["received_packets"], 1)
+        self.assertEqual(stats["lost_packets"], 0)
 
 if __name__ == '__main__':
     gr_unittest.run(qa_layoutTest)

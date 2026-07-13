@@ -15,10 +15,17 @@ Ground-tooling, not signal chain
 original vs. received payloads out-of-band, at the end of the pipeline;
 it does not sit inline in either chain and has no per-block error-signal
 port to depend on." No `.grc` flowgraph file exists anywhere in this
-repo, and no wiring for this block appears in `qa_layoutTest.py` either
-— its real, intended wiring (what feeds `original`/`transmitted`/
-`received`, and what consumes `trigger`) isn't established anywhere in
-this repo.
+repo. `python/soarr/qa_layoutTest.py`'s `layout` fixture instantiates it
+alongside the real TX chain, but not `msg_connect`-wired into that
+chain's topology — `test_012_system_tester_tracks_real_tx_chain_output`
+feeds it directly: `handle_original` with the raw pre-chain payload,
+then `handle_received` with `cltu_framer`'s real captured output
+(concatenated across every CLTU chunk `bch_encoder`'s 7-byte block
+splitting produces, since `system_tester` tracks one payload per
+packet). There is no RX chain anywhere in this repo, so this doesn't
+establish a real receiving wiring for `original`/`transmitted`/
+`received`/`trigger` — only that the tracking machinery itself
+integrates with the real TX chain's output shape.
 
 ## Message ports
 
@@ -145,3 +152,12 @@ tracking key.
   and `message_port_pub` raising `RuntimeError` during `handle_start`
   confirmed not to propagate past the handler
   (`test_005_trigger_publish_failure_does_not_crash_handle_start`).
+- `python/soarr/qa_layoutTest.py::test_012_system_tester_tracks_real_tx_chain_output`
+  — `handle_original`/`handle_received` called directly against the real
+  TX chain's own output (not passthrough shims), confirming a packet
+  reaches `received_packets` with `lost_packets` staying `0` (see
+  Pipeline position above). The test computes the exact number of
+  `cltu_framer` chunks the fixed payload/config should produce and
+  asserts the capture matches it exactly, so an async wait that
+  returned early fails loudly instead of silently scoring a partial
+  capture as a complete packet.
