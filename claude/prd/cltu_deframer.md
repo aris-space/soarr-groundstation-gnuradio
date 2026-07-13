@@ -38,8 +38,8 @@ this repo wires `cltu_deframer` into `ccsds_receiver`.
 | `tail_sequence` | int | `0xC5C5C5C5C5C5C579` | CCSDS 231.0-B-4 CLTU tail sequence (64 bits). |
 | `payload_bytes` | int | `8` | Expected payload width. Validated in `__init__` (raises `ValueError` if not positive). |
 | `threshold` | int | `2` | Max bit errors tolerated in the start *or* tail sequence for a frame to still be accepted. Validated in `__init__` (raises `ValueError` if negative). |
-| `input_packed` | bool | `True` (constructor) / `False` (GRC yaml default) | Stream item format — see Known issues for the default mismatch. |
-| `output_packed` | bool | `True` (constructor) / `False` (GRC yaml default) | Output payload format — same mismatch. |
+| `input_packed` | bool | `True` | Stream item format. The GRC yaml's own default now matches. |
+| `output_packed` | bool | `True` | Output payload format. The GRC yaml's own default now matches. |
 | `tag_name` | str | `"start"` | Stream tag key the correlated-access-code detection path (`general_work`) looks for. |
 
 ## Behavior / edge cases / current error handling
@@ -73,12 +73,10 @@ cross-block integration test that exercises this block
 `general_work`. The block's actual GNU Radio scheduler entry point has
 zero test coverage, direct or indirect, anywhere in this repo.
 
-**`bit_order` is hardcoded to `"msb"`** (`self.bit_order = "msb"` in
-`__init__`, no corresponding constructor parameter) — the `else`
-branches handling `bit_order != "msb"` in `_bytes_to_bits`,
-`_pack_bits_to_bytes`, and `_bit_error_positions` are unreachable, and
-`_reverse_byte_bits` (apparently an lsb-path helper) is defined but never
-called anywhere in the class.
+**Bit ordering is always MSB-first** — `_bytes_to_bits`,
+`_pack_bits_to_bytes`, and `_bit_error_positions` unconditionally treat
+each byte's most significant bit first; there is no configurable
+alternative.
 
 **Error handling**: `cltu_deframer` *is* on
 [coding-standards.md](../coding-standards.md)'s raw-RF `warn` list —
@@ -92,16 +90,16 @@ policy — scoped to the message-handler thread — doesn't literally apply
 here; `general_work` runs on GNU Radio's scheduler thread instead, the
 same category of execution context as `acquisition_idle_sequencer.work()`.
 
-**Docstrings**: the class docstring already has substantial real
-content (packed/unpacked semantics, tag offset behavior) — unlike most
-`gr_modtool` placeholders. Several helpers have a one-line docstring
-(`_process_tag`, `process_bytes`, `_try_process_pending_tag`,
-`process_pending_tag`, `test_set_bit_buffer`, `test_set_pending_tag`,
-`_validate_frame_bits`, `_bit_errors`), but none follow
-[ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)'s
-Args/Returns template; `__init__`, `general_work`, `_reverse_byte_bits`,
-`_bytes_to_bits`, `_pack_bits_to_bytes`, `_bit_error_positions`,
-`_bits_to_string`, and `_publish_payload` have none at all.
+**Docstrings** (compliant with
+[ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)): full
+`Args`/`Raises` for `__init__`, `Args`/`Returns` for `general_work` and
+`_publish_payload` (the latter directly builds/publishes a PMT PDU).
+Trivial private helpers with no PMT involvement have either a one-line
+docstring (`_bit_error_positions`, `_bit_errors`) or none at all
+(`_bytes_to_bits`, `_pack_bits_to_bytes`, `_bits_to_string`) — both
+permitted as-is by [coding-standards.md](../coding-standards.md)'s
+exemption for that category (ADR-0004 itself only points to
+coding-standards.md for the exact rule).
 
 **Naming**: file, class, GRC block-id, every constructor parameter, and
 every method name are already snake_case.
@@ -127,20 +125,13 @@ currently assumes per frame.
   every test (and the one real cross-block integration test) actually
   exercises — `general_work`, what GNU Radio's scheduler would actually
   call in a wired flowgraph, is untested anywhere in this repo.
-- **`grc/soarr_cltu_deframer.block.yml`'s `input_packed`/`output_packed`
-  defaults (`'False'`) don't match the Python constructor's own defaults
-  (`True`)** — a flowgraph built through GRC without explicitly setting
-  either gets bit-mode by default; direct Python construction gets
-  byte-packed mode by default. A real, consequential mismatch (changes
-  the block's fundamental I/O format), not just a style inconsistency.
-- **`bit_order`'s non-`"msb"` branches and `_reverse_byte_bits` are dead
-  code** — `bit_order` is hardcoded with no way to configure it
-  differently. See Behavior above.
-- **Docstrings incomplete on most methods** — see Behavior above.
+  Deliberately deferred: deciding whether `process_bytes` should be
+  deleted, kept as a real fallback, or `general_work` should get real
+  test coverage is a design question, not a mechanical fix.
 
 ## Test coverage
 
-- `python/soarr/qa_cltu_deframer.py` — 13 test methods (`test_instance`
+- `python/soarr/qa_cltu_deframer.py` — 11 test methods (`test_instance`
   + `test_001`–`test_007`, `test_010`–`test_012`): single-frame
   extraction, extraction after leading/trailing noise, input split
   across two calls, multiple frames in one chunk, unpacked-bit input,

@@ -38,6 +38,24 @@ class cltu_deframer(gr.basic_block):
     def __init__(self, start_sequence:int=0xEB90, tail_sequence:int=0xC5C5C5C5C5C5C579,
                  payload_bytes:int=8, threshold:int=2, input_packed:bool=True,
                  output_packed:bool=True, tag_name:str="start"):
+        """
+        Args:
+            start_sequence (int): CCSDS 231.0-B-4 CLTU start sequence (16 bits).
+            tail_sequence (int): CCSDS 231.0-B-4 CLTU tail sequence (64 bits).
+            payload_bytes (int): expected payload width in bytes.
+            threshold (int): max bit errors tolerated in the start or
+                tail sequence for a frame to still be accepted.
+            input_packed (bool): True if stream items are bytes (8 bits
+                packed per item); False if stream items are individual
+                bits (one bit per item, values 0/1).
+            output_packed (bool): True to publish the payload as bytes;
+                False to publish it as individual bits.
+            tag_name (str): stream tag key the tag-based detection path
+                (general_work) looks for.
+
+        Raises:
+            ValueError: payload_bytes isn't positive, or threshold is negative.
+        """
         if payload_bytes <= 0:
             raise ValueError("payload_bytes must be positive")
         if threshold < 0:
@@ -54,7 +72,6 @@ class cltu_deframer(gr.basic_block):
         self.input_packed = input_packed
         self.output_packed = output_packed
         self.tag_name = tag_name
-        self.bit_order = "msb"
         self.tag_offset_bits = -15
 
         self._buffer = bytearray()
@@ -77,22 +94,11 @@ class cltu_deframer(gr.basic_block):
         """Calculate number of bit errors between two byte sequences."""
         return sum((l ^ r).bit_count() for l, r in zip(left, right))
 
-    def _reverse_byte_bits(self, value):
-        result = 0
-        for bit in range(8):
-            if value & (1 << bit):
-                result |= 1 << (7 - bit)
-        return result
-
     def _bytes_to_bits(self, data):
         bits = []
         for value in data:
-            if self.bit_order == "msb":
-                for bit in range(7, -1, -1):
-                    bits.append((value >> bit) & 1)
-            else:
-                for bit in range(8):
-                    bits.append((value >> bit) & 1)
+            for bit in range(7, -1, -1):
+                bits.append((value >> bit) & 1)
         return bits
 
     def _pack_bits_to_bytes(self, bits):
@@ -100,18 +106,14 @@ class cltu_deframer(gr.basic_block):
         count = 0
         current = 0
         for bit in bits:
-            if self.bit_order == "msb":
-                current = (current << 1) | (bit & 1)
-            else:
-                current |= (bit & 1) << count
+            current = (current << 1) | (bit & 1)
             count += 1
             if count == 8:
                 packed.append(current)
                 current = 0
                 count = 0
         if count:
-            if self.bit_order == "msb":
-                current = current << (8 - count)
+            current = current << (8 - count)
             packed.append(current)
         return bytes(packed)
 
@@ -122,14 +124,9 @@ class cltu_deframer(gr.basic_block):
             diff = l ^ r
             if diff == 0:
                 continue
-            if self.bit_order == "msb":
-                for bit in range(7, -1, -1):
-                    if diff & (1 << bit):
-                        positions.append(byte_index * 8 + (7 - bit))
-            else:
-                for bit in range(8):
-                    if diff & (1 << bit):
-                        positions.append(byte_index * 8 + bit)
+            for bit in range(7, -1, -1):
+                if diff & (1 << bit):
+                    positions.append(byte_index * 8 + (7 - bit))
         return positions
 
     def _bits_to_string(self, bits):
@@ -152,7 +149,25 @@ class cltu_deframer(gr.basic_block):
         return is_valid, start_errors, tail_errors
 
     def _publish_payload(self, payload_bytes=None, payload_bits=None, start_errors=0, tail_errors=0):
-        """Publish the extracted payload with optional correlation error metadata."""
+        """
+        Args:
+            payload_bytes (bytes | None): payload as bytes; ignored if
+                payload_bits is given.
+            payload_bits (list[int] | None): payload as a list of 0/1
+                bits; takes priority over payload_bytes if both are given.
+            start_errors (int): bit-error count against the expected
+                start sequence, written into the output metadata.
+            tail_errors (int): bit-error count against the expected
+                tail sequence, written into the output metadata.
+
+        Publishes:
+            "out" (pmt_pair): PDU with `corr_start_errors`/`corr_tail_errors`
+                metadata and the payload, packed as bytes or left as
+                individual bits per `output_packed`.
+
+        Returns:
+            pmt_pair: the same PDU published on "out".
+        """
         if payload_bits is not None:
             if self.output_packed:
                 payload_bytes = self._pack_bits_to_bytes(payload_bits)
@@ -318,6 +333,15 @@ class cltu_deframer(gr.basic_block):
 
 
     def general_work(self, input_items, output_items):
+        """
+        Args: standard gr.basic_block general_work() signature;
+            `output_items` is unused (this block has no stream output).
+
+        Returns:
+            int: always 0 (nothing produced on a stream output port -
+            this block's real output is the "out" message port).
+            Consumes every item read via `consume_each`.
+        """
         if not input_items:
             return 0
 

@@ -38,14 +38,14 @@ parameters:
   dtype: enum
   options: ['False', 'True']
   option_labels: ['No', 'Yes']
-  default: 'False'
+  default: 'True'
 
 - id: output_packed
   label: Packed Output
   dtype: enum
   options: ['False', 'True']
   option_labels: ['No', 'Yes']
-  default: 'False'
+  default: 'True'
 
 - id: tag_name
   label: Tag Name
