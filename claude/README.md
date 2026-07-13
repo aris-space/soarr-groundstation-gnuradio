@@ -30,6 +30,7 @@ this project is, domain vocabulary) — start there, not here.
    - [bch_encoder](prd/bch_encoder.md)
    - [cltu_framer](prd/cltu_framer.md)
    - [acquisition_idle_sequencer](prd/acquisition_idle_sequencer.md)
+   - [inject_db](prd/inject_db.md)
 
 ## Folder map
 
