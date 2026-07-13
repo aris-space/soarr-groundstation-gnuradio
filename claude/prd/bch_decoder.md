@@ -79,43 +79,38 @@ it on `out`, and returns it.
 `error_correction_mode` logs at `warn` and returns `None` without
 publishing — there's no dedicated error-signaling output port (per
 [coding-standards.md](../coding-standards.md), `system_tester` provides
-out-of-band error accounting instead). Before returning, it builds a
-`bch_error`-tagged copy of the metadata dict and a `corrected_bytes`
-value from the *uncorrected* payload — neither is used for anything;
-both are discarded by the `return None` on the next line.
+out-of-band error accounting instead).
 
 **On a malformed PDU** (not a pair, payload not a u8vector, metadata not
-a dict) or a codeword of the wrong length (not exactly 8 bytes/64 bits):
-`error_correction_mode` logs at `warn` and then **raises** `ValueError` —
-it does not catch its own raise, so the exception propagates out of the
-handler. Reached today only through the message port (`ccsds_receiver`'s
-direct call already validates shape and length first, per Pipeline
-position above), and only exercised in this repo by tests that call
-`error_correction_mode` directly and assert the raise
+a dict), a codeword of the wrong length, or any other exception raised
+while decoding: `error_correction_mode` logs the failure at `warn` and
+returns `None` without publishing — the full body is wrapped in
+catch-log-drop, so nothing escapes the handler.
+`ccsds_receiver`'s direct call already validates shape and length before
+calling this method (Pipeline position above), so in practice only the
+message port and direct unit-test calls exercise these drop paths
 (`qa_bch_decoder.py::test_003`, `test_004`, `test_006`, `test_007`,
-`test_008`).
+`test_008`, `test_014`).
 
-**Error handling**: `bch_decoder` *is* on
-[coding-standards.md](../coding-standards.md)'s raw-RF `warn` list — its
-`self.logger.warn(...)` calls (malformed PDU, wrong-length codeword,
-uncorrectable error) are already at the correct level. What isn't
-correct: [ADR-0003](../adr/0003-message-handler-error-policy.md) requires
-every message handler to wrap its full body in catch-log-drop and never
-raise; `error_correction_mode` currently raises directly for the four
-malformed-input conditions above instead of logging and dropping.
+**Error handling** (compliant with
+[coding-standards.md](../coding-standards.md),
+[ADR-0003](../adr/0003-message-handler-error-policy.md)):
+`error_correction_mode`'s full body is wrapped in catch-log-drop,
+including the final `message_port_pub` call; every drop condition logs
+at `warn`, matching `bch_decoder`'s membership in the raw-RF `warn` list.
 
-**Docstrings**: none of `ADR-0004`'s required coverage is present. The
-class itself still carries `gr_modtool`'s placeholder
-(`"""docstring for block bch_decoder"""`); `__init__` and
-`error_correction_mode` (a PMT-touching message handler) have no
-docstring at all. `_decode`, `_compute_parity_bits`, and
+**Docstrings** (compliant with
+[ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)): a real
+class-level summary; full `Args`/`Raises` for `__init__`; full
+`Args`/`Publishes`/`Drops when` for `error_correction_mode` (a
+PMT-touching message handler). `_decode`, `_compute_parity_bits`, and
 `_codeword_is_valid` (non-PMT-touching private helpers) each have a
 one-line docstring, permitted as-is by
 [coding-standards.md](../coding-standards.md)'s exemption for that
 category; `_bytes_to_bits`/`_bits_to_bytes` have none, also permitted.
-`_decode`'s signature is annotated `-> bytes | None`, but it returns a
-list of individual bit values (`0`/`1` ints), never a `bytes` object —
-the type hint doesn't match what the method actually returns.
+`_decode`'s signature is annotated `-> list[int] | None`, matching what
+it actually returns (a list of individual bit values, never a `bytes`
+object).
 
 **Naming**: file, class, GRC block-id, every constructor parameter, and
 every method name are already snake_case.
@@ -138,32 +133,28 @@ this block, rather than relying on a hand-derived known-answer vector.
   used.** See Parameters above. Whether this is a forward-looking
   placeholder for a future real (syndrome-based) decode mode, or simply
   dead, is a design question — deliberately not resolved here.
-- **`error_correction_mode` raises instead of catch-log-drop for
-  malformed/wrong-length input**, an [ADR-0003](../adr/0003-message-handler-error-policy.md)
-  violation. See Behavior above for exactly which conditions raise and
-  the one call site (`ccsds_receiver`) that currently avoids triggering
-  them by pre-validating.
-- **Dead code in the uncorrectable-error branch**: the discarded
-  `dict_msg`/`corrected_bytes` reassignment described in Behavior above.
 
 ## Test coverage
 
-- `python/soarr/qa_bch_decoder.py` — 13 test methods (`test_instance` +
-  `test_001`-`test_004`, `test_006`-`test_013`): construction and its
+- `python/soarr/qa_bch_decoder.py` — 14 test methods (`test_instance` +
+  `test_001`-`test_004`, `test_006`-`test_014`): construction and its
   default parameter values, invalid `generator_polynomial`/
-  `primitive_polynomial` raising at construction, the four malformed/
-  wrong-length-input conditions each raising `ValueError` through the
-  handler (see Behavior above), a valid 8-byte length not raising, and —
-  using `bch_encoder` to produce real codewords — no-error passthrough
-  (all-`0xFF`, all-zero), 1-bit-error correction, and metadata
-  preservation.
+  `primitive_polynomial` raising at construction, the five malformed/
+  wrong-length-input conditions (not a pair, payload not a u8vector,
+  metadata not a dict, payload too short, payload too long) each dropped
+  cleanly (`None`, no publish, no raise) through the handler, a valid
+  8-byte length not raising, and — using `bch_encoder` to produce real
+  codewords — no-error passthrough (all-`0xFF`, all-zero), 1-bit-error
+  correction, and metadata preservation.
 - `python/soarr/qa_bchEncoderDecoder.py` — 6 test methods (`test_instance`
   + `test_001`-`test_005`): encoder→decoder round trip for a valid
   codeword, 1-bit and 2-bit corrected errors, metadata preservation, and
   a regression case pinned to a specific observed flowgraph vector.
 - `python/soarr/qa_lfsr_receive_chain.py` — full TX-then-RX chain
   (`lfsr_scrambler → bch_encoder → cltu_framer` producing frames, then
-  `cltu_deframer → bch_decoder → lfsr_descrambler` recovering them):
+  `cltu_deframer → bch_decoder → lfsr_descrambler` recovering them), 4
+  test methods total (one, `test_002_bch_parity_encoder_computation`,
+  exercises only `bch_encoder` and isn't about this block).
   `test_001_end_to_end_receive` confirms the recovered payload matches
   the original through this block; `test_003_bch_decoder_validation_no_errors`
   and `test_004_bch_parity_consistency` check this block specifically —

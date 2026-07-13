@@ -83,36 +83,39 @@ class qa_bch_decoder(gr_unittest.TestCase):
         instance = bch_decoder()
         # Not a pair
         no_pair = pmt.PMT_NIL
-        with self.assertRaises(ValueError):
-            instance.error_correction_mode(no_pair)
+        self.assertIsNone(instance.error_correction_mode(no_pair))
 
     def test_004_invalid_pdu_structure_no_u8vector(self):
         instance = bch_decoder()
         # Pair without u8vector payload
         pair_no_data = pmt.cons(pmt.make_dict(), pmt.PMT_NIL)
-        with self.assertRaises(ValueError):
-            instance.error_correction_mode(pair_no_data)
+        self.assertIsNone(instance.error_correction_mode(pair_no_data))
 
     def test_006_invalid_pdu_structure_wrong_type(self):
         instance = bch_decoder()
         # Pair with wrong payload type
         pair_no_u8 = pmt.cons(pmt.make_dict(), pmt.init_u16vector(4, [0x00] * 4))
-        with self.assertRaises(ValueError):
-            instance.error_correction_mode(pair_no_u8)
-  
+        self.assertIsNone(instance.error_correction_mode(pair_no_u8))
+
+    def test_014_invalid_pdu_structure_no_dict_metadata(self):
+        instance = bch_decoder()
+        # Pair with valid u8vector payload but non-dict metadata
+        # (pmt.PMT_NIL doesn't work as a "not a dict" sentinel here: an
+        # empty dict and PMT_NIL are the same PMT value in this library)
+        pair_no_dict = pmt.cons(pmt.from_long(5), pmt.init_u8vector(8, [0x00] * 8))
+        self.assertIsNone(instance.error_correction_mode(pair_no_dict))
+
     def test_007_invalid_data_length_too_short(self):
         instance = bch_decoder()
         # Not enough data (less than 64 bits/8 bytes)
         msg = pmt.cons(pmt.make_dict(), pmt.init_u8vector(7, [0x00] * 7))
-        with self.assertRaises(ValueError):
-            instance.error_correction_mode(msg)
+        self.assertIsNone(instance.error_correction_mode(msg))
 
     def test_008_invalid_data_length_too_long(self):
         instance = bch_decoder()
         # Too much data (more than 64 bits/8 bytes)
         msg = pmt.cons(pmt.make_dict(), pmt.init_u8vector(9, [0x00] * 9))
-        with self.assertRaises(ValueError):
-            instance.error_correction_mode(msg)
+        self.assertIsNone(instance.error_correction_mode(msg))
 
     def test_009_valid_data_length(self):
         instance = bch_decoder()

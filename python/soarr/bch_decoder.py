@@ -18,14 +18,30 @@ INPUT_DATA_SIZE = INPUT_SIZE - FILLER_BITS
 
 class bch_decoder(gr.basic_block):
     """
-    docstring for block bch_decoder
+    Corrects up to 2 bit errors in a CCSDS 231.0-B-4 (63,56) BCH codeword,
+    recovering the 56-bit information field, or drops the message if the
+    codeword can't be corrected within that bound.
     """
     def __init__(self, mode:int = 0, generator_polynomial:int=0xC5, primitive_polynomial:int=0x43):
+        """
+        Args:
+            mode (int): Decode mode. Only 0 (brute-force search over all
+                0-, 1-, and 2-bit corrections) is implemented.
+            generator_polynomial (int): BCH generator polynomial g(x), as
+                an 8-bit value. Default 0xC5 matches bch_encoder's own
+                default, CCSDS 231.0-B-4's g(x) = x^7 + x^6 + x^2 + 1.
+            primitive_polynomial (int): Accepted and range-validated, but
+                not currently read by the decode algorithm.
+
+        Raises:
+            ValueError: mode is not 0, or generator_polynomial or
+                primitive_polynomial is outside 0x00-0xFF.
+        """
         gr.basic_block.__init__(self,
             name="bch_decoder",
             in_sig=None,
             out_sig=None)
-        
+
         self.mode = mode
         self.generator_polynomial = generator_polynomial
         self.primitive_polynomial = primitive_polynomial
@@ -75,7 +91,7 @@ class bch_decoder(gr.basic_block):
         expected_parity = self._compute_parity_bits(self._bits_to_bytes(info_bits))
         return list(expected_parity) == parity_bits
 
-    def _decode(self, data) -> bytes | None:
+    def _decode(self, data) -> list[int] | None:
         """Decode a BCH(63,56) codeword by searching for a valid correction."""
         if len(data) != INPUT_SIZE:
             raise ValueError(f"Input data must be {INPUT_SIZE} bits long, got {len(data)} bits.")
@@ -124,49 +140,68 @@ class bch_decoder(gr.basic_block):
     
 
     def error_correction_mode(self, msg):
+        """
+        Args:
+            msg (pmt_pair): PDU with metadata dict and u8vector payload.
+                Payload must be exactly 8 bytes (64 bits: 56 info + 7
+                parity + 1 filler), the BCH codeword to correct.
 
-        # Expecting a PDU with dict and payload
-        if not pmt.is_pair(msg):
-            self.logger.warn(f"Received non-PDU message: {msg}")
-            raise ValueError("Input message must be a PDU (pair of dict and u8vector).")
-        
-        # Extract the dict and payload from the PDU
-        dict_msg = pmt.car(msg)
-        payload_u8vector = pmt.cdr(msg)
+        Publishes:
+            "out" (pmt_pair): PDU with the same metadata dict and a
+                7-byte u8vector payload, the corrected 56-bit information
+                field. Published only when correction succeeds.
 
-        if not pmt.is_u8vector(payload_u8vector):
-            self.logger.warn(f"Received message with non-u8vector payload: {msg}")
-            raise ValueError("Input message must be a PDU (pair of dict and u8vector).")
-        
-        if not pmt.is_dict(dict_msg):
-            self.logger.warn(f"Received message with non-dict metadata: {msg}")
-            raise ValueError("Input message must be a PDU (pair of dict and u8vector).")
-        
-        # they are already in Bytes, so we can directly convert them to bits for processing
-        payload_bytes = bytes(pmt.u8vector_elements(payload_u8vector))
+        Drops when:
+            - msg is not a pair (warn - raw RF data, malformed before any structural check)
+            - payload is not a u8vector (warn - same)
+            - metadata is not a dict (warn - same)
+            - payload is not exactly 8 bytes, or any other decoding error (warn - same)
+            - no 0-, 1-, or 2-bit correction produces a valid codeword (warn - uncorrectable, same)
+        """
+        try:
+            # Expecting a PDU with dict and payload
+            if not pmt.is_pair(msg):
+                self.logger.warn(f"Received non-PDU message: {msg}")
+                return None
 
-        # Log the received data before error correction
-        self.logger.debug(f"Received message for BCH error correction: {payload_bytes}")
+            # Extract the dict and payload from the PDU
+            dict_msg = pmt.car(msg)
+            payload_u8vector = pmt.cdr(msg)
 
-        corrected_bits = self._decode(self._bytes_to_bits(payload_bytes))
-        if corrected_bits is None:
-            self.logger.warn("Message is dropped by BCH decoder")
-            dict_msg = pmt.dict_add(dict_msg, pmt.intern("bch_error"), pmt.PMT_T)
-            corrected_bytes = payload_bytes
-            return None
-        else:
+            if not pmt.is_u8vector(payload_u8vector):
+                self.logger.warn(f"Received message with non-u8vector payload: {msg}")
+                return None
+
+            if not pmt.is_dict(dict_msg):
+                self.logger.warn(f"Received message with non-dict metadata: {msg}")
+                return None
+
+            # they are already in Bytes, so we can directly convert them to bits for processing
+            payload_bytes = bytes(pmt.u8vector_elements(payload_u8vector))
+
+            # Log the received data before error correction
+            self.logger.debug(f"Received message for BCH error correction: {payload_bytes}")
+
+            corrected_bits = self._decode(self._bytes_to_bits(payload_bytes))
+            if corrected_bits is None:
+                self.logger.warn("Message is dropped by BCH decoder")
+                return None
+
             corrected_bytes = bytes(self._bits_to_bytes(corrected_bits))
 
-        # Log the corrected message after error correction
-        self.logger.debug(f"Corrected message: {corrected_bytes}")
+            # Log the corrected message after error correction
+            self.logger.debug(f"Corrected message: {corrected_bytes}")
 
-        # Create a new PDU with the same dict and corrected payload
-        corrected_payload = pmt.init_u8vector(len(corrected_bytes), list(corrected_bytes))
-        msg = pmt.cons(dict_msg, corrected_payload)
+            # Create a new PDU with the same dict and corrected payload
+            corrected_payload = pmt.init_u8vector(len(corrected_bytes), list(corrected_bytes))
+            msg = pmt.cons(dict_msg, corrected_payload)
 
-        # Send the corrected message to the output port
-        self.message_port_pub(pmt.intern("out"), msg)
+            # Send the corrected message to the output port
+            self.message_port_pub(pmt.intern("out"), msg)
 
-        self.logger.debug(f"OK")
-        return msg
+            self.logger.debug("OK")
+            return msg
+        except Exception as exc:
+            self.logger.warn(f"Failed to decode or publish message: {exc}")
+            return None
 
