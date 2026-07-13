@@ -14,15 +14,15 @@ been collected, and publishes the reassembled frame. See
 The one canonical, documented RX path
 ([ADR-0005](../adr/0005-rx-path-canonical-block.md)): imports
 `bch_decoder` and `lfsr_descrambler` directly as Python helpers
-(`ccsds_receiver.py:15,78-79`) and calls them per incoming codeword —
+(`ccsds_receiver.py:14,99-100`) and calls them per incoming codeword —
 see [bch_decoder.md](bch_decoder.md) and
 [lfsr_descrambler.md](lfsr_descrambler.md) for exactly how each is
 invoked and pre-validated from here (`_checkmsg`, `DESCRAMBLING_ACTIVE`,
-and the 5 `reset_sequence()` call sites are documented in those two
+and the 4 `reset_sequence()` call sites are documented in those two
 PRDs, not repeated here). Despite being the canonical path, **no `.grc`
 flowgraph file exists anywhere in this repo** (`find . -iname "*.grc"`
-returns nothing) — this block, like every other block reviewed so far,
-has no example flowgraph wiring it to anything.
+returns nothing) — this block has no example flowgraph wiring it to
+anything.
 
 ```
 (BCH-corrected, descrambled codeword PDUs) → ccsds_receiver.in
@@ -37,7 +37,7 @@ ccsds_receiver.out → ccsds_reader.in
 | `out` | output | PDU: `(metadata_dict . frame_u8vector)`, metadata is a freshly built dict carrying only `frame_length` (int, the published frame's actual byte count), payload is the fully reassembled TC transfer frame (TFPH + payload bytes, whatever was accumulated). | `pmt.cons({frame_length: 16}, u8vector(16 bytes))` |
 
 `receiver` (the handler registered on `in`) returns the **original,
-undecoded input `msg`** on the two frame-completion paths (see Behavior)
+undecoded input `msg`** on the one frame-completion path (see Behavior)
 and `None` implicitly everywhere else — this return value is never used
 by anything in this repo (unlike `bch_decoder`/`lfsr_descrambler`, whose
 return values `ccsds_receiver` itself relies on).
@@ -95,8 +95,9 @@ is called to prepare for the next frame.
 `raise NotImplementedError("Message type TM is not implemented yet.")`
 directly and unconditionally on the first codeword of any search cycle —
 this is the precise, current form of this repo's "TC-only" scope: not a
-value that's silently ignored, but a live, message-handler-reachable
-raise. No test in this repo constructs `message_type=1`.
+value that's silently ignored, but a raise, caught by `receiver`'s own
+catch-log-drop wrap (see Error handling below) rather than escaping the
+handler.
 
 **Fixed Length mode** (`message_type=2`): handled entirely inside
 `_handleMessageTypeFixed`, which extends `frame_buffer`, decrements
@@ -105,16 +106,19 @@ fixed_byte_length` — publishes via `_publishFrame(fixed_byte_length -
 1)`, resets `remaining_fixed_bytes`, and calls
 `lfsr_descrambler.reset_sequence()`. **`self.length_found` is never set
 `True` anywhere for this mode** (`grep` confirms `length_found = True`
-appears exactly once in this file, inside the TC-only branch) — see
-Known issues for what this makes unreachable. No test in this repo
-constructs `message_type=2`.
+appears exactly once in this file, inside the TC-only branch), so
+`receiver`'s frame-completion check (which only fires when
+`length_found` is true) never runs for this mode — this mode's
+publish/reset logic inside `_handleMessageTypeFixed` is the only
+reachable completion path. No test in this repo constructs
+`message_type=2`.
 
 **Encapsulation Field** (`field_type=1`, only reachable when
 `message_type=0`): `receiver` executes
 `raise NotImplementedError("Length type 'Encapsulation Field' is not implemented yet.")`
 directly, on the first codeword of any search cycle, exactly the same
-pattern as the TM case above. No test in this repo constructs
-`field_type=1`.
+pattern as the TM case above — caught by `receiver`'s catch-log-drop
+wrap.
 
 **SCID/VCID filtering**: when disabled (the default), `self.scid`/
 `self.vcid` are `None` and `_searchTFPH` skips the corresponding
@@ -123,47 +127,38 @@ to return `None` (treated the same as "no valid TFPH yet," search
 continues) rather than any kind of error — a filtered-out frame is
 silently never found, not explicitly rejected.
 
-**Error handling**: `ccsds_receiver` *is* on
-[coding-standards.md](../coding-standards.md)'s raw-RF `warn` list, but
-every one of its seven `self.logger.error(...)` calls (`_checkmsg`
-×4, `_readInputMsg` ×2, `receiver` ×1) is logged at `error` — the wrong
-level for this block's pipeline position, per
-[ADR-0003](../adr/0003-message-handler-error-policy.md)/
-[coding-standards.md](../coding-standards.md).
-[ADR-0003](../adr/0003-message-handler-error-policy.md) also requires
-every message handler to wrap its **full** body in catch-log-drop, never
-raise: `receiver`, the actual registered handler, has **no try/except
-anywhere in its body** — none of its own logic, nor either of the two
-`NotImplementedError` raises described above, nor any exception an
-unexpected TFPH parse/frame-reassembly failure might produce, is caught.
-This is the largest-scope ADR-0003 gap found in any block reviewed so
-far in this pass: every other block's handler had at least partial
-coverage; this one has none.
+**Error handling** (compliant with
+[coding-standards.md](../coding-standards.md),
+[ADR-0003](../adr/0003-message-handler-error-policy.md)): `ccsds_receiver`
+is on the raw-RF `warn` list, and every log call in `_checkmsg`,
+`_readInputMsg`, and `receiver` that reports a drop condition is at
+`warn`. `receiver`'s full body — including both `NotImplementedError`
+sites and any other exception a TFPH parse or frame-reassembly step
+might raise — is wrapped in catch-log-drop (`except Exception`), logged
+at `warn`; nothing escapes the handler.
 
-**Docstrings**: none of ADR-0004's required coverage is present. The
-class itself still carries `gr_modtool`'s placeholder
-(`"""docstring for block ccsds_receiver"""`); `__init__`, `_checkmsg`
-(touches PMT), `_readInputMsg` (touches PMT), `_publishFrame` (directly
-builds and publishes a PMT PDU — a one-line docstring is already
-present, but not the full `Args`/`Publishes` treatment this category
-gets elsewhere, e.g. `cltu_deframer._publish_payload`), and `receiver`
-(the PMT-touching message handler) all lack ADR-0004-compliant coverage.
-`tc_header` has a docstring describing the TFPH layout (non-PMT, already
-adequate). `_searchTFPH`, `_handleMessageTypeTC`,
-`_handleMessageTypeFixed`, `_recordCurrentMessage` (non-PMT private
-helpers) have none, permitted as-is by
+**Docstrings** (compliant with
+[ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)): a real
+class-level summary; full `Args`/`Raises` for `__init__`; `Args`/`Returns`
+for `_checkmsg` and `_readInputMsg` (both touch PMT); full
+`Args`/`Publishes` for `_publishFrame` (directly builds and publishes a
+PMT PDU); full `Args`/`Publishes`/`Drops when` for `receiver` (the
+PMT-touching message handler). `tc_header` has a docstring describing
+the TFPH layout (non-PMT, already adequate). `_searchTFPH`,
+`_handleMessageTypeTC`, `_handleMessageTypeFixed`, `_recordCurrentMessage`
+(non-PMT private helpers) have none, permitted as-is by
 [coding-standards.md](../coding-standards.md)'s exemption for that
 category.
 
 **Naming**: file, class, GRC block-id, and every constructor parameter
 are already snake_case. Several private/helper method names are not:
-`_bytes_to_bits`, `_bits_to_bytes` (camelCase-free, but see Known issues
-— unused), `_searchTFPH`, `_handleMessageTypeTC`,
+`_readInputMsg`, `_searchTFPH`, `_handleMessageTypeTC`,
 `_handleMessageTypeFixed`, `_recordCurrentMessage`, `_publishFrame` are
-all camelCase, not snake_case — the one remaining naming gap in this
-block, not yet covered by
-[coding-standards.md](../coding-standards.md)'s block-level rename table
-(that table covers file/class/block-id renames only).
+all camelCase, not snake_case — a naming gap in this block, not yet
+covered by [coding-standards.md](../coding-standards.md)'s block-level
+rename table (that table covers file/class/block-id renames only).
+`_checkmsg` is a milder, separate case — missing an underscore rather
+than true camelCase.
 
 ## CCSDS reference
 
@@ -174,9 +169,9 @@ Primary Header (TFPH) this block searches for and parses: 40 bits
 total-frame-byte-count-minus-one (this block adds `+1` to recover the
 real byte count). Stated per the code's own pre-existing field layout
 and comments; not independently verified against the standard from this
-repo alone (same caveat as this pass's other CCSDS-citing PRDs).
+repo alone.
 `frame_length`'s own field description
-(`ccsds_receiver.py:168`) states it includes "the Frame Error Control
+(`ccsds_receiver.py:185`) states it includes "the Frame Error Control
 Field," but this block performs no FECF validation or stripping — a
 published frame is exactly whatever bytes were accumulated, with no CRC
 check against the field this codebase's TX side adds via the stock
@@ -184,64 +179,26 @@ check against the field this codebase's TX side adds via the stock
 
 ## Known issues / TODOs
 
-- **`receiver`'s entire body is unwrapped — no catch-log-drop
-  anywhere, including two live `raise NotImplementedError` sites.** See
-  Behavior and Error handling above. The largest ADR-0003 gap of any
-  block reviewed in this pass.
-- **Dead code: Fixed Length mode's completion-check block in `receiver`
-  (`ccsds_receiver.py:297-303`) can never execute.** It's guarded by the
-  same `if not self.length_found:` early-return
-  (`ccsds_receiver.py:273-276`) that always fires for this mode, since
-  nothing ever sets `self.length_found = True` for `message_type=2`.
-  Fixed Length mode's real (and only reachable) publish/reset logic
-  lives entirely inside `_handleMessageTypeFixed`
-  (`ccsds_receiver.py:222-231`), which uses a *different* completion
-  condition (`len(frame_buffer) >= fixed_byte_length`) than the dead
-  block's (`remaining_fixed_bytes <= 0`) — moot today since the dead
-  block never runs, but worth knowing if either is ever touched.
-- **Dead code: `_bytes_to_bits`/`_bits_to_bytes`
-  (`ccsds_receiver.py:81-96`), the `numpy` import
-  (`ccsds_receiver.py:11`), `self.initial_message_type`
-  (`ccsds_receiver.py:48`), and the local `meta` variable in
-  `_readInputMsg` (`ccsds_receiver.py:149`) are all unused anywhere in
-  this file.**
-- **`grc/soarr_ccsds_receiver.block.yml`'s `fixed_byte_length` assert is
-  inverted**: `asserts: - ${ fixed_byte_length <= 0}` requires the value
-  to be non-positive to pass GRC validation — combined with the second
-  assert (`< 2**10`), this means no positive `fixed_byte_length` (the
-  only values Fixed Length mode could sensibly use) currently validates
-  in GRC at all.
 - **`fixed_byte_length` has no Python-side constructor validation**,
-  unlike `message_type`/`field_type`. Whether to add one (and what range)
-  is a design question tied to the GRC assert bug above — deliberately
-  not resolved here.
-- **`test_005_partial_frame_does_not_publish_yet`** (one of this repo's
-  3 pre-existing baseline pytest failures) asserts
-  `self.receiver.remaining_frame_length == 7` after one 8-byte codeword
-  of a `frame_length=15` (16-byte total) frame. The actual runtime value
-  is `8` (`16 - 8`), confirmed by running the test directly. This is
-  self-consistent with `test_002_valid_frame_is_published_after_complete_length`
-  (same `frame_length=15`), which currently **passes** and completes
-  after exactly two 8-byte codewords — the arithmetic this test's own
-  assertion contradicts is the same arithmetic the passing sibling test
-  confirms is correct. This suggests the test's expected value, not the
-  block's implementation, is wrong — unconfirmed until reviewed, but the
-  first case in this pass where a pre-existing baseline failure appears
-  to be a wrong test rather than a code bug.
+  unlike `message_type`/`field_type` — the GRC yaml's own asserts require
+  `0 <= fixed_byte_length < 1024`, but nothing enforces that range (or
+  any range) when the class is constructed directly in Python. Whether
+  to add one, and what range, is a design question — deliberately not
+  resolved here.
 
 ## Test coverage
 
-- `python/soarr/qa_ccsds_receiver.py` — 7 test methods (`test_instance`
-  + `test_001`-`test_006`): construction and its default parameter
+- `python/soarr/qa_ccsds_receiver.py` — 10 test methods (`test_instance`
+  + `test_001`-`test_009`): construction and its default parameter
   values (`test_instance`), an invalid TFPH (`tfvn=1`) never publishing
   (`test_001`), a complete 2-codeword TC frame published with the
   correct bytes, length, and TFPH field values recoverable from the
   output (`test_002`), SCID and VCID filters each independently
   rejecting a mismatched frame (`test_003`, `test_004`), a partial
-  (1-codeword) frame not yet publishing — the baseline-failing test
-  described above (`test_005`), and invalid reserved bits never
-  publishing (`test_006`). **No test in this repo exercises TM mode,
-  Fixed Length mode, or the `receiver` handler's lack of catch-log-drop**
-  (no malformed-input, forced-exception, or forced-publish-failure test
-  exists for this block, unlike every other block reviewed in this
-  pass).
+  (1-codeword) frame's `remaining_frame_length` reflecting the one
+  already-consumed codeword (`test_005`), invalid reserved bits never
+  publishing (`test_006`), TM mode dropped cleanly instead of raising
+  (`test_007`), Encapsulation Field dropped cleanly instead of raising
+  (`test_008`), and a mock-forced publish failure proven to be caught
+  and dropped rather than raised through the real handler (`test_009`).
+  No test in this repo constructs `message_type=2` (Fixed Length mode).

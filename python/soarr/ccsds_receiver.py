@@ -8,7 +8,6 @@
 
 
 from construct import BitStruct, BitsInteger
-import numpy
 from gnuradio import gr
 import pmt
 
@@ -28,24 +27,46 @@ DESCRAMBLING_ACTIVE = True
 
 class ccsds_receiver(gr.basic_block):
     """
-    docstring for block ccsds_receiver
+    Reassembles CCSDS 232.0-B-4 TC transfer frames from BCH-corrected,
+    descrambled codeword PDUs: searches for a valid Transfer Frame
+    Primary Header (TFPH), accumulates payload bytes until the frame is
+    complete, and publishes the reassembled frame.
     """
     def __init__(self, message_type:int=0,field_type:int=0, fixed_byte_length:int = 0, scid:int = 0, vcid:int = 0, scid_filter_enable:bool = False, vcid_filter_enable:bool = False):
+        """
+        Args:
+            message_type (int): 0=TC, 1=TM, 2=Fixed Length. TM raises
+                NotImplementedError from the message handler if selected.
+            field_type (int): 0=TC Field, 1=Encapsulation Field. Only
+                meaningful when message_type=0. Encapsulation Field
+                raises NotImplementedError from the message handler if
+                selected.
+            fixed_byte_length (int): Target byte count for Fixed Length
+                mode. Not validated here.
+            scid (int): Spacecraft ID to filter on, if scid_filter_enable.
+            vcid (int): Virtual Channel ID to filter on, if
+                vcid_filter_enable.
+            scid_filter_enable (bool): Enables SCID filtering.
+            vcid_filter_enable (bool): Enables VCID filtering.
+
+        Raises:
+            ValueError: message_type is outside 0-2, or field_type is
+                outside 0-1.
+        """
         gr.basic_block.__init__(self,
             name="ccsds_receiver",
             in_sig=None,
             out_sig=None)
-        
+
         # ENUM: 0 => TC, 1 => TM, 2 => Fixed Length
         if message_type < MESSAGE_TYPE_TC or message_type > MESSAGE_TYPE_FIXED:
             raise ValueError(f"Invalid message type: {message_type}. Must be between 0 and 2.")
-        
+
         # ENUM: 0 => TC field, 1 => Encapsulation Field, 2 => fixed length (input)
         if field_type < LENGTH_TYPE_TC_FIELD or field_type > LENGTH_TYPE_ENCAPSULATION_FIELD:
             raise ValueError(f"Invalid length type: {field_type}. Must be between 0 and 1.")
-        
+
         self.message_type = message_type
-        self.initial_message_type = message_type
         self.field_type = field_type
 
         self.fixed_byte_length = fixed_byte_length
@@ -77,60 +98,61 @@ class ccsds_receiver(gr.basic_block):
 
         self.bch_decoder = bch_decoder(mode=0, generator_polynomial=0xC5, primitive_polynomial=0x43)
         self.lfsr_descrambler = lfsr_descrambler(169, 255, 8)
-        
-    def _bytes_to_bits(self, data_bytes):
-        bits = []
-        for byte in data_bytes:
-            for bit_idx in range(7, -1, -1):
-                bits.append((byte >> bit_idx) & 1)
-        return bits
-    
-    
-    def _bits_to_bytes(self, bits):
-        output = bytearray()
-        for start in range(0, len(bits), 8):
-            value = 0
-            for bit in bits[start:start + 8]:
-                value = (value << 1) | bit
-            output.append(value)
-        return bytes(output)
-
 
     def _checkmsg(self, msg) -> bool:
+        """
+        Args:
+            msg (pmt_pair): PDU with metadata dict and u8vector payload,
+                expected to be exactly 8 bytes.
+
+        Returns:
+            bool: True if msg is a well-formed 8-byte PDU, False
+                otherwise (also logs the specific reason at warn).
+        """
         if not pmt.is_pair(msg):
-            self.logger.error("Received message is not a PMT pair. Discarding message.")
+            self.logger.warn("Received message is not a PMT pair. Discarding message.")
             return False# Ignore non-PDU messages
 
         meta = pmt.car(msg)
         payload = pmt.cdr(msg)
 
         if not pmt.is_u8vector(payload):
-            self.logger.error("Received payload is not a u8vector. Discarding message.")
+            self.logger.warn("Received payload is not a u8vector. Discarding message.")
             return False# Ignore payloads that are not byte vectors
-        
+
         if not pmt.is_dict(meta):
-            self.logger.error("Received metadata is not a dict. Discarding message.")
+            self.logger.warn("Received metadata is not a dict. Discarding message.")
             return False  # Ignore metadata that is not a dict
-        
+
         # is always 8 Bytes
         payload_bytes = bytes(pmt.u8vector_elements(payload))
 
         if len(payload_bytes) != 8:
-            self.logger.error(f"Received payload length {len(payload_bytes)} does not match expected 8 bytes for length_type=0. Discarding frame.")
+            self.logger.warn(f"Received payload length {len(payload_bytes)} does not match expected 8 bytes for length_type=0. Discarding frame.")
             return False  # Ignore frames that don't match expected length for length_type=0
-        
+
         return True
 
     def _readInputMsg(self, msg)-> None | bytes:
-        
+        """
+        Args:
+            msg (pmt_pair): PDU with metadata dict and 8-byte u8vector
+                payload, the raw codeword to run through BCH correction
+                and (if DESCRAMBLING_ACTIVE) descrambling.
+
+        Returns:
+            bytes | None: the 8 corrected/descrambled payload bytes, or
+                None if shape validation, BCH correction, or
+                descrambling failed.
+        """
         if not self._checkmsg(msg):
             return None  # Message is not valid, ignore it
 
         msg = self.bch_decoder.error_correction_mode(msg)
         if msg is None:
-            self.logger.error("BCH decoding failed. Discarding message.")
+            self.logger.warn("BCH decoding failed. Discarding message.")
             return None  # BCH decoding failed, ignore message
-        
+
         if DESCRAMBLING_ACTIVE:
             # If we are waiting for a new frame, reset the descrambler sequence
             # before descrambling because this message is a candidate for the first codeword.
@@ -139,14 +161,9 @@ class ccsds_receiver(gr.basic_block):
 
             msg = self.lfsr_descrambler.descramble_msg(msg)
             if msg is None:
-                self.logger.error("LFSR descrambling failed. Discarding message.")
+                self.logger.warn("LFSR descrambling failed. Discarding message.")
                 return None  # LFSR descrambling failed, ignore message
-        
 
-        # if not self._checkmsg(msg):
-        #     return None  # Message is not valid after decoding/descrambling, ignore it
-        
-        meta = pmt.car(msg)
         payload = pmt.cdr(msg)
 
         payload_bytes = bytes(pmt.u8vector_elements(payload))
@@ -235,7 +252,17 @@ class ccsds_receiver(gr.basic_block):
         self.remaining_frame_length -= len(payload_bytes)
 
     def _publishFrame(self,data_length:int):
-        """Publish the complete frame and reset the buffer."""
+        """
+        Args:
+            data_length (int): number of frame bytes minus one (CCSDS's
+                length-minus-one convention); `data_length + 1` bytes are
+                sliced from `frame_buffer` and published.
+
+        Publishes:
+            "out" (pmt_pair): PDU with a freshly built metadata dict
+                carrying only `frame_length` (int, the published frame's
+                actual byte count) and the sliced frame bytes as payload.
+        """
         frame_data = bytes(self.frame_buffer[:data_length+1])  # +1 to include the last byte that made the length reach 0 or below
         metadata = pmt.make_dict()  # Empty metadata for now, can be extended with relevant info if needed
         metadata = pmt.dict_add(metadata, pmt.intern("frame_length"), pmt.from_long(data_length + 1))
@@ -243,64 +270,77 @@ class ccsds_receiver(gr.basic_block):
         self.frame_buffer = bytearray()  # Clear buffer for next frame
 
     def receiver(self, msg):
-        """Saves the received messages in a buffer"""
-        
-        payload_bytes = self._readInputMsg(msg)
-        if payload_bytes is None:
-            if self.length_found:
-                self.logger.error("Error during frame accumulation. Aborting current frame.")
+        """
+        Args:
+            msg (pmt_pair): PDU with metadata dict and 8-byte u8vector
+                payload, one codeword of a TC transfer frame in progress.
+
+        Publishes:
+            "out" (pmt_pair): PDU carrying a reassembled TC transfer
+                frame, published once enough codewords have been
+                accumulated to complete it. See _publishFrame.
+
+        Drops when:
+            - the codeword fails shape validation, BCH correction, or
+              descrambling (warn - see _readInputMsg; also aborts and
+              resets any frame already in progress)
+            - message_type selects TM, or field_type selects
+              Encapsulation Field (warn - not implemented)
+            - any other exception occurs while searching for a TFPH or
+              accumulating frame data (warn - raw RF data, malformed
+              before any structural check has passed)
+        """
+        try:
+            payload_bytes = self._readInputMsg(msg)
+            if payload_bytes is None:
+                if self.length_found:
+                    self.logger.warn("Error during frame accumulation. Aborting current frame.")
+                    self.length_found = False
+                    self.remaining_frame_length = 0
+                    self.total_frame_length = 0
+                    self.frame_buffer = bytearray()
+                    self.lfsr_descrambler.reset_sequence()
+                return  # Message was invalid or not processable, ignore it
+
+            if not self.length_found: # Only search if not found yet
+                if self.message_type == MESSAGE_TYPE_TC:
+                    if self.field_type == LENGTH_TYPE_TC_FIELD:
+                        self._handleMessageTypeTC(payload_bytes)
+                    elif self.field_type == LENGTH_TYPE_ENCAPSULATION_FIELD:
+                        raise NotImplementedError("Length type 'Encapsulation Field' is not implemented yet.")
+
+                if self.message_type == MESSAGE_TYPE_TM:
+                    raise NotImplementedError("Message type TM is not implemented yet.")
+
+                if self.message_type == MESSAGE_TYPE_FIXED:
+                    self._handleMessageTypeFixed(payload_bytes)
+
+
+            if not self.length_found: # if still not found, don't capture
+                # Don't need to add to buffer
+                # No need to check for frame completion
+                return
+
+
+            # Add payload to buffer if TFPH already is found
+            if self.remaining_frame_length > 0:
+                self.logger.debug(f"Accumulating frame data, remaining frame length: {self.remaining_frame_length} bytes")
+                self._recordCurrentMessage(payload_bytes)
+
+
+            # Check frame completion (TC mode only - Fixed Length mode
+            # completes entirely inside _handleMessageTypeFixed).
+            if self.message_type == MESSAGE_TYPE_TC and self.remaining_frame_length <= 0:
+                self.logger.info(f"Complete frame received, publishing frame with {self.total_frame_length} length.")
+                self._publishFrame(self.total_frame_length)
+                self.logger.info("OK")
                 self.length_found = False
                 self.remaining_frame_length = 0
                 self.total_frame_length = 0
-                self.frame_buffer = bytearray()
-                self.lfsr_descrambler.reset_sequence()
-            return  # Message was invalid or not processable, ignore it
-        
-        if not self.length_found: # Only search if not found yet
-            if self.message_type == MESSAGE_TYPE_TC:
-                if self.field_type == LENGTH_TYPE_TC_FIELD:
-                    self._handleMessageTypeTC(payload_bytes)
-                elif self.field_type == LENGTH_TYPE_ENCAPSULATION_FIELD:
-                    raise NotImplementedError("Length type 'Encapsulation Field' is not implemented yet.")
-
-            if self.message_type == MESSAGE_TYPE_TM:
-                raise NotImplementedError("Message type TM is not implemented yet.")
-        
-            if self.message_type == MESSAGE_TYPE_FIXED:
-                self._handleMessageTypeFixed(payload_bytes)
-
-
-        if not self.length_found: # if still not fund, don't capture
-            # Don't need to add to buffer
-            # No need to check for frame completion
+                self.lfsr_descrambler.reset_sequence()  # Reset LFSR sequence for next frame
+                self.logger.debug("OK")
+                return msg
+        except Exception as exc:
+            self.logger.warn(f"Failed to process message: {exc}")
             return
 
-
-        # Add payload to buffer if TFPH already is found
-        if self.remaining_frame_length > 0:
-            self.logger.debug(f"Accumulating frame data, remaining frame length: {self.remaining_frame_length} bytes")
-            self._recordCurrentMessage(payload_bytes)
-
-        
-        # Check frame completion based on the active message mode.
-        if self.message_type == MESSAGE_TYPE_TC and self.remaining_frame_length <= 0:
-            self.logger.info(f"Complete frame received, publishing frame with {self.total_frame_length} length.")
-            self._publishFrame(self.total_frame_length)
-            self.logger.info(f"OK")
-            self.length_found = False
-            self.remaining_frame_length = 0
-            self.total_frame_length = 0
-            self.lfsr_descrambler.reset_sequence()  # Reset LFSR sequence for next frame
-            self.logger.debug(f"OK")
-            return msg
-
-        if self.message_type == MESSAGE_TYPE_FIXED and self.remaining_fixed_bytes <= 0:
-            self.logger.info(f"Complete frame received, publishing frame with {self.fixed_byte_length} length.")
-            self._publishFrame(self.fixed_byte_length)
-            self.length_found = False
-            self.remaining_fixed_bytes = self.fixed_byte_length
-            self.total_frame_length = 0
-            self.lfsr_descrambler.reset_sequence()  # Reset LFSR sequence for next frame
-            self.logger.debug(f"OK")
-            return msg
-            

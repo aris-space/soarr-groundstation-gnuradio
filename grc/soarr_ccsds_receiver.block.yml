@@ -73,7 +73,7 @@ parameters:
 asserts:
 - ${ message_type != '1'} # Not implemented yet
 - ${ field_type != '1' } # Not implemented yet
-- ${ fixed_byte_length <= 0}
+- ${ fixed_byte_length >= 0}
 - ${ fixed_byte_length < 2**10 }
 - ${ scid >= 0}
 - ${ scid < 2**10}

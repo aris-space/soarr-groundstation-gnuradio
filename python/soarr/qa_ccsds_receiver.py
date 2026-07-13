@@ -178,7 +178,9 @@ class qa_ccsds_receiver(gr_unittest.TestCase):
 
         self.assertEqual(len(captured), 0)
         self.assertTrue(self.receiver.length_found)
-        self.assertEqual(self.receiver.remaining_frame_length, 7)
+        # frame_length=15 -> 16 actual bytes; one 8-byte codeword (which
+        # itself contains the TFPH) has been consumed, 8 remain.
+        self.assertEqual(self.receiver.remaining_frame_length, 8)
 
     def test_006_invalid_reserve_bits_do_not_publish(self):
         payload = bytes([0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A])
@@ -194,6 +196,54 @@ class qa_ccsds_receiver(gr_unittest.TestCase):
         captured = self._run_receiver_with_chunks(chunks[:1])
         self.assertEqual(len(captured), 0)
         self.assertFalse(self.receiver.length_found)
+
+    def test_007_tm_mode_dropped_cleanly(self):
+        # message_type=1 (TM) is not implemented; the handler must not
+        # raise through to the caller, just log and drop.
+        receiver = ccsds_receiver(message_type=1)
+        chunk = bytes([0x00] * 8)
+
+        captured = self._run_receiver_with_chunks([chunk], receiver=receiver)
+        self.assertEqual(len(captured), 0)
+
+    def test_008_encapsulation_field_dropped_cleanly(self):
+        # field_type=1 (Encapsulation Field) is not implemented; the
+        # handler must not raise through to the caller, just log and drop.
+        receiver = ccsds_receiver(field_type=1)
+        chunk = bytes([0x00] * 8)
+
+        captured = self._run_receiver_with_chunks([chunk], receiver=receiver)
+        self.assertEqual(len(captured), 0)
+
+    def test_009_publish_failure_dropped_cleanly(self):
+        payload = bytes([0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80, 0x90, 0xA0, 0xB0])
+        chunks = self._build_frame_chunks(
+            frame_length=15,
+            payload_bytes=payload,
+            scid=0x155,
+            vcid=0x12,
+            fsn=0x22,
+        )
+
+        original_read = self.receiver._readInputMsg
+        chunk_iter = iter(chunks)
+
+        def _fake_read(_msg):
+            return next(chunk_iter, None)
+
+        def _raise_on_publish(port, msg):
+            raise RuntimeError("forced publish failure")
+
+        self.receiver._readInputMsg = _fake_read
+        self.receiver.message_port_pub = _raise_on_publish
+        try:
+            dummy_msg = pmt.cons(pmt.make_dict(), pmt.init_u8vector(8, [0] * 8))
+            for _ in chunks:
+                result = self.receiver.receiver(dummy_msg)
+        finally:
+            self.receiver._readInputMsg = original_read
+
+        self.assertIsNone(result)
 
 
 if __name__ == '__main__':
