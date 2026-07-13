@@ -426,5 +426,127 @@ entries:
         self.assertEqual(block._db[str(VCID)][str(SPI)]["sdls_counter"], SDLS_COUNTER_MAX)
         self.assertEqual(block._db[str(VCID)][str(SPI)]["vcid_counter"], VCID_COUNTER_MAX)
 
+    # Additional: a non-pair input must not crash the handler - dropped
+    # cleanly (logged, no publish) instead of pmt.car raising out of it.
+    def test_015_non_pair_input_is_dropped_not_raised(self):
+        block = db_client(type=0)
+        original_pub, published = self._capture_pub(block)
+        try:
+            block.make_db_call(pmt.intern("not-a-pair"))  # must not raise
+        finally:
+            self._restore_pub(block, original_pub)
+
+        self.assertEqual(len(published), 0)
+
+    # Additional: scid and spi are resolved independently - a valid
+    # top-level scid must not be discarded just because top-level spi is
+    # absent (and vice versa). Previously, a present top-level scid was
+    # silently replaced by a different nested scid whenever spi alone was
+    # missing at the top level.
+    def test_016_scid_spi_resolved_independently(self):
+        block = db_client(type=0, scid=0x155, spi=1)
+        original_pub, published = self._capture_pub(block)
+        try:
+            meta = pmt.make_dict()
+            # Top-level scid present (the real value); top-level spi absent.
+            meta = pmt.dict_add(meta, pmt.intern("scid"), pmt.from_long(0x155))
+            # Nested tc_header has a different (wrong) scid, to prove it's
+            # not used when a valid top-level scid already exists.
+            tc_header = pmt.make_dict()
+            tc_header = pmt.dict_add(tc_header, pmt.intern("scid"), pmt.from_long(0x999))
+            telecommand = pmt.make_dict()
+            telecommand = pmt.dict_add(telecommand, pmt.intern("tc_header"), tc_header)
+            meta = pmt.dict_add(meta, pmt.intern("telecommand"), telecommand)
+            # Nested sdls has the real spi.
+            sdls_header = pmt.make_dict()
+            sdls_header = pmt.dict_add(sdls_header, pmt.intern("spi"), pmt.from_long(1))
+            sdls = pmt.make_dict()
+            sdls = pmt.dict_add(sdls, pmt.intern("security_header"), sdls_header)
+            meta = pmt.dict_add(meta, pmt.intern("sdls"), sdls)
+
+            block.make_db_call(pmt.cons(meta, pmt.PMT_NIL))
+        finally:
+            self._restore_pub(block, original_pub)
+
+        self.assertEqual(len(published), 1)
+        out_meta = pmt.car(published[0][1])
+        self.assertEqual(self._meta_int(out_meta, "scid"), 0x155)
+        self.assertEqual(self._meta_int(out_meta, "spi"), 1)
+
+    # Additional: same independence fix for bypass/control.
+    def test_017_bypass_control_resolved_independently(self):
+        block = db_client(type=0, scid=0x155, spi=1)
+        original_pub, published = self._capture_pub(block)
+        try:
+            meta = pmt.make_dict()
+            meta = pmt.dict_add(meta, pmt.intern("scid"), pmt.from_long(0x155))
+            meta = pmt.dict_add(meta, pmt.intern("spi"), pmt.from_long(1))
+            # Top-level bypass present (the real value); top-level control absent.
+            meta = pmt.dict_add(meta, pmt.intern("bypass"), pmt.from_bool(True))
+            # Nested tc_header has a different (wrong) bypass, to prove it's
+            # not used when a valid top-level bypass already exists.
+            tc_header = pmt.make_dict()
+            tc_header = pmt.dict_add(tc_header, pmt.intern("bypass"), pmt.from_bool(False))
+            tc_header = pmt.dict_add(tc_header, pmt.intern("control"), pmt.from_bool(True))
+            telecommand = pmt.make_dict()
+            telecommand = pmt.dict_add(telecommand, pmt.intern("tc_header"), tc_header)
+            meta = pmt.dict_add(meta, pmt.intern("telecommand"), telecommand)
+
+            block.make_db_call(pmt.cons(meta, pmt.PMT_NIL))
+        finally:
+            self._restore_pub(block, original_pub)
+
+        self.assertEqual(len(published), 1)
+        out_meta = pmt.car(published[0][1])
+        bypass = pmt.to_bool(pmt.dict_ref(out_meta, pmt.intern("bypass"), pmt.PMT_NIL))
+        control = pmt.to_bool(pmt.dict_ref(out_meta, pmt.intern("control"), pmt.PMT_NIL))
+        self.assertTrue(bypass)
+        self.assertTrue(control)
+
+    # Additional: the nested-by-SCID YAML layout (outer key is the SCID,
+    # inner keys are SPIs, neither entry carries an explicit SCID/SPI
+    # field) is a real accepted layout distinct from the flat one.
+    def test_018_yaml_mode_nested_by_scid_layout(self):
+        yaml_content = """
+"341":
+  "7":
+    VCID: 5
+    crypt_key: "AAAA"
+    auth_key: "BBBB"
+    sdls_counter: 12
+    vcid_counter: 34
+"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            yaml_path = Path(tmp_dir) / "db.yaml"
+            yaml_path.write_text(yaml_content, encoding="utf-8")
+
+            block = db_client(type=1, yaml_path=str(yaml_path))
+            original_pub, published = self._capture_pub(block)
+            try:
+                block.make_db_call(self._build_query(341, 7))
+            finally:
+                self._restore_pub(block, original_pub)
+
+        self.assertEqual(len(published), 1)
+        out_meta = pmt.car(published[0][1])
+        self.assertEqual(self._meta_int(out_meta, "vcid"), 5)
+        self.assertEqual(self._meta_int(out_meta, "sdls_counter"), 12)
+
+    # Additional: an internal failure past field extraction (e.g. publish
+    # itself raising) is caught, logged, and dropped - not left to raise
+    # out of the real message handler.
+    def test_019_internal_publish_failure_is_dropped_not_raised(self):
+        block = db_client(type=0, scid=0x155, spi=1)
+        original_pub, published = self._capture_pub(block)
+        try:
+            def _raise(port, out_msg):
+                raise RuntimeError("simulated publish failure")
+
+            block.message_port_pub = _raise
+            block.make_db_call(self._build_query(0x155, 1))  # must not raise
+        finally:
+            self._restore_pub(block, original_pub)
+
+
 if __name__ == '__main__':
     gr_unittest.run(qa_db_client)

@@ -34,7 +34,7 @@ Confirmed via `python/soarr/qa_layoutTest.py`'s `msg_connect` wiring
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `type` | int | `0` | `0`=dummy (in-memory, configurable via the parameters below), `1`=local YAML file, `2`=remote DB (unimplemented stub — falls back to dummy, logged at `warn`). An unrecognized value also falls back to dummy, logged at `warn`. |
+| `type` | int | `0` | `0`=dummy (in-memory, configurable via the parameters below), `1`=local YAML file, `2`=remote DB (unimplemented stub — falls back to dummy, logged at `error`). An unrecognized value also falls back to dummy, logged at `error`. |
 | `ip`, `port` | str, int | `"127.0.0.1"`, `80` | Reserved for `type=2`'s remote DB mode; unused since that mode isn't implemented. |
 | `yaml_path` | str | `""` | Path to the YAML file for `type=1`. Missing file, missing PyYAML, a parse failure, a non-mapping root, or zero valid entries all fall back to dummy (logged at `error`). |
 | `forward_body` | bool | `True` | If `True` and the query's payload is a u8vector, echoes it back on `db_callback`; otherwise the response payload is `PMT_NIL` (see Known issues for what this does to `inject_db`). |
@@ -43,14 +43,22 @@ Confirmed via `python/soarr/qa_layoutTest.py`'s `msg_connect` wiring
 
 ## Behavior / edge cases / current error handling
 
-**Lookup key resolution** (`_resolve_scid_spi`): `scid`/`spi` checked at
-the top level first, falling back to `telecommand.tc_header.scid`/
-`sdls.security_header.spi` only if the top-level key is absent. This is
-the block that originally assigns these values (via `db_client`'s own
-dummy/YAML data) before `inject_db`'s merge logic ever nests them — the
-fact that `inject_db.py`'s merge logic always nests DB-assigned keys is
-confirmed directly against this block's data model, cited by several
-other blocks' PRDs.
+**Lookup key resolution** (`_resolve_scid_spi`/`_resolve_bypass_control`):
+`scid`/`spi`/`bypass`/`control` are each resolved *independently* — top
+level first, falling back to `telecommand.tc_header.<key>`/
+`sdls.security_header.spi` only for that specific key if it's absent at
+the top level, matching `inject_db._resolve_key`'s established per-key
+independence. `scid`/`spi` are always present in the query's own
+metadata by the time it reaches this block (`inject_db.send_db_call`
+requires both before it will even query `db_client`), so this block
+doesn't originate them — it looks up an entry using them, then echoes
+them straight back on `db_callback`. Since `inject_db`'s merge only
+fires for keys genuinely absent from its pending metadata, and pending
+already has `scid`/`spi`, this block's echoed values are normally
+*discarded* by that merge, not nested — a different relationship to
+`inject_db`'s merge logic than `vcid`/`vcid_counter`/`sdls_counter`
+(which `db_client` genuinely does originate fresh, and which do end up
+nested, per `inject_db.py`'s PRD).
 
 **Counter model**: each dummy/YAML entry is a persistent, mutable dict
 stored in `self._db` — `sdls_counter`/`vcid_counter` are served, then
@@ -80,27 +88,26 @@ directly: `db_client(forward_body=False)`'s response, fed into a real
 `inject_db.send_msg_out`, is dropped with `"Received message from
 database with non-u8vector payload"`, publishing nothing.
 
-**Error handling**: `make_db_call` calls `pmt.car(msg)` unconditionally
-before any shape check — reproduced directly: `make_db_call(pmt.intern
-("not-a-pair"))` raises `ValueError: pmt_car: wrong_type not-a-pair`.
-Past that, `_validate_counter`'s two calls are wrapped in one
-`try/except (TypeError, ValueError, OverflowError)`, and each
-`_checked_increment` call is separately wrapped in its own
-`try/except OverflowError` — but building `response_meta` and the
-`self._publish(...)` call (`self.message_port_pub`) sit between those,
-entirely unguarded. Every message-handler-path log call already uses
-`error` (this block is not on the raw-RF `warn` list); the two `warn`
-calls in the file are both in `_init_database`, a construction-time
-configuration-fallback path, not part of `make_db_call`'s message
-handling — a different category from the handler rejection logs
-ADR-0003's warn/error rule targets.
+**Error handling** (compliant with
+[coding-standards.md](../coding-standards.md),
+[ADR-0003](../adr/0003-message-handler-error-policy.md)): `make_db_call`
+checks `msg` is a pair and its metadata is a dict before use; the full
+body past those two checks is wrapped in catch-log-drop (`except
+Exception`), including the counter-validation/increment steps' own more
+specific inner `try`/`except` blocks (preserved as-is, since they encode
+real business logic — whether to auto-reset a maxed-out counter — not
+just generic error handling) and the final `db_callback` publish. All
+logged at `error` (this block is not on the raw-RF `warn` list),
+including `_init_database`'s two construction-time fallback logs
+(`type=2`/unrecognized `type`), now consistent with `_load_yaml_db`'s
+own fallback logs, which already used `error` for the same category of
+event.
 
-**Docstrings**: the class docstring and `make_db_call`'s docstring
-already have real content (mode descriptions, input/output metadata
-keys), unlike most blocks' `gr_modtool` placeholders — but neither
-follows [ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)'s
-template, and every other method (`__init__` and the dozen private
-helpers) has none.
+**Docstrings** (compliant with
+[ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)): full
+`Args`/`Raises` for `__init__`, `Args`/`Publishes`/`Drops when` for
+`make_db_call`, `Args`/`Returns`/`Raises` for every PMT-touching private
+helper.
 
 **Naming**: file, class, GRC block-id, every constructor parameter, and
 the handler method name are already snake_case.
@@ -116,32 +123,30 @@ None — this block is pure key/counter lookup, not a CCSDS-defined layer.
   `db_callback` message is silently dropped by `inject_db`, not just its
   payload. Since the default is `True`, this only bites a flowgraph that
   explicitly sets `forward_body=False`, but nothing in either block warns
-  that the combination is effectively broken.
-- **`make_db_call` crashes on a non-pair input.** `pmt.car(msg)` is
-  called unconditionally before any shape check; reproduced directly
-  (see Error handling above).
-- **Building the response and publishing it are unguarded.** Only the
-  counter-validation and counter-increment steps are wrapped in
-  `try`/`except`; `response_meta` construction and the `db_callback`
-  publish call are not, unlike every already-fixed sibling block's
-  full-body catch-log-drop.
-- **No docstrings on `__init__` or any private helper** — full
-  ADR-0004 gap for everything except the class and `make_db_call`.
+  that the combination is effectively broken. This is a cross-block
+  design interaction, not something fixable in `db_client.py` alone.
 
 ## Test coverage
 
-- `python/soarr/qa_db_client.py` — 15 test methods (`test_instance` +
-  `test_001`–`test_014`): a dummy-mode lookup returning every expected
+- `python/soarr/qa_db_client.py` — 20 test methods (`test_instance` +
+  `test_001`–`test_019`): a dummy-mode lookup returning every expected
   field and incrementing both counters across two calls, a missing
   `scid`/`spi` and an unknown `scid`/`spi` each emitting nothing, YAML
-  mode loading a nested-by-SCID entry and using it, a counter already at
-  max being served correctly with no wraparound (`auto_reset_counters`
-  off), configurable dummy SCID/SPI/VCID, configurable dummy keys,
-  configurable dummy initial counters, configurable dummy key states,
-  every dummy parameter combined in one test, `forward_body=True`
-  preserving a u8vector payload, `forward_body=False` producing a
-  `PMT_NIL` payload (proving the behavior, not `inject_db`'s reaction to
-  it — see Known issues), and `auto_reset_counters` on/off at the max
-  counter value. No test exercises a non-pair input, YAML mode's
-  malformed-file fallback paths, or the `type=2`/unknown-`type` fallback
-  paths.
+  mode loading a flat-layout entry and using it (`test_004`), a counter
+  already at max being served correctly with no wraparound
+  (`auto_reset_counters` off), configurable dummy SCID/SPI/VCID,
+  configurable dummy keys, configurable dummy initial counters,
+  configurable dummy key states, every dummy parameter combined in one
+  test, `forward_body=True` preserving a u8vector payload,
+  `forward_body=False` producing a `PMT_NIL` payload (proving the
+  behavior, not `inject_db`'s reaction to it — see Known issues),
+  `auto_reset_counters` on/off at the max counter value, a non-pair input
+  dropped cleanly instead of crashing the handler (`test_015`), `scid`
+  and `spi` resolved independently — a valid top-level `scid` surviving
+  even when top-level `spi` is absent and a differing nested `scid`
+  exists (`test_016`), the same independence for `bypass`/`control`
+  (`test_017`), the nested-by-SCID YAML layout — distinct from
+  `test_004`'s flat layout, with no explicit `SCID`/`SPI` field on the
+  inner entries (`test_018`), and a mock-forced publish failure proven to
+  be caught and dropped rather than raised through the real handler
+  (`test_019`).
