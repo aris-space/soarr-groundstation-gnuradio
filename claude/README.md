@@ -34,6 +34,7 @@ this project is, domain vocabulary) — start there, not here.
    - [db_client](prd/db_client.md)
    - [data_creator](prd/data_creator.md)
    - [cltu_deframer](prd/cltu_deframer.md)
+   - [bch_decoder](prd/bch_decoder.md)
 
 ## Folder map
 
