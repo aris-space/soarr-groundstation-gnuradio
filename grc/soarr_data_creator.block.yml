@@ -4,7 +4,7 @@ category: '[soarr]/Testing'
 
 templates:
   imports: from gnuradio import soarr
-  make: soarr.data_creator(int(${mode}), ${data if payload_source == 'manual' else None}, ${int(data_length_bytes) if payload_source == 'random' else None}, int(${scid}), int(${spi}), ${bypass}, ${control})
+  make: soarr.data_creator(int(${mode}), ${data if payload_source == 'manual' else None}, ${int(data_length_bytes) if payload_source == 'random' else None}, int(${scid}), int(${spi}), ${bypass}, ${control}, int(${vcid}), int(${vcid_counter}), int(${sdls_counter}))
 
 #  Make one 'parameters' list entry for every parameter you want settable from the GUI.
 #     Keys include:
@@ -62,6 +62,21 @@ parameters:
   options: ['True', 'False']
   option_labels: ['True', 'False']
   default: 'False'
+
+- id: vcid
+  label: VCID
+  dtype: int
+  default: 0
+
+- id: vcid_counter
+  label: VCID Counter
+  dtype: int
+  default: 0
+
+- id: sdls_counter
+  label: SDLS Counter
+  dtype: int
+  default: 0
 #  Keys include:
 #      * label (an identifier for the GUI)
 #      * domain (optional - stream or message. Default is stream)

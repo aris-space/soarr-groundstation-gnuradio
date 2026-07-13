@@ -27,67 +27,54 @@ only test coverage is standalone, via its own qa file.
 | Port | Direction | PMT shape | Example |
 |---|---|---|---|
 | `ping` | input | Any PMT — content is ignored entirely; receipt alone triggers generation. | `pmt.PMT_NIL` |
-| `out` | output | PDU: `(metadata_dict . payload_u8vector)`. Metadata carries `telecommand.tc_header.{scid,bypass_flag,control_flag}` and `sdls.security_header.{spi,security_param_index}` (both `spi` and `security_param_index` hold the same value — `security_param_index` matches `ccsds_reader`'s own field name for the same concept on the RX side). | `pmt.cons({telecommand: {...}, sdls: {...}}, u8vector(payload))` |
+| `out` | output | PDU: `(metadata_dict . payload_u8vector)`. Metadata carries `telecommand.tc_header.{scid,bypass_flag,control_flag,vcid,vcid_counter}` and `sdls.security_header.{spi,security_param_index,sdls_counter}` (both `spi` and `security_param_index` hold the same value — `security_param_index` matches `ccsds_reader`'s own field name for the same concept on the RX side). | `pmt.cons({telecommand: {...}, sdls: {...}}, u8vector(payload))` |
 
 ## Parameters
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `mode` | int | `0` | Only `0` is implemented. Any other value raises `NotImplementedError` directly out of the `ping` handler (see Known issues) — not caught, not logged as a drop. |
-| `data` | int \| bytes \| bytearray \| array-like \| `None` | `None` | Explicit payload. An int is packed big-endian; bytes/bytearray/array-like are used as-is. |
-| `data_length_bytes` | int \| `None` | `None` | Either the exact byte width to left-pad an int `data` to, or (if `data` is `None`) the length of a randomly generated payload. |
-| `scid`, `spi`, `bypass`, `control` | int, int, bool, bool | `0, 0, False, False` | Written into the output metadata's nested `tc_header`/`security_header` (see Message ports). |
-| `vcid`, `vcid_counter`, `sdls_counter` | int, int, int | `0, 0, 0` | Stored as instance attributes but never read by `generate_message` — not present anywhere in the output metadata. Not exposed as GRC parameters either (`grc/soarr_data_creator.block.yml`'s `make:` template passes only `mode`/`data`/`data_length_bytes`/`scid`/`spi`/`bypass`/`control` — 7 of the constructor's 10 parameters). |
+| `mode` | int | `0` | Only `0` is implemented. Any other value is dropped and logged at `error` (no publish). |
+| `data` | int \| bytes \| bytearray \| array-like \| `None` | `None` | Explicit payload. An int is left-padded big-endian to `data_length_bytes` (or its own minimal byte width if `data_length_bytes` is `None`) — the one combination of `data`+`data_length_bytes` that's allowed together, since it's the only one with a single unambiguous meaning. For bytes/bytearray/array-like `data`, `data_length_bytes` must either be omitted or match the data's actual length exactly (raises `ValueError` otherwise). |
+| `data_length_bytes` | int \| `None` | `None` | Required if `data` is `None` (length of the randomly generated payload). |
+| `scid`, `spi`, `bypass`, `control`, `vcid`, `vcid_counter`, `sdls_counter` | int, int, bool, bool, int, int, int | all `0`/`False` | Written into the output metadata's nested `tc_header`/`security_header` (see Message ports). All seven are exposed as GRC parameters and passed through the `make:` template. |
 
 ## Behavior / edge cases / current error handling
 
-**`data`/`data_length_bytes` validation is inverted relative to the
-class's own documented example.** The class docstring states: "If data
-is an int and data_length_bytes is set, the value is left-padded to that
-length... Example: `data=0x00010203, data_length_bytes=4 -> 00 01 02
-03`" — but the constructor's actual check
-(`if self.data is not None and self.length is not None: raise
-ValueError(...)`) rejects exactly that combination. Reproduced directly:
-`data_creator(data=0x00010203, data_length_bytes=4)` — the docstring's
-own worked example — raises `ValueError: Either data or
-data_length_bytes must be provided.` `qa_data_creator.py::test_003`
-currently asserts this rejection as expected behavior, directly
-contradicting the docstring's example.
-
-**Providing neither `data` nor `data_length_bytes` also crashes**, a
-different way: with both `None`, the "either/or" check above doesn't
-fire (it only fires when *both* are provided), so execution reaches
-`np.random.randint(0, 256, size=self.length, dtype=np.uint8)` with
-`self.length=None` — NumPy's `size=None` returns a scalar, not an array,
-and the next line (`self.length = len(self.data)`) then raises
-`TypeError: object of type 'numpy.uint8' has no len()`. Reproduced
-directly: `data_creator()` (every parameter at its documented default)
-crashes this way.
-
-Only providing *exactly one* of `data`/`data_length_bytes` (never both,
-never neither) currently constructs successfully.
+**`data`/`data_length_bytes` validation**: raises `ValueError` if neither
+is provided. If `data` is an int, `data_length_bytes` (if given) sets the
+exact left-pad width — the docstring's own worked example
+(`data=0x00010203, data_length_bytes=4 -> 00 01 02 03`) is the intended
+behavior for this case. If `data` is bytes/bytearray/array-like,
+`data_length_bytes` (if given) must match `data`'s actual length exactly
+— there's no single correct way to reconcile a mismatch (pad? truncate?
+both are guesses), so a mismatch raises `ValueError` rather than picking
+one.
 
 **`generate_message`**: builds `telecommand.tc_header` (`scid`,
-`bypass_flag`, `control_flag`) and `sdls.security_header` (`spi`,
-`security_param_index`) nested dicts, combines them with the payload
-into a PDU, and publishes on `out`. No shape validation on `msg` (the
-`ping` trigger's content is never inspected — there's nothing to
-validate).
+`bypass_flag`, `control_flag`, `vcid`, `vcid_counter`) and
+`sdls.security_header` (`spi`, `security_param_index`, `sdls_counter`)
+nested dicts, combines them with the payload into a PDU, and publishes
+on `out`. No shape validation on `msg` (the `ping` trigger's content is
+never inspected — there's nothing to validate).
 
-**Error handling**: `_choose_mode` (the `ping` handler) raises
-`NotImplementedError` directly for any `mode != 0` — not caught, not
-logged, escapes the handler entirely.
-`qa_data_creator.py::test_004_raises_for_unsupported_mode` currently
-asserts this raise as expected behavior. Neither `_choose_mode` nor
-`generate_message` wraps any part of its body in `try`/`except`.
+**Error handling** (compliant with
+[coding-standards.md](../coding-standards.md),
+[ADR-0003](../adr/0003-message-handler-error-policy.md)): `_choose_mode`
+(the `ping` handler) wraps its full body in catch-log-drop, logging at
+`error` and dropping (no publish) for an unsupported `mode`.
+`generate_message` — called both from `_choose_mode` and directly in
+this repo's "real handler" test style — independently wraps its own full
+body in catch-log-drop too, so it's safe regardless of caller.
 
-**Docstrings**: the class docstring already has real, substantial
-content (usage description, int-padding example) — unlike most blocks'
-`gr_modtool` placeholders. `__init__`, `_choose_mode`, and
-`generate_message` have none.
+**Docstrings** (compliant with
+[ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)): full
+`Args`/`Raises` for `__init__`, `Args`/`Publishes`/`Drops when` for
+`_choose_mode` and `generate_message`.
 
 **Naming**: file, class, GRC block-id, every constructor parameter, and
-both method names are already snake_case.
+both method names are already snake_case. The `data_length_bytes`
+constructor parameter is stored as `self.data_length_bytes`, matching
+the parameter name exactly.
 
 ## CCSDS reference
 
@@ -95,39 +82,23 @@ None — this block is test/ground tooling, not a CCSDS-defined layer.
 
 ## Known issues / TODOs
 
-- **The `data`/`data_length_bytes` validation contradicts the class's
-  own documented example, and a test currently enshrines the
-  contradiction rather than the documented behavior.** See Behavior
-  above — reproduced directly against both the docstring's worked
-  example and `test_003`'s assertion.
-- **Providing neither `data` nor `data_length_bytes` crashes with an
-  unrelated `TypeError`**, not the `ValueError` the "either/or" check
-  seems intended to produce for that exact case. See Behavior above.
-- **`vcid`, `vcid_counter`, `sdls_counter` are accepted, stored, and
-  entirely unused** — never written into the output metadata, and not
-  reachable via the GRC block at all. Any downstream block requiring
-  them (`tc_primary_header` needs `vcid_counter`, `sdls_header` needs
-  `sdls_counter`) would reject a message built purely from
-  `data_creator` output with no other metadata source filling them in.
-- **`_choose_mode` raises `NotImplementedError` directly out of the
-  `ping` handler for any unsupported `mode`**, violating
-  [ADR-0003](../adr/0003-message-handler-error-policy.md) (no message
-  handler may raise). `qa_data_creator.py::test_004` currently asserts
-  this raise as expected.
-- **Neither handler wraps any part of its body in catch-log-drop.**
-- **No docstrings on `__init__`, `_choose_mode`, or `generate_message`.**
+None outstanding — see Behavior and Parameters above for the current
+implementation.
 
 ## Test coverage
 
-- `python/soarr/qa_data_creator.py` — 12 test methods (`test_instance` +
-  `test_001`–`test_011`): manual-data generation with a real
+- `python/soarr/qa_data_creator.py` — 17 test methods (`test_instance` +
+  `test_001`–`test_016`): manual-data generation with a real
   `pmt.u8vector` output check, mode-0 random-payload generation via
-  `_choose_mode` with a length check, `data`+`data_length_bytes` both
-  provided raising `ValueError` (`test_003` — enshrines the
-  docstring-contradicting behavior above), an unsupported `mode` raising
-  `NotImplementedError` out of `_choose_mode` (`test_004` — enshrines the
-  ADR-0003 violation above), message ports registered, `bypass`/`control`
-  default/set/combined across several tests, and flags combined with
-  other parameters. No test constructs with neither `data` nor
-  `data_length_bytes` (the crashing case), and no test checks `vcid`/
-  `vcid_counter`/`sdls_counter` end up anywhere in the output metadata.
+  `_choose_mode` with a length check, mismatched explicit data and
+  `data_length_bytes` raising `ValueError` (`test_003`), an unsupported
+  `mode` dropped cleanly instead of crashing the handler (`test_004`),
+  message ports registered, `bypass`/`control` default/set/combined
+  across several tests, flags combined with other parameters, neither
+  `data` nor `data_length_bytes` raising a clear `ValueError`
+  (`test_012`), an int `data` value padded correctly per the docstring's
+  own example (`test_013`), explicit data whose length matches
+  `data_length_bytes` succeeding (`test_014`), `vcid`/`vcid_counter`/
+  `sdls_counter` present in the published metadata (`test_015`), and a
+  mock-forced publish failure proven to be caught and dropped rather
+  than raised through the real handler (`test_016`).

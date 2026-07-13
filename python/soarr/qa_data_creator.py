@@ -111,15 +111,81 @@ class qa_data_creator(gr_unittest.TestCase):
         self.assertEqual(self._pmt_get_nested_int(out_meta, ["sdls", "security_header", "spi"]), 2)
         self.assertEqual(len(out_bytes), expected_length)
 
-    def test_003_raises_when_data_and_length_both_provided(self):
+    def test_003_mismatched_data_and_length_raises(self):
+        # Explicit bytes/array data disagreeing with data_length_bytes is
+        # rejected outright - there's no single correct way to reconcile
+        # them (pad? truncate? both are guesses).
         payload = np.array([0x01, 0x02], dtype=np.uint8)
         with self.assertRaises(ValueError):
-            data_creator(mode=0, data=payload, data_length_bytes=2, scid=0, spi=0)
+            data_creator(mode=0, data=payload, data_length_bytes=5, scid=0, spi=0)
 
-    def test_004_raises_for_unsupported_mode(self):
+    def test_004_unsupported_mode_is_dropped_not_raised(self):
         instance = data_creator(mode=99, data_length_bytes=4)
-        with self.assertRaises(NotImplementedError):
-            instance._choose_mode(pmt.PMT_NIL)
+        captured = []
+        original_pub = self._capture_specific_port(instance, "out", captured)
+        try:
+            instance._choose_mode(pmt.PMT_NIL)  # must not raise
+        finally:
+            self._restore_port(instance, original_pub)
+
+        self.assertEqual(len(captured), 0)
+
+    # Additional: neither data nor data_length_bytes provided raises a
+    # clear ValueError, not an unrelated TypeError from numpy.
+    def test_012_neither_data_nor_length_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            data_creator()
+
+    # Additional: an int data value combined with data_length_bytes is
+    # allowed - the one case where the combination is unambiguous - and
+    # left-pads exactly as the class docstring documents.
+    def test_013_int_data_with_length_pads_correctly(self):
+        instance = data_creator(data=0x00010203, data_length_bytes=4)
+        self.assertEqual(bytes(instance.data), bytes([0x00, 0x01, 0x02, 0x03]))
+
+    # Additional: explicit data whose length matches data_length_bytes is
+    # accepted (not just rejected because both were given).
+    def test_014_matching_data_and_length_succeeds(self):
+        payload = np.array([0x01, 0x02], dtype=np.uint8)
+        instance = data_creator(mode=0, data=payload, data_length_bytes=2, scid=0, spi=0)
+        self.assertEqual(bytes(instance.data), bytes([0x01, 0x02]))
+
+    # Additional: vcid/vcid_counter/sdls_counter are accepted parameters
+    # that must actually end up in the published metadata.
+    def test_015_vcid_vcid_counter_sdls_counter_in_output(self):
+        instance = data_creator(
+            mode=0,
+            data=np.array([0xAA], dtype=np.uint8),
+            scid=1,
+            spi=2,
+            vcid=3,
+            vcid_counter=4,
+            sdls_counter=5,
+        )
+        captured = []
+        original_pub = self._capture_specific_port(instance, "out", captured)
+        try:
+            instance.generate_message(pmt.PMT_NIL)
+        finally:
+            self._restore_port(instance, original_pub)
+
+        self.assertEqual(len(captured), 1)
+        out_meta = pmt.car(captured[0])
+        self.assertEqual(self._pmt_get_nested_int(out_meta, ["telecommand", "tc_header", "vcid"]), 3)
+        self.assertEqual(self._pmt_get_nested_int(out_meta, ["telecommand", "tc_header", "vcid_counter"]), 4)
+        self.assertEqual(self._pmt_get_nested_int(out_meta, ["sdls", "security_header", "sdls_counter"]), 5)
+
+    # Additional: an internal failure past field extraction (e.g. publish
+    # itself raising) is caught, logged, and dropped - not left to raise
+    # out of the real message handler.
+    def test_016_internal_publish_failure_is_dropped_not_raised(self):
+        instance = data_creator(data=np.array([0x01], dtype=np.uint8))
+
+        def _raise(port, out_msg):
+            raise RuntimeError("simulated publish failure")
+
+        instance.message_port_pub = _raise
+        instance.generate_message(pmt.PMT_NIL)  # must not raise
 
     def test_005_message_ports_registered(self):
         instance = data_creator(data_length_bytes=1)
