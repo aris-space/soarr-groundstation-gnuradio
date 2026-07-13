@@ -18,8 +18,8 @@ sdls_encryption.out → sdls_authentication.in
 sdls_authentication.out → sdls_header.in
 ```
 
-RX counterpart: `sdls_authentication_verify` — no PRD yet. It uses the
-same `authentication_state` parameter name as this block.
+RX counterpart: [sdls_authentication_verify](sdls_authentication_verify.md).
+It uses the same `authentication_state` parameter name as this block.
 
 ## Message ports
 
@@ -118,8 +118,8 @@ support for SDLS's other permitted MAC schemes.
   writes `sdls.security_trailer` or reads `encapsulation_header` metadata
   for tag construction. Under the current TX→RX pairing (the only path
   any test exercises) that alternate path is never reached, so there's no
-  observed bug — but it's untested, unexplained, and worth investigating
-  when `sdls_authentication_verify` gets its own PRD.
+  observed bug — see [sdls_authentication_verify.md](sdls_authentication_verify.md)
+  for the full detail.
 
 ## Test coverage
 

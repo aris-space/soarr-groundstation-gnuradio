@@ -38,6 +38,7 @@ this project is, domain vocabulary) — start there, not here.
    - [lfsr_descrambler](prd/lfsr_descrambler.md)
    - [ccsds_receiver](prd/ccsds_receiver.md)
    - [ccsds_reader](prd/ccsds_reader.md)
+   - [sdls_authentication_verify](prd/sdls_authentication_verify.md)
 
 ## Folder map
 
