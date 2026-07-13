@@ -12,9 +12,23 @@ import pmt
 
 class ccsds_reader(gr.basic_block):
     """
-    docstring for block ccsds_reader
+    Parses a reassembled CCSDS TC transfer frame (TFPH, optional CSP/
+    Encapsulation/SDLS headers, data, optional SDLS trailer, FECF) and
+    republishes the parsed fields as PDU metadata alongside the
+    extracted data payload.
     """
     def __init__(self, message_type:int=0, sdls_type:int=3, encapsulation_used:bool=True, data_type:int=0):
+        """
+        Args:
+            message_type (int): 0=TC, 1=TM. Accepted but not currently
+                read anywhere else in the class; TM has no effect on
+                parsing.
+            sdls_type (int): 0=No SDLS, 1=Encryption only,
+                2=Authentication only, 3=Both.
+            encapsulation_used (bool): whether to expect an
+                Encapsulation Packet Protocol header.
+            data_type (int): 0=Raw, 1=CSP (adds a csp_header field).
+        """
         gr.basic_block.__init__(self,
             name="CCSDS Reader",
             in_sig=None,
@@ -252,6 +266,18 @@ class ccsds_reader(gr.basic_block):
             )
 
     def _python_to_pmt(self, value):
+        """
+        Args:
+            value: Python scalar/bytes/str/dict-like value to convert,
+                as produced by parsing a construct.Struct/Container.
+
+        Returns:
+            pmt: PMT_NIL for None, otherwise the equivalent PMT value
+                (bool/int/u8vector/symbol/dict), recursing into nested
+                dict-likes.
+        """
+        if value is None:
+            return pmt.PMT_NIL
         if isinstance(value, bool):
             return pmt.from_bool(value)
         if isinstance(value, int):
@@ -278,101 +304,118 @@ class ccsds_reader(gr.basic_block):
         return pmt.intern(str(value))
 
     def decode_ccsds(self, msg):
+        """
+        Args:
+            msg (pmt_pair): PDU with metadata dict and u8vector payload,
+                the reassembled CCSDS TC transfer frame to parse.
+
+        Publishes:
+            "debug" (pmt_pair): PDU extending the input metadata dict
+                with parsed telecommand/sdls/encapsulation_header fields,
+                payload the frame's extracted data field.
+
+        Drops when:
+            - msg is not a pair (warn - raw RF data, malformed before any structural check)
+            - the payload is not a u8vector (warn - same)
+            - parsing the frame or building its metadata fails for any reason (warn - same)
+        """
         if not pmt.is_pair(msg):
+            self.logger.warn("Received message is not a PDU (pair).")
             return
 
         in_meta = pmt.car(msg)
         in_body = pmt.cdr(msg)
         if not pmt.is_u8vector(in_body):
+            self.logger.warn("Received message body is not a u8vector.")
             return
-
-        frame_bytes = bytes(pmt.u8vector_elements(in_body))
 
         try:
+            frame_bytes = bytes(pmt.u8vector_elements(in_body))
+
             parsed = self.ccsds_message().parse(frame_bytes)
+
+            total_length = int(parsed.tc_header.frame_length) + 1
+            encap_len = self._encapsulation_header_length(getattr(parsed, "encapsulation_header", None))
+            sdls_header_len = self._sdls_header_length() if self.sdls_type != 0 else 0
+            sdls_trailer_len = 16 if self.sdls_type in (2, 3) else 0
+            data_len = len(parsed.data) if hasattr(parsed, "data") and parsed.data is not None else 0
+            overhead = 5 + 2 + (6 if self.data_type == 1 else 0) + encap_len + sdls_header_len + sdls_trailer_len
+            self.logger.debug(
+                f"Parsed frame lengths: total={total_length} overhead={overhead} data={data_len} "
+                f"encap={encap_len} sdls_hdr={sdls_header_len} sdls_trailer={sdls_trailer_len}"
+            )
+
+            out_meta = in_meta if pmt.is_dict(in_meta) else pmt.make_dict()
+
+            if hasattr(parsed, "encapsulation_header") and parsed.encapsulation_header is not None:
+                encaps_meta = pmt.make_dict()
+                for key, value in parsed.encapsulation_header.items():
+                    if str(key).startswith("_"):
+                        continue
+                    encaps_meta = pmt.dict_add(encaps_meta, pmt.intern(str(key)), self._python_to_pmt(value))
+                out_meta = pmt.dict_add(out_meta, pmt.intern("encapsulation_header"), encaps_meta)
+
+            sdls_meta = pmt.make_dict()
+            sdls_header = pmt.make_dict()
+            if hasattr(parsed, "sdls_security_header") and parsed.sdls_security_header is not None:
+                sdls_header = pmt.dict_add(
+                    sdls_header,
+                    pmt.intern("initialization_vector"),
+                    pmt.from_long(int(parsed.sdls_security_header.initialization_vector)),
+                )
+                sdls_header = pmt.dict_add(
+                    sdls_header,
+                    pmt.intern("sdls_counter"),
+                    pmt.from_long(int(parsed.sdls_security_header.initialization_vector)),
+                )
+                sdls_header = pmt.dict_add(
+                    sdls_header,
+                    pmt.intern("security_param_index"),
+                    pmt.from_long(int(parsed.sdls_security_header.security_param_index)),
+                )
+                sdls_header = pmt.dict_add(
+                    sdls_header,
+                    pmt.intern("spi"),
+                    pmt.from_long(int(parsed.sdls_security_header.security_param_index)),
+                )
+            sdls_meta = pmt.dict_add(sdls_meta, pmt.intern("security_header"), sdls_header)
+
+            if hasattr(parsed, "sdls_security_trailer") and parsed.sdls_security_trailer is not None:
+                sdls_meta = pmt.dict_add(
+                    sdls_meta,
+                    pmt.intern("security_trailer"),
+                    self._python_to_pmt(parsed.sdls_security_trailer),
+                )
+            out_meta = pmt.dict_add(out_meta, pmt.intern("sdls"), sdls_meta)
+
+            telecommand_meta = pmt.make_dict()
+            if hasattr(parsed, "frame_error_control_field") and parsed.frame_error_control_field is not None:
+                telecommand_meta = pmt.dict_add(
+                    telecommand_meta,
+                    pmt.intern("frame_error_control_field"),
+                    pmt.from_long(int(parsed.frame_error_control_field)),
+                )
+
+            tc_header_meta = pmt.make_dict()
+            if hasattr(parsed, "tc_header") and parsed.tc_header is not None:
+                tc_header_meta = pmt.dict_add(tc_header_meta, pmt.intern("tfvn"), pmt.from_long(int(parsed.tc_header.tfvn)))
+                tc_header_meta = pmt.dict_add(tc_header_meta, pmt.intern("bypass_flag"), pmt.from_long(int(parsed.tc_header.bypass_flag)))
+                tc_header_meta = pmt.dict_add(tc_header_meta, pmt.intern("control_flag"), pmt.from_long(int(parsed.tc_header.control_flag)))
+                tc_header_meta = pmt.dict_add(tc_header_meta, pmt.intern("reserve"), pmt.from_long(int(parsed.tc_header.reserve)))
+                tc_header_meta = pmt.dict_add(tc_header_meta, pmt.intern("scid"), pmt.from_long(int(parsed.tc_header.scid)))
+                tc_header_meta = pmt.dict_add(tc_header_meta, pmt.intern("vcid"), pmt.from_long(int(parsed.tc_header.vcid)))
+                tc_header_meta = pmt.dict_add(tc_header_meta, pmt.intern("vcid_counter"), pmt.from_long(int(parsed.tc_header.fsn)))
+                tc_header_meta = pmt.dict_add(tc_header_meta, pmt.intern("fsn"), pmt.from_long(int(parsed.tc_header.fsn)))
+                tc_header_meta = pmt.dict_add(tc_header_meta, pmt.intern("frame_length"), pmt.from_long(int(parsed.tc_header.frame_length)))
+            telecommand_meta = pmt.dict_add(telecommand_meta, pmt.intern("tc_header"), tc_header_meta)
+            out_meta = pmt.dict_add(out_meta, pmt.intern("telecommand"), telecommand_meta)
+
+            payload_bytes = bytes(parsed.data) if hasattr(parsed, "data") and parsed.data is not None else b""
+            out_body = pmt.init_u8vector(len(payload_bytes), list(payload_bytes))
+            self.message_port_pub(pmt.intern("debug"), pmt.cons(out_meta, out_body))
+
+            self.logger.debug("OK")
+            return msg
         except Exception as exc:
-            self.logger.error(f"Failed to parse CCSDS frame: {exc}")
+            self.logger.warn(f"Failed to parse or publish CCSDS frame: {exc}")
             return
-
-        total_length = int(parsed.tc_header.frame_length) + 1
-        encap_len = self._encapsulation_header_length(getattr(parsed, "encapsulation_header", None))
-        sdls_header_len = self._sdls_header_length() if self.sdls_type != 0 else 0
-        sdls_trailer_len = 16 if self.sdls_type in (2, 3) else 0
-        data_len = len(parsed.data) if hasattr(parsed, "data") and parsed.data is not None else 0
-        overhead = 5 + 2 + (6 if self.data_type == 1 else 0) + encap_len + sdls_header_len + sdls_trailer_len
-        self.logger.debug(
-            f"Parsed frame lengths: total={total_length} overhead={overhead} data={data_len} "
-            f"encap={encap_len} sdls_hdr={sdls_header_len} sdls_trailer={sdls_trailer_len}"
-        )
-
-        out_meta = in_meta if pmt.is_dict(in_meta) else pmt.make_dict()
-
-        if hasattr(parsed, "encapsulation_header") and parsed.encapsulation_header is not None:
-            encaps_meta = pmt.make_dict()
-            for key, value in parsed.encapsulation_header.items():
-                if str(key).startswith("_"):
-                    continue
-                encaps_meta = pmt.dict_add(encaps_meta, pmt.intern(str(key)), self._python_to_pmt(value))
-            out_meta = pmt.dict_add(out_meta, pmt.intern("encapsulation_header"), encaps_meta)
-
-        sdls_meta = pmt.make_dict()
-        sdls_header = pmt.make_dict()
-        if hasattr(parsed, "sdls_security_header") and parsed.sdls_security_header is not None:
-            sdls_header = pmt.dict_add(
-                sdls_header,
-                pmt.intern("initialization_vector"),
-                pmt.from_long(int(parsed.sdls_security_header.initialization_vector)),
-            )
-            sdls_header = pmt.dict_add(
-                sdls_header,
-                pmt.intern("sdls_counter"),
-                pmt.from_long(int(parsed.sdls_security_header.initialization_vector)),
-            )
-            sdls_header = pmt.dict_add(
-                sdls_header,
-                pmt.intern("security_param_index"),
-                pmt.from_long(int(parsed.sdls_security_header.security_param_index)),
-            )
-            sdls_header = pmt.dict_add(
-                sdls_header,
-                pmt.intern("spi"),
-                pmt.from_long(int(parsed.sdls_security_header.security_param_index)),
-            )
-        sdls_meta = pmt.dict_add(sdls_meta, pmt.intern("security_header"), sdls_header)
-
-        if hasattr(parsed, "sdls_security_trailer") and parsed.sdls_security_trailer is not None:
-            sdls_meta = pmt.dict_add(
-                sdls_meta,
-                pmt.intern("security_trailer"),
-                self._python_to_pmt(parsed.sdls_security_trailer),
-            )
-        out_meta = pmt.dict_add(out_meta, pmt.intern("sdls"), sdls_meta)
-
-        telecommand_meta = pmt.make_dict()
-        if hasattr(parsed, "frame_error_control_field") and parsed.frame_error_control_field is not None:
-            telecommand_meta = pmt.dict_add(
-                telecommand_meta,
-                pmt.intern("frame_error_control_field"),
-                pmt.from_long(int(parsed.frame_error_control_field)),
-            )
-
-        tc_header_meta = pmt.make_dict()
-        if hasattr(parsed, "tc_header") and parsed.tc_header is not None:
-            tc_header_meta = pmt.dict_add(tc_header_meta, pmt.intern("tfvn"), pmt.from_long(int(parsed.tc_header.tfvn)))
-            tc_header_meta = pmt.dict_add(tc_header_meta, pmt.intern("bypass_flag"), pmt.from_long(int(parsed.tc_header.bypass_flag)))
-            tc_header_meta = pmt.dict_add(tc_header_meta, pmt.intern("control_flag"), pmt.from_long(int(parsed.tc_header.control_flag)))
-            tc_header_meta = pmt.dict_add(tc_header_meta, pmt.intern("reserve"), pmt.from_long(int(parsed.tc_header.reserve)))
-            tc_header_meta = pmt.dict_add(tc_header_meta, pmt.intern("scid"), pmt.from_long(int(parsed.tc_header.scid)))
-            tc_header_meta = pmt.dict_add(tc_header_meta, pmt.intern("vcid"), pmt.from_long(int(parsed.tc_header.vcid)))
-            tc_header_meta = pmt.dict_add(tc_header_meta, pmt.intern("vcid_counter"), pmt.from_long(int(parsed.tc_header.fsn)))
-            tc_header_meta = pmt.dict_add(tc_header_meta, pmt.intern("fsn"), pmt.from_long(int(parsed.tc_header.fsn)))
-            tc_header_meta = pmt.dict_add(tc_header_meta, pmt.intern("frame_length"), pmt.from_long(int(parsed.tc_header.frame_length)))
-        telecommand_meta = pmt.dict_add(telecommand_meta, pmt.intern("tc_header"), tc_header_meta)
-        out_meta = pmt.dict_add(out_meta, pmt.intern("telecommand"), telecommand_meta)
-
-        payload_bytes = bytes(parsed.data) if hasattr(parsed, "data") and parsed.data is not None else b""
-        out_body = pmt.init_u8vector(len(payload_bytes), list(payload_bytes))
-        self.message_port_pub(pmt.intern("debug"), pmt.cons(out_meta, out_body))
-
-        self.logger.debug(f"OK")
-        return msg

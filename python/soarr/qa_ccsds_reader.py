@@ -316,6 +316,114 @@ class qa_ccsds_reader(gr_unittest.TestCase):
         self.assertTrue(pmt.dict_has_key(out_meta, pmt.intern("telecommand")))
         self.assertFalse(pmt.dict_has_key(out_meta, pmt.intern("encapsulation_header")))
 
+    def test_decode_none_valued_encapsulation_fields_not_published_as_none_symbol(self):
+        """A minimal (length_of_length=0) encapsulation header leaves several
+        Computed fields as Python None; decode_ccsds must not publish those
+        as the literal PMT symbol "None"."""
+        payload_bytes = bytes([0x01, 0x02, 0x03])
+        total_length = 5 + 1 + len(payload_bytes) + 2
+        frame_length = total_length - 1
+
+        instance = ccsds_reader(message_type=0, sdls_type=0, encapsulation_used=True, data_type=0)
+
+        packet_bytes = instance.ccsds_message().build(
+            dict(
+                tc_header=dict(
+                    tfvn=0,
+                    bypass_flag=0,
+                    control_flag=0,
+                    reserve=0,
+                    scid=0x100,
+                    vcid=0x01,
+                    frame_length=frame_length,
+                    fsn=0x01,
+                ),
+                encapsulation_header=dict(
+                    first_octet=0x00,
+                    _user_defined_field_raw=None,
+                    ccsds_defined_field=None,
+                    packet_length=None,
+                ),
+                data=payload_bytes,
+                frame_error_control_field=0x0000,
+            )
+        )
+
+        captured = []
+        original_pub = self._capture_specific_port(instance, "debug", captured)
+        try:
+            instance.decode_ccsds(pmt.cons(pmt.make_dict(), pmt.init_u8vector(len(packet_bytes), list(packet_bytes))))
+        finally:
+            self._restore_port(instance, original_pub)
+
+        self.assertEqual(len(captured), 1)
+        out_meta = pmt.car(captured[0])
+        encap_meta = pmt.dict_ref(out_meta, pmt.intern("encapsulation_header"), pmt.PMT_NIL)
+
+        for key in ("user_defined_field", "protocol_id_extension", "ccsds_defined_field", "packet_length"):
+            self.assertTrue(pmt.dict_has_key(encap_meta, pmt.intern(key)), f"Missing metadata key '{key}'")
+            value = pmt.dict_ref(encap_meta, pmt.intern(key), pmt.intern("__missing__"))
+            self.assertTrue(
+                pmt.eqv(value, pmt.PMT_NIL),
+                f"{key} should be pmt.PMT_NIL, got {value}",
+            )
+
+    def test_decode_non_pair_dropped_cleanly(self):
+        instance = ccsds_reader()
+        captured = []
+        original_pub = self._capture_specific_port(instance, "debug", captured)
+        try:
+            result = instance.decode_ccsds(pmt.PMT_NIL)
+        finally:
+            self._restore_port(instance, original_pub)
+        self.assertIsNone(result)
+        self.assertEqual(len(captured), 0)
+
+    def test_decode_non_u8vector_body_dropped_cleanly(self):
+        instance = ccsds_reader()
+        captured = []
+        original_pub = self._capture_specific_port(instance, "debug", captured)
+        try:
+            result = instance.decode_ccsds(pmt.cons(pmt.make_dict(), pmt.intern("not-a-u8vector")))
+        finally:
+            self._restore_port(instance, original_pub)
+        self.assertIsNone(result)
+        self.assertEqual(len(captured), 0)
+
+    def test_decode_publish_failure_dropped_cleanly(self):
+        """A forced exception well past the parse step (inside the
+        publish call) must be caught and dropped, not raised through
+        the real handler."""
+        payload_bytes = bytes([0x01, 0x23, 0x45, 0x67])
+        total_length = 5 + len(payload_bytes) + 2
+        frame_length = total_length - 1
+
+        instance = ccsds_reader(message_type=0, sdls_type=0, encapsulation_used=False, data_type=0)
+
+        packet_bytes = instance.ccsds_message().build(
+            dict(
+                tc_header=dict(
+                    tfvn=0,
+                    bypass_flag=0,
+                    control_flag=0,
+                    reserve=0,
+                    scid=0x100,
+                    vcid=0x01,
+                    frame_length=frame_length,
+                    fsn=0x01,
+                ),
+                data=payload_bytes,
+                frame_error_control_field=0x0000,
+            )
+        )
+
+        def _raise_on_publish(port, msg):
+            raise RuntimeError("forced publish failure")
+
+        instance.message_port_pub = _raise_on_publish
+        result = instance.decode_ccsds(pmt.cons(pmt.make_dict(), pmt.init_u8vector(len(packet_bytes), list(packet_bytes))))
+        self.assertIsNone(result)
+
 
 if __name__ == '__main__':
     gr_unittest.run(qa_ccsds_reader)

@@ -21,8 +21,9 @@ ccsds_reader.debug → inject_db (RX instance)
 [architecture.md](../architecture.md) documents two facts about this
 wiring that belong to the flowgraph, not this block's own code: (1) in
 the confirmed external flowgraph, **both** of `digital.crc_check`'s
-`fail` and `ok` output ports are wired to `ccsds_reader`'s input — "not
-a documented design decision, don't read architectural intent into it";
+`fail` and `ok` output ports are wired to `ccsds_reader`'s input —
+"that's how the flowgraph was left, not a documented design decision —
+don't read architectural intent into it";
 (2) this block's output port is named `debug`, but it's confirmed to be
 its real, only, production output — not a diagnostic-only tap. No `.grc`
 flowgraph file exists anywhere in this repo (`find . -iname "*.grc"`
@@ -50,8 +51,7 @@ by anything in this repo.
 | `data_type` | int | `0` | `0`=Raw, `1`=CSP (adds a `csp_header` field). Not validated — no range check at all. Unlike `message_type`, this parameter genuinely controls `ccsds_message()`'s structure (see Behavior). |
 
 None of the four constructor parameters is validated — no range or type
-checks anywhere in `__init__`, unlike every previously-reviewed RX block
-in this pass, which validated at least some of its parameters.
+checks anywhere in `__init__`.
 
 ## Behavior / edge cases / current error handling
 
@@ -78,21 +78,13 @@ evaluates to Python `None`. Likewise `ccsds_defined_field` and
 `packet_length` are absent (`None`) below their respective
 `length_of_length` thresholds.
 
-**A `None`-valued encapsulation-header field is published as the PMT
-symbol `"None"`, not a real null.** `decode_ccsds` iterates
-`parsed.encapsulation_header.items()` and calls `_python_to_pmt(value)`
-for every field with no `None` check; `_python_to_pmt`'s fallback branch
-(nothing else matches) is `return pmt.intern(str(value))` —
-`str(None)` is `"None"`, so `pmt.intern("None")` is what actually gets
-published. Confirmed directly: building and decoding a frame with
-`encapsulation_used=True` (the default) and `length_of_length=0` (the
-minimal, 1-byte encapsulation header — a normal, valid configuration,
-not a malformed edge case) publishes `user_defined_field`,
-`protocol_id_extension`, `ccsds_defined_field`, and `packet_length` all
-as the symbol `"None"`. This is the same lossy `None`-to-`"None"`-symbol
-corruption previously found and fixed in `inject_db`'s
-`_merge_metadata` (see [inject_db.md](inject_db.md)) — a different
-method in a different block, same underlying mistake.
+**A `None`-valued encapsulation-header field is published as
+`pmt.PMT_NIL`.** `_python_to_pmt` checks for `None` first and returns
+`pmt.PMT_NIL` directly, before any of its other type branches — so a
+minimal (`length_of_length=0`) encapsulation header's `user_defined_field`,
+`protocol_id_extension`, `ccsds_defined_field`, and `packet_length`
+(all Python `None` in that configuration) publish as a real null instead
+of the PMT symbol `"None"`.
 
 **SDLS/TC field duplication in output metadata**: `sdls.security_header`
 carries both `spi` and `security_param_index` (same source value,
@@ -117,25 +109,22 @@ bits minimum, can be 8 or 16)," but the `BitStruct` itself hardcodes
 `4` (2 bytes SPI + 2 bytes IV) — no code path implements the 8-bit IV
 variant the comment describes.
 
-**Error handling**: `decode_ccsds` checks `pmt.is_pair(msg)` and
-`pmt.is_u8vector(in_body)` before use, but **both checks fail silently —
-neither logs anything at any level**, unlike every other RX block's
-shape-validation checks in this pass. `self.ccsds_message().parse(...)`
-is wrapped in `try/except Exception`, logged at `error` — the wrong
-level for this block's pipeline position (`ccsds_reader` *is* on
-[coding-standards.md](../coding-standards.md)'s raw-RF `warn` list).
-Everything after the successful parse — building every metadata dict,
-extracting `data`, and the final `message_port_pub` call — runs
-**entirely outside any exception handling**; an unexpected error there
-(e.g. a `_python_to_pmt` failure, an attribute access on an unexpectedly
-`None` parsed section) would crash the handler thread.
+**Error handling** (compliant with
+[coding-standards.md](../coding-standards.md),
+[ADR-0003](../adr/0003-message-handler-error-policy.md)): `decode_ccsds`
+checks `pmt.is_pair(msg)` and `pmt.is_u8vector(in_body)` before use, both
+logged at `warn` (matching this block's membership in the raw-RF `warn`
+list); the full body past those two checks — parsing, building every
+metadata dict, extracting `data`, and the final `message_port_pub`
+call — is wrapped in catch-log-drop (`except Exception`), also logged at
+`warn`.
 
-**Docstrings**: none of ADR-0004's required coverage is present for the
-PMT-touching parts of this class. The class itself still carries
-`gr_modtool`'s placeholder (`"""docstring for block ccsds_reader"""`);
-`__init__` and `decode_ccsds` (the message handler) have no docstring.
-`_python_to_pmt` (a PMT-touching private helper) has none either.
-`csp_header`, `encapsulation_header`, `sdls_security_header`,
+**Docstrings** (compliant with
+[ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)): a real
+class-level summary; full `Args` for `__init__`; full
+`Args`/`Publishes`/`Drops when` for `decode_ccsds` (the message
+handler); full `Args`/`Returns` for `_python_to_pmt` (a PMT-touching
+private helper). `csp_header`, `encapsulation_header`, `sdls_security_header`,
 `sdls_security_trailer`, `tc_header`, `frame_error_control_field`, and
 `ccsds_message` (all non-PMT `construct`-format builders, returning a
 parser/`Struct` object rather than touching PMT directly) already carry
@@ -177,10 +166,6 @@ widely-used-in-practice convention layered on top, included here because
   completely unused.** See Parameters above. Whether this is a
   forward-looking placeholder for real TM support or simply dead is a
   design question — deliberately not resolved here.
-- **`None`-valued encapsulation-header fields are published as the PMT
-  symbol `"None"`**, not a real null — see Behavior above for the
-  confirmed reproduction and the `inject_db` precedent for the same
-  underlying mistake.
 - **No constructor-time validation for any of the four parameters** —
   `sdls_type` and `data_type` in particular control which `construct`
   structure gets built; an out-of-range value isn't rejected until (or
@@ -188,7 +173,7 @@ widely-used-in-practice convention layered on top, included here because
 
 ## Test coverage
 
-- `python/soarr/qa_ccsds_reader.py` — 15 test methods: construction with
+- `python/soarr/qa_ccsds_reader.py` — 19 test methods: construction with
   default and several custom parameter combinations
   (`test_instance_default`, `test_instance_custom_tc_no_security`,
   `test_instance_csp_encryption`, `test_instance_authentication_only`),
@@ -198,15 +183,16 @@ widely-used-in-practice convention layered on top, included here because
   `test_sdls_encryption_only`, `test_sdls_authentication_only`,
   `test_sdls_no_security` — structural checks against `subcons` field
   names, not a build/parse round-trip), message port registration
-  (`test_message_port_registration`), and two full build-then-decode
+  (`test_message_port_registration`), two full build-then-decode
   round trips through the real `decode_ccsds` handler
   (`test_decode_full_packet_outputs_all_fields_and_unchanged_u8vector`,
   every optional section present; `test_decode_minimal_packet_outputs_fields_and_unchanged_u8vector`,
   minimal TC-only frame) that check the published payload bytes and a
-  representative sample of metadata fields. **No test covers**: a
-  `None`-valued encapsulation-header field (the bug above), a malformed
-  PDU (not a pair, non-u8vector payload), a parse failure past
-  construction (only the `try/except` around `.parse()` itself is
-  implicitly reachable if a test fed genuinely malformed bytes, but none
-  does), or any exception in the unwrapped post-parse metadata-building
-  code.
+  representative sample of metadata fields, a minimal encapsulation
+  header's `None`-valued fields confirmed not to publish as the PMT
+  symbol `"None"` (`test_decode_none_valued_encapsulation_fields_not_published_as_none_symbol`),
+  a non-pair and a non-u8vector-body input each dropped cleanly
+  (`test_decode_non_pair_dropped_cleanly`,
+  `test_decode_non_u8vector_body_dropped_cleanly`), and a mock-forced
+  publish failure proven to be caught and dropped rather than raised
+  through the real handler (`test_decode_publish_failure_dropped_cleanly`).
