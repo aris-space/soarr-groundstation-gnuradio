@@ -24,9 +24,14 @@ RX: ccsds_reader.debug → inject_db.in
     inject_db.out → sdls_authentication_verify.in
 ```
 
-Confirmed via `python/soarr/qa_layoutTest.py`'s `msg_connect` wiring
-(TX instance) and [architecture.md](../architecture.md)'s RX chain
-diagram (RX instance, not independently wired/tested in this repo).
+The TX instance's `db_call`/`db_callback` wiring to `db_client` and its
+`out → encapsulation_header.in` connection are confirmed via
+`python/soarr/qa_layoutTest.py`'s `msg_connect` wiring; its `in` port is
+fed by posting a PDU directly to the block in that test, not via
+`msg_connect`, so the real upstream source (`inject_db`/`data_creator`)
+is inferred from architecture.md, not independently wired here. The RX
+instance's wiring is documented in [architecture.md](../architecture.md)'s
+RX chain diagram only — not independently wired or tested in this repo.
 
 ## Message ports
 
@@ -56,10 +61,12 @@ directly, with no merge.
 
 **Metadata merge** (`_merge_metadata`/`_should_merge_key`/
 `_merge_key_into_nested`/`_resolve_key`): for every key in the
-`db_callback` response, merges it into the pending metadata **only if
-that key is genuinely absent everywhere** (checked via `_resolve_key`,
-which itself checks both the top level and the relevant nested path) —
-an existing top-level or nested value always wins over the callback's.
+`db_callback` response (iterated directly via `pmt.dict_items`, so
+values keep their original PMT type — nothing round-trips through a
+Python conversion), merges it into the pending metadata **only if that
+key is genuinely absent everywhere** (checked via `_resolve_key`, which
+itself checks both the top level and the relevant nested path) — an
+existing top-level or nested value always wins over the callback's.
 `scid`/`vcid`/`bypass`→`bypass_flag`/`control`→`control_flag`/
 `vcid_counter` are merged under `telecommand.tc_header`; `spi`/
 `sdls_counter` under `sdls.security_header`. This exact logic is the
@@ -71,35 +78,34 @@ own metadata keys arrive nested vs. top-level in the real pipeline.
 types — `int` (or `uint64`), `bool` (a real PMT boolean, or an integer
 `0`/`1`), `int_or_nil` (unused by either handler currently), and
 `secret_or_nil` (`PMT_NIL` or a PMT symbol — used for `auth_key`/
-`crypt_key`, which may legitimately be absent). A missing or
-wrong-type required key drops the message (logged, no publish).
+`crypt_key`, which may legitimately be absent or explicitly nil). For
+these two nullable types, a key resolving to `PMT_NIL` is *not* treated
+as "missing" — the nil/absent decision is deferred entirely to
+`_check_key_type`, which accepts it. For `int`/`bool`, a key resolving to
+`PMT_NIL` is still correctly treated as missing (dropped, logged). A
+missing or wrong-type required key drops the message (logged, no
+publish).
 
 **`send_db_call`'s required keys**: `scid`, `spi` (int), `bypass`,
-`control` (bool) — noted in the code's own comment as a fixed,
-simplified query ("For testing, we will just send a fixed query to the
-database client"), not necessarily every field a real database lookup
-would need.
+`control` (bool) — its own docstring notes this is a fixed, simplified
+query, not necessarily every field a real database lookup would need.
 
 **`send_msg_out`'s required keys**: everything `send_db_call` requires,
 plus `auth_key`, `crypt_key` (`secret_or_nil`), `vcid`, `vcid_counter`,
 `sdls_counter` (int).
 
-**Error handling**: every one of `_extract_pdu`'s three shape checks and
-`_check_keys`'s two failure cases logs at `warn` (11 call sites in this
-file, all `warn`, none `error`) — this block is not on the raw-RF `warn`
-list in [coding-standards.md](../coding-standards.md), so
-[ADR-0003](../adr/0003-message-handler-error-policy.md)'s classification
-would put every one of these at `error` instead (once a message reaches
-this block, it's well past any raw-RF noise boundary on both the TX and
-RX chains it's used in). Neither `send_db_call` nor `send_msg_out` wraps
-its body in `try`/`except` — `_merge_metadata` has its own two internal
-`try`/`except` blocks (guarding a `pmt.to_python`/`pmt.dict_items` call
-each), but nothing wraps the handlers' full bodies, including the final
-`message_port_pub` calls.
+**Error handling** (compliant with
+[coding-standards.md](../coding-standards.md),
+[ADR-0003](../adr/0003-message-handler-error-policy.md)): every
+rejection logs at `error` (this block is not on the raw-RF `warn` list).
+`send_db_call` and `send_msg_out` each wrap their full body in
+catch-log-drop (`except Exception`), including the final
+`message_port_pub` call.
 
-**Docstrings**: none anywhere — the class docstring is still
-`gr_modtool`'s unfilled placeholder (`"""docstring for block
-inject_db"""`).
+**Docstrings** (compliant with
+[ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)): full
+`Args`/`Raises`/`Returns` for `__init__` and every PMT-touching private
+helper, `Args`/`Publishes`/`Drops when` for both handlers.
 
 ## CCSDS reference
 
@@ -124,37 +130,39 @@ None — this block is pure metadata plumbing, not a CCSDS-defined layer.
   `db_callback` pair (e.g. a request-id tag, or a queue of pending
   requests instead of one slot) — a real behavioral/contract change, not
   a small fix.
-- **Every rejection logs at `warn`, not `error`** — see Error handling
-  above; a repo-wide-established, mechanical fix once applied elsewhere.
-- **Neither handler wraps its full body in catch-log-drop** — see Error
-  handling above.
-- **Dead self-assignments in `_resolve_key`/`_merge_key_into_nested`**:
-  `if key == "vcid_counter": tc_key = "vcid_counter"` and
-  `if key == "spi": sdls_key = "spi"` / `if key == "sdls_counter":
-  sdls_key = "sdls_counter"` each reassign a variable to the value it
-  already holds — no-op conditionals, apparently copy-pasted from the
-  adjacent `bypass`→`bypass_flag`/`control`→`control_flag` renames where
-  a real rename happens.
-- **`send_db_call` and `send_msg_out` each duplicate `_extract_pdu`'s own
-  `pmt.is_pair` check** — both handlers check `pmt.is_pair(msg)`
-  themselves before calling `_extract_pdu`, which immediately performs
-  the identical check again.
-- **No docstrings anywhere** — full ADR-0004 gap.
+Everything else found in this pass was fixed directly, including a real
+correctness bug beyond what round 1 review first caught:
+`secret_or_nil`-typed keys (`auth_key`/`crypt_key`) resolving to a
+genuine `PMT_NIL` value were being rejected as "missing" — the same
+class of bug as the deferred item above but with an unambiguous fix, not
+a design question. Compounding it, `_merge_metadata`'s now-removed
+`pmt.to_python`/`_python_to_pmt` round-trip path silently corrupted a
+merged `PMT_NIL` value into the PMT symbol `"None"` before it ever
+reached that check — a real, silent metadata-corruption bug affecting
+every `db_callback` response that legitimately merges a nil `auth_key`/
+`crypt_key` into pending metadata. See Behavior above for the current,
+correct state.
 
 ## Test coverage
 
-- `python/soarr/qa_inject_db.py` — 14 test methods (`test_instance` +
-  `test_001`–`test_013`): a valid `in` PDU (with nested `telecommand`/
+- `python/soarr/qa_inject_db.py` — 17 test methods (`test_instance` +
+  `test_001`–`test_016`): a valid `in` PDU (with nested `telecommand`/
   `sdls` metadata) emitting a `db_call`, a missing required key and a
   non-integer `scid` each emitting nothing, a `db_callback` with valid
-  symbol-hex `auth_key`/`crypt_key` emitting `out`, `PMT_NIL`
-  auth/crypt keys accepted, a wrong PMT type for `crypt_key` (a
+  symbol-hex `auth_key`/`crypt_key` emitting `out`, a genuinely nil
+  `auth_key`/`crypt_key` accepted and forwarded downstream as real
+  `PMT_NIL` (`test_005`), a wrong PMT type for `crypt_key` (a
   u8vector instead of `PMT_NIL`/symbol) rejected, a non-integer
   required field rejected, a non-u8vector payload rejected, integer
   `0`/`1` accepted in place of real PMT booleans for `bypass`/`control`,
-  a missing `spi` rejected, and two merge-behavior tests: a `db_callback`
-  filling in keys absent from the original `in` metadata
-  (`test_012`), and confirming the merge never overwrites a key the
-  original `in` metadata already had, even when `db_callback` supplies a
-  conflicting value for the same key (`test_013`). No test exercises
-  more than one in-flight request at a time (see Known issues above).
+  a missing `spi` rejected, a `db_callback` filling in keys absent from
+  the original `in` metadata (`test_012`), confirming the merge never
+  overwrites a key the original `in` metadata already had — including
+  confirming a genuinely nil `auth_key`/`crypt_key` survives the merge as
+  real `PMT_NIL`, not some other value (`test_013`), `auth_key`/
+  `crypt_key` genuinely absent (not merely nil) also accepted
+  (`test_014`), and a mock-forced publish failure proven to be caught
+  and dropped rather than raised through the real handler, for both
+  `send_db_call` (`test_015`) and `send_msg_out` (`test_016`). No test
+  exercises more than one in-flight request at a time (see Known issues
+  above).

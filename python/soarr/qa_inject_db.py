@@ -204,7 +204,10 @@ class qa_inject_db(gr_unittest.TestCase):
         finally:
             self._restore_pub(block, original_pub)
 
-        self.assertEqual(len(published), 0)
+        self.assertEqual(len(published), 1)
+        out_port, out_msg = published[0]
+        self.assertTrue(pmt.eqv(out_port, pmt.intern("out")))
+        self.assertTrue(pmt.equal(out_msg, msg))
 
     def test_006_db_callback_allows_symbol_hex_auth_and_crypt(self):
         block = inject_db()
@@ -417,6 +420,91 @@ class qa_inject_db(gr_unittest.TestCase):
         self.assertTrue(pmt.is_integer(tc_vcid) and int(pmt.to_long(tc_vcid)) == 0x44)
         self.assertTrue(pmt.is_integer(tc_vcid_counter) and int(pmt.to_long(tc_vcid_counter)) == 3)
         self.assertTrue(pmt.is_integer(sdls_counter) and int(pmt.to_long(sdls_counter)) == 5)
+
+        # A genuinely nil auth_key/crypt_key must survive the merge as
+        # PMT_NIL, not get corrupted into some other PMT value.
+        auth_key = pmt.dict_ref(out_meta, pmt.intern("auth_key"), pmt.intern("MISSING"))
+        crypt_key = pmt.dict_ref(out_meta, pmt.intern("crypt_key"), pmt.intern("MISSING"))
+        self.assertTrue(pmt.eqv(auth_key, pmt.PMT_NIL))
+        self.assertTrue(pmt.eqv(crypt_key, pmt.PMT_NIL))
+
+    # Additional: auth_key/crypt_key genuinely absent (not even set to
+    # PMT_NIL) must also be accepted - secret_or_nil means absent-or-nil.
+    def test_014_db_callback_allows_absent_auth_and_crypt(self):
+        block = inject_db()
+        original_pub, published = self._capture_pub(block)
+        try:
+            meta = pmt.make_dict()
+            meta = pmt.dict_add(meta, pmt.intern("telecommand"), self._mk_nested_tc({
+                "scid": 0x155,
+                "vcid": 0x12,
+                "vcid_counter": 1,
+                "bypass_flag": False,
+                "control_flag": True,
+            }))
+            meta = pmt.dict_add(meta, pmt.intern("sdls"), self._mk_nested_sdls({
+                "spi": 1,
+                "sdls_counter": 2,
+            }))
+            # auth_key/crypt_key intentionally not set at all.
+            msg = pmt.cons(meta, pmt.init_u8vector(3, [1, 2, 3]))
+            block.send_msg_out(msg)
+        finally:
+            self._restore_pub(block, original_pub)
+
+        self.assertEqual(len(published), 1)
+
+    # Additional: an internal failure past field extraction (e.g. publish
+    # itself raising) is caught, logged, and dropped - not left to raise
+    # out of the real message handler.
+    def test_015_send_db_call_internal_failure_is_dropped_not_raised(self):
+        block = inject_db()
+        original_pub, published = self._capture_pub(block)
+        try:
+            meta = pmt.make_dict()
+            meta = pmt.dict_add(meta, pmt.intern("telecommand"), self._mk_nested_tc({
+                "scid": 0x155,
+                "bypass_flag": False,
+                "control_flag": True,
+            }))
+            meta = pmt.dict_add(meta, pmt.intern("sdls"), self._mk_nested_sdls({"spi": 1}))
+            msg = pmt.cons(meta, pmt.init_u8vector(3, [1, 2, 3]))
+
+            def _raise(port, out_msg):
+                raise RuntimeError("simulated publish failure")
+
+            block.message_port_pub = _raise
+            block.send_db_call(msg)  # must not raise
+        finally:
+            self._restore_pub(block, original_pub)
+
+    def test_016_send_msg_out_internal_failure_is_dropped_not_raised(self):
+        block = inject_db()
+        original_pub, published = self._capture_pub(block)
+        try:
+            meta = pmt.make_dict()
+            meta = pmt.dict_add(meta, pmt.intern("telecommand"), self._mk_nested_tc({
+                "scid": 0x155,
+                "vcid": 0x12,
+                "vcid_counter": 1,
+                "bypass_flag": False,
+                "control_flag": True,
+            }))
+            meta = pmt.dict_add(meta, pmt.intern("sdls"), self._mk_nested_sdls({
+                "spi": 1,
+                "sdls_counter": 2,
+            }))
+            meta = pmt.dict_add(meta, pmt.intern("auth_key"), pmt.PMT_NIL)
+            meta = pmt.dict_add(meta, pmt.intern("crypt_key"), pmt.PMT_NIL)
+            msg = pmt.cons(meta, pmt.init_u8vector(3, [1, 2, 3]))
+
+            def _raise(port, out_msg):
+                raise RuntimeError("simulated publish failure")
+
+            block.message_port_pub = _raise
+            block.send_msg_out(msg)  # must not raise
+        finally:
+            self._restore_pub(block, original_pub)
 
 
 if __name__ == '__main__':
