@@ -11,14 +11,29 @@ import pmt
 
 class lfsr_descrambler(gr.basic_block):
     """
-    docstring for block lfsr_descrambler
+    Reverses CCSDS 231.0-B-3 pseudo-randomization on a PDU's payload by
+    XORing it against a running LFSR-generated sequence, the same fixed
+    generator polynomial lfsr_scrambler applies on the TX side.
     """
     def __init__(self, mask:int=169,seed:int=255,register_length:int=8):
+        """
+        Args:
+            mask (int): Accepted and stored, but not currently read by
+                the descrambling algorithm.
+            seed (int): Initial 8-bit LFSR register state. Only the low
+                register_length bits are used.
+            register_length (int): LFSR register width in bits. Only 8
+                is supported (the CCSDS 231.0-B-3 randomizer is defined
+                for an 8-bit register).
+
+        Raises:
+            ValueError: register_length is not 8.
+        """
         gr.basic_block.__init__(self,
             name="LFSR Descrambler",
             in_sig=None,
             out_sig=None)
-        
+
         self.mask = mask
         self.seed = seed
         self.register_length = register_length
@@ -35,6 +50,13 @@ class lfsr_descrambler(gr.basic_block):
         self.set_msg_handler(pmt.intern("in"), self.descramble_msg)
 
     def reset_sequence(self):
+        """
+        Reseeds the running LFSR sequence from `seed`, restarting bit
+        generation from the beginning.
+
+        Raises:
+            ValueError: register_length is not 8.
+        """
         if self.register_length != 8:
             raise ValueError("CCSDS randomizer requires register_length=8")
 
@@ -64,6 +86,18 @@ class lfsr_descrambler(gr.basic_block):
         return next_bit
 
     def apply_descrambling(self, data):
+        """
+        Args:
+            data: sequence of payload bytes to descramble.
+
+        Returns:
+            bytearray: `data` XORed (MSB first) against the next
+                len(data) * 8 bits pulled from the running randomizer
+                sequence.
+
+        Raises:
+            ValueError: register_length is not 8.
+        """
         if self.register_length != 8:
             raise ValueError("CCSDS randomizer requires register_length=8")
 
@@ -84,36 +118,56 @@ class lfsr_descrambler(gr.basic_block):
     
 
     def descramble_msg(self, msg):
+        """
+        Args:
+            msg (pmt_pair): PDU with metadata dict and u8vector payload.
+                Metadata keys:
+                    scramble_reset (bool, optional): if truthy, reseeds
+                        the running LFSR sequence before descrambling.
+                    filled (any, optional): if present at all (its value
+                        is not inspected), reseeds the running LFSR
+                        sequence before descrambling.
+
+        Publishes:
+            "out" (pmt_pair): PDU with the same metadata dict and the
+                payload XORed against the running randomizer sequence;
+                length preserved.
+
+        Drops when:
+            - msg is not a pair (warn - raw RF data, malformed before any structural check)
+            - payload is not a u8vector (warn - same)
+            - descrambling or publishing fails (warn - same)
+        """
         if not pmt.is_pair(msg):
-            self.logger.error("Input message is not a PDU (pair).")
+            self.logger.warn("Input message is not a PDU (pair).")
             return
 
         meta = pmt.car(msg)
         body = pmt.cdr(msg)
 
         if not pmt.is_u8vector(body):
-            self.logger.error("Input message body is not a PDU (u8vector).")
+            self.logger.warn("Input message body is not a PDU (u8vector).")
             return
 
-        pdu_data = pmt.u8vector_elements(body)
-
-        if pmt.dict_has_key(meta, pmt.intern("scramble_reset")):
-            if pmt.to_bool(pmt.dict_ref(meta, pmt.intern("scramble_reset"))):
-                self.reset_sequence()
-        elif pmt.dict_has_key(meta, pmt.intern("filled")):
-            # Presence of 'filled' marks end-of-message in this chain.
-            self.reset_sequence()
-        
         try:
+            pdu_data = pmt.u8vector_elements(body)
+
+            if pmt.dict_has_key(meta, pmt.intern("scramble_reset")):
+                if pmt.to_bool(pmt.dict_ref(meta, pmt.intern("scramble_reset"))):
+                    self.reset_sequence()
+            elif pmt.dict_has_key(meta, pmt.intern("filled")):
+                # Presence of 'filled' marks end-of-message in this chain.
+                self.reset_sequence()
+
             descrambled_data = self.apply_descrambling(pdu_data)
-        except ValueError as err:
-            self.logger.error(str(err))
+
+            msg = pmt.cons(meta, pmt.init_u8vector(len(descrambled_data), descrambled_data))
+
+            self.message_port_pub(pmt.intern("out"), msg)
+            self.logger.debug("OK")
+
+            return msg
+        except Exception as exc:
+            self.logger.warn(f"Failed to descramble or publish message: {exc}")
             return
-        
-        msg = pmt.cons(meta, pmt.init_u8vector(len(descrambled_data), descrambled_data))
-
-        self.message_port_pub(pmt.intern("out"), msg)
-        self.logger.debug(f"OK")
-
-        return msg
 

@@ -99,6 +99,24 @@ class qa_lfsr_descrambler(gr_unittest.TestCase):
         with self.assertRaises(ValueError):
             invalid = lfsr_descrambler(register_length=7)
 
+    def test_009_publish_failure_dropped_cleanly(self):
+        meta = pmt.make_dict()
+        payload_bytes = bytes([0xFF, 0x39, 0x9E, 0x5A, 0x68])
+        payload = pmt.init_u8vector(len(payload_bytes), list(payload_bytes))
+        pdu = pmt.cons(meta, payload)
+
+        def _raise_on_publish(port, msg):
+            raise RuntimeError("forced publish failure")
+
+        original_pub = self.descrambler.message_port_pub
+        self.descrambler.message_port_pub = _raise_on_publish
+        try:
+            result = self.descrambler.descramble_msg(pdu)
+        finally:
+            self.descrambler.message_port_pub = original_pub
+
+        self.assertIsNone(result)
+
 
 if __name__ == '__main__':
     gr_unittest.run(qa_lfsr_descrambler)

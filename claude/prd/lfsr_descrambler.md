@@ -18,15 +18,21 @@ either signal chain by any `.grc` flowgraph in this repo. Used two ways:
    output to it directly.
 2. **As a plain Python helper**, instantiated and called directly (not
    through the message-port graph) by `ccsds_receiver`, the one canonical
-   RX path (`ccsds_receiver.py:79,138,140`):
+   RX path (`ccsds_receiver.py:79`), which calls `descramble_msg` once per
+   incoming PDU and `reset_sequence()` directly — bypassing
+   `descramble_msg` entirely — at five separate points tied to frame
+   boundaries, not PDU metadata (see Behavior below for all five). The
+   `descramble_msg` call itself (`ccsds_receiver.py:134-143`), inside a
+   `if DESCRAMBLING_ACTIVE:` guard (a module-level constant, currently
+   always `True`):
    ```python
-   self.lfsr_descrambler = lfsr_descrambler(169, 255, 8)
-   ...
-   if not self.length_found and self.message_type != MESSAGE_TYPE_FIXED:
-       self.lfsr_descrambler.reset_sequence()
-   msg = self.lfsr_descrambler.descramble_msg(msg)
-   if msg is None:
-       ...  # LFSR descrambling failed, ignore message
+   if DESCRAMBLING_ACTIVE:
+       if not self.length_found and self.message_type != MESSAGE_TYPE_FIXED:
+           self.lfsr_descrambler.reset_sequence()
+
+       msg = self.lfsr_descrambler.descramble_msg(msg)
+       if msg is None:
+           ...  # LFSR descrambling failed, ignore message
    ```
    The `msg` passed here is always `bch_decoder.error_correction_mode`'s
    own return value from the line just above it in `ccsds_receiver`
@@ -43,7 +49,7 @@ Also feeds the separate, internal-testing-only chain documented in
 
 | Port | Direction | PMT shape | Example |
 |---|---|---|---|
-| `in` | input | PDU: `(metadata_dict . payload_u8vector)`. No required metadata keys, but `scramble_reset` or `filled` (either one, if present) trigger a sequence reset — see Behavior below. | `pmt.cons({}, u8vector(payload))` |
+| `in` | input | PDU: `(metadata_dict . payload_u8vector)`. No required metadata keys, but `scramble_reset` or `filled` (either one, if present) trigger a sequence reset via this port's own handler — one of two separate reset paths, see Behavior below. | `pmt.cons({}, u8vector(payload))` |
 | `out` | output | PDU: `(metadata_dict . descrambled_payload_u8vector)`. Metadata passed through unchanged; only the payload bytes are transformed, length preserved. | `pmt.cons({}, u8vector(descrambled))` |
 
 `descramble_msg` (the handler registered on `in`) also **returns** the
@@ -71,42 +77,50 @@ payload byte (MSB first) against successive bits pulled from that
 running state.
 
 **Sequence reset**: `reset_sequence()` reseeds `self._window` from
-`seed` and resets `self._seq_index` to `0` — called once at construction,
-and again whenever `descramble_msg` sees either metadata key on an
-incoming PDU: `scramble_reset` (only if its value is truthy) or `filled`
-(**on presence alone — its value is never inspected**, unlike
-`scramble_reset`). Neither key is ever published by anything in this
-repo (`grep` confirms `scramble_reset` appears only in this file, and
-`bch_encoder`'s own `filled` key is never wired to this block — see
-[bch_encoder.md](bch_encoder.md)'s Message ports section for that key's
-other, disconnected use) — both reset paths are currently unreachable
-through any wiring that exists in this repo.
+`seed` and resets `self._seq_index` to `0`, and is reachable through two
+entirely separate paths:
 
-**Error handling**: `lfsr_descrambler` *is* on
-[coding-standards.md](../coding-standards.md)'s raw-RF `warn` list, but
-its three `self.logger.error(...)` calls (not-a-pair, not-a-u8vector, the
-`register_length` `ValueError` from `apply_descrambling`) are all logged
-at `error` — the wrong level for this block's pipeline position, per
-[ADR-0003](../adr/0003-message-handler-error-policy.md)/
-[coding-standards.md](../coding-standards.md).
-[ADR-0003](../adr/0003-message-handler-error-policy.md) also requires
-every message handler to wrap its **full** body in catch-log-drop;
-`descramble_msg` doesn't: only the `apply_descrambling` call is wrapped,
-and only `except ValueError`, not `except Exception`. Everything between
-the `is_u8vector` check and that `try` — `pmt.dict_has_key`/`dict_ref` on
-`meta` (never checked to actually be a dict) and the `reset_sequence()`
-calls — runs outside any exception handling.
+1. **Metadata-key path, inside `descramble_msg`** — triggered by either
+   `scramble_reset` (only if its value is truthy) or `filled` (**on
+   presence alone — its value is never inspected**, unlike
+   `scramble_reset`) on an incoming PDU's metadata. Neither key is ever
+   published by anything in this repo (`grep` confirms `scramble_reset`
+   appears only in this file, and `bch_encoder`'s own `filled` key is
+   never wired to this block — see [bch_encoder.md](bch_encoder.md)'s
+   Message ports section for that key's other, disconnected use) — this
+   path is currently unreachable through any wiring that exists in this
+   repo.
+2. **Direct calls from `ccsds_receiver`, bypassing `descramble_msg`
+   entirely** — the block's actual, frequently-exercised reset mechanism
+   in the one real caller, tied to frame boundaries rather than PDU
+   metadata, at five call sites: before the first codeword of a new
+   frame search, when not already accumulating one and not in fixed-
+   length mode (`ccsds_receiver.py:138`, inside the `DESCRAMBLING_ACTIVE`
+   guard shown in Pipeline position above); after a fixed-length frame's
+   buffer reaches `fixed_byte_length` and is published
+   (`ccsds_receiver.py:229`); after a frame-accumulation error aborts the
+   current frame (`ccsds_receiver.py:256`); and after a complete TC or
+   fixed-length frame is published (`ccsds_receiver.py:293`, `:303`).
 
-**Docstrings**: none of ADR-0004's required coverage is present. The
-class itself still carries `gr_modtool`'s placeholder
-(`"""docstring for block lfsr_descrambler"""`); `__init__`,
-`reset_sequence`, `descramble_msg` (a PMT-touching message handler), and
-`apply_descrambling` (the public algorithm method — `lfsr_scrambler`'s
-sibling `apply_scrambling` has a full docstring) all have no docstring at
-all. `_next_scramble_bit` (a private, non-PMT helper) has none either,
-permitted as-is by
-[coding-standards.md](../coding-standards.md)'s exemption for that
-category.
+**Error handling** (compliant with
+[coding-standards.md](../coding-standards.md),
+[ADR-0003](../adr/0003-message-handler-error-policy.md)): `descramble_msg`
+checks `msg` is a pair and its payload is a u8vector before use, both
+logged at `warn` (matching this block's membership in the raw-RF `warn`
+list); the full body past those two checks — the reset-key checks,
+`apply_descrambling`, PDU construction, and the `message_port_pub` call —
+is wrapped in catch-log-drop (`except Exception`), also logged at `warn`.
+
+**Docstrings** (compliant with
+[ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)): a real
+class-level summary; full `Args`/`Raises` for `__init__`; full
+`Args`/`Publishes`/`Drops when` for `descramble_msg` (a PMT-touching
+message handler); `Args`/`Returns`/`Raises` for `apply_descrambling`
+(the public algorithm method, matching `lfsr_scrambler`'s sibling
+`apply_scrambling` treatment); `Raises` for `reset_sequence`.
+`_next_scramble_bit` (a private, non-PMT helper) has none, permitted
+as-is by [coding-standards.md](../coding-standards.md)'s exemption for
+that category.
 
 **Naming**: file, class, GRC block-id, and every constructor parameter
 are already snake_case. `descramble_msg` (the handler) and
@@ -142,12 +156,14 @@ hand-derived vector alone.
 
 ## Test coverage
 
-- `python/soarr/qa_lfsr_descrambler.py` — 9 test methods (`test_instance`
-  + `test_001`-`test_008`): construction with default and custom
+- `python/soarr/qa_lfsr_descrambler.py` — 10 test methods (`test_instance`
+  + `test_001`-`test_009`): construction with default and custom
   parameters, an independent-source known-answer descramble (see CCSDS
   reference above), PDU metadata identity preserved, output length
-  preserved, zero-length payload, a non-u8vector body dropped cleanly, and
-  an invalid `register_length` raising at construction.
+  preserved, zero-length payload, a non-u8vector body dropped cleanly, an
+  invalid `register_length` raising at construction, and a mock-forced
+  publish failure proven to be caught and dropped rather than raised
+  through the real handler.
 - `python/soarr/qa_lfsrScramberDescrambler.py` — 3 test methods
   (`test_instance` + `test_001`-`test_002`): `lfsr_scrambler` →
   `lfsr_descrambler` round trip recovers the original payload and
