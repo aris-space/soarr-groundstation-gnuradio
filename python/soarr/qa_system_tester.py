@@ -38,8 +38,14 @@ class qa_system_tester(gr_unittest.TestCase):
     def _restore_port(self, block, original_pub):
         block.message_port_pub = original_pub
 
-    def _make_pdu(self, payload_bytes):
-        return pmt.cons(pmt.make_dict(), pmt.init_u8vector(len(payload_bytes), list(payload_bytes)))
+    def _make_pdu(self, payload_bytes, vcid_counter=0):
+        tc_header = pmt.make_dict()
+        tc_header = pmt.dict_add(tc_header, pmt.intern("vcid_counter"), pmt.from_long(vcid_counter))
+        telecommand = pmt.make_dict()
+        telecommand = pmt.dict_add(telecommand, pmt.intern("tc_header"), tc_header)
+        meta = pmt.make_dict()
+        meta = pmt.dict_add(meta, pmt.intern("telecommand"), telecommand)
+        return pmt.cons(meta, pmt.init_u8vector(len(payload_bytes), list(payload_bytes)))
 
     def test_instance(self):
         instance = system_tester()
@@ -64,8 +70,8 @@ class qa_system_tester(gr_unittest.TestCase):
         self.assertTrue(pmt.dict_has_key(trigger_meta, pmt.intern("packet_id")))
 
         payload = bytes([0x10, 0x20, 0x30, 0x40])
-        instance.handle_original(self._make_pdu(payload))
-        instance.handle_received(self._make_pdu(payload))
+        instance.handle_original(self._make_pdu(payload, vcid_counter=0))
+        instance.handle_received(self._make_pdu(payload, vcid_counter=0))
 
         stats = instance.get_stats()
         self.assertEqual(stats["generated_packets"], 1)
@@ -81,8 +87,8 @@ class qa_system_tester(gr_unittest.TestCase):
         reference = bytes([0x00, 0xFF])
         received = bytes([0x01, 0xFF])
 
-        instance.handle_original(self._make_pdu(reference))
-        instance.handle_received(self._make_pdu(received))
+        instance.handle_original(self._make_pdu(reference, vcid_counter=0))
+        instance.handle_received(self._make_pdu(received, vcid_counter=0))
 
         stats = instance.get_stats()
         self.assertEqual(stats["received_packets"], 1)
@@ -108,8 +114,31 @@ class qa_system_tester(gr_unittest.TestCase):
         self.assertEqual(stats["lost_packets"], 1)
         self.assertEqual(stats["received_packets"], 0)
 
-    def test_001_descriptive_test_name(self):
-        self.tb.run()
+    def test_004_save_stats_failure_does_not_crash_handle_received(self):
+        instance = system_tester(timeout_s=1.0, stats_path=None)
+        instance.handle_start(pmt.PMT_NIL)
+        payload = bytes([1, 2, 3])
+        instance.handle_original(self._make_pdu(payload, vcid_counter=0))
+
+        def _raise_on_save():
+            raise OSError("forced save failure")
+
+        instance._save_stats = _raise_on_save
+
+        # Should not raise, even though _finalize_entry's _update_stats
+        # call will hit the forced failure.
+        instance.handle_received(self._make_pdu(payload, vcid_counter=0))
+
+    def test_005_trigger_publish_failure_does_not_crash_handle_start(self):
+        instance = system_tester(timeout_s=1.0, stats_path=None)
+
+        def _raise_on_publish(port, msg):
+            raise RuntimeError("forced publish failure")
+
+        instance.message_port_pub = _raise_on_publish
+
+        # Should not raise.
+        instance.handle_start(pmt.PMT_NIL)
 
 
 if __name__ == '__main__':

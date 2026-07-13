@@ -49,7 +49,10 @@ any level of that path is missing or the final value isn't an integer
 PMT. For `start`, no such metadata exists yet (a `start` message carries
 no payload to extract it from), so `handle_start` instead uses
 `fallback_id = len(self._entries)` — a sequential counter, not tied to
-`vcid_counter` at all.
+`vcid_counter` at all. `vcid_counter` is the sole synchronization
+mechanism for `original`/`transmitted`/`received`; there is no
+insertion-order or other fallback tracking for a message that lacks one
+— such a message is dropped.
 
 **`handle_original` and `handle_transmitted` are near-identical**:
 extract the payload and `vcid_counter`; if either extraction fails,
@@ -60,39 +63,6 @@ payload under `entry["original"]`/`entry["transmitted"]` respectively.
 calls `_finalize_entry`, which picks `entry["original"]` if present,
 else `entry["transmitted"]`, as the reference payload; if **neither** is
 set, the packet counts as lost.
-
-**A `vcid_counter`-less `original`/`transmitted`/`received` message is
-dropped with no fallback tracking, despite `handle_start`'s own comment
-implying one should exist.** `handle_start`'s docstring reads: "the
-stream parsing ports will automatically track using vcid_counter if
-it's extracted there instead" — worded as if `vcid_counter` extraction
-were the *preferred* path with a fallback behind it, not the *only*
-path. `self._pending_order` (a `deque`) is appended to inside
-`_get_or_create_entry` every time a new entry is created, but is never
-read, iterated, or popped anywhere else in the class — the only place
-this state could plausibly be used (an insertion-order fallback for
-packets a caller couldn't tag with a real `vcid_counter`) doesn't exist.
-Confirmed directly: feeding `handle_original`/`handle_received` a PDU
-with an empty metadata dict (no `telecommand` key at all) causes
-`_extract_vcid_counter` to return `None` — `pmt.dict_ref` on a missing
-key returns `pmt.PMT_NIL`, and `pmt.is_dict(PMT_NIL)` is `True` in this
-PMT library (an empty dict and `PMT_NIL` are the same value), so the
-intermediate `is_dict` checks on the missing `telecommand`/`tc_header`
-levels don't short-circuit early — the function only actually returns
-`None` at the final `pmt.is_integer(vcid_counter_pmt)` check, since
-`PMT_NIL` isn't an integer PMT. Either way, the message is dropped with
-only a `warn` log, and `self._stats["generated_packets"]`/
-`["received_packets"]` never increment for it.
-
-**This is the confirmed root cause of this repo's two remaining
-baseline `pytest` failures**
-(`qa_system_tester.py::test_001_waiting_mode_triggers_and_matches_payload`,
-`::test_002_payload_difference_counts_as_message_and_bit_error`): both
-construct `original`/`received` PDUs via a bare
-`pmt.cons(pmt.make_dict(), u8vector(payload))` — no `telecommand`
-metadata at all — so every call into `handle_original`/`handle_received`
-is silently dropped, and `stats["received_packets"]` stays `0` instead
-of the `1` both tests expect.
 
 **`handle_start`'s repetition/mode gating**: a new `start` is ignored
 outright (no trigger emitted, no entry created) if `repetitions > 0` and
@@ -112,51 +82,37 @@ bytes were compared against all-zero). `compared_bits` accumulates
 `bit_error_rate` is later computed against.
 
 **Concurrency**: `self._lock` (`threading.RLock`) guards every read/write
-of `_entries`/`_pending_order`/`_stats`, since GNU Radio can invoke this
-block's four message handlers from different scheduler threads
-concurrently — a real, deliberate safety measure, not incidental.
+of `_entries`/`_stats`, since GNU Radio can invoke this block's four
+message handlers from different scheduler threads concurrently — a
+real, deliberate safety measure, not incidental.
 
-**Error handling**: none of the four message handlers
-(`handle_start`, `handle_original`, `handle_transmitted`,
-`handle_received`) wrap their body in catch-log-drop — this block is
-not on [coding-standards.md](../coding-standards.md)'s raw-RF `warn`
-list, so [ADR-0003](../adr/0003-message-handler-error-policy.md)'s
-policy applies in full, same as `data_creator`'s already-fixed
-handlers. A concrete, reachable failure exists in this gap:
-`_save_stats` (`json.dump` to a file, `os.makedirs` on its directory)
-is real file I/O, called from `_update_stats`, called from
-`_finalize_entry` (inside `handle_received`) and `_timeout_packet` (a
-background `threading.Timer` callback, not even on the message-handler
-thread) — an `OSError` there (unwritable path, full disk) would
-propagate uncaught. Five `self.logger.warn(...)` calls exist across
-`handle_original`/`handle_transmitted`/`handle_received` (missing
-`vcid_counter`) and `_finalize_entry`/`_timeout_packet` (lost packet);
-three `self.logger.error(...)` calls exist in the same three handlers
-(missing payload). Since this block isn't on the raw-RF `warn` list, all
-five `warn` calls are at the wrong level — the same `warn`→`error`
-direction `data_creator`'s own fix already established for the other
-ground-tooling block.
+**Error handling**: all four message handlers (`handle_start`,
+`handle_original`, `handle_transmitted`, `handle_received`) wrap their
+full body in catch-log-drop, matching
+[ADR-0003](../adr/0003-message-handler-error-policy.md)'s policy — this
+block is not on [coding-standards.md](../coding-standards.md)'s raw-RF
+`warn` list, so every log call at a handler's failure point is at
+`error`, matching `data_creator`'s own equivalent log calls.
 
-**Docstrings**: the class itself already has a real summary, not a
-`gr_modtool` placeholder. `_extract_vcid_counter` has a prose
-docstring describing the metadata path, and `_get_or_create_entry` has
-a one-line summary — neither in ADR-0004's `Args`/`Returns` format, but
-both convey the same information. `__init__`, all four message
-handlers, and every other private helper (`_extract_payload`,
-`_payload_to_pmt`, `_make_trigger_msg`, `_get_stats_snapshot`,
-`get_stats`, `_save_stats`, `_print_stats`, `_update_stats`,
-`_start_timeout_timer`, `_bit_errors`, `_finalize_entry`,
-`_timeout_packet`) have no docstring at all.
+**Docstrings**: the class docstring, `__init__`, all four message
+handlers, and every private helper that directly touches a PMT/PDU
+(`_extract_payload`, `_extract_vcid_counter`, `_payload_to_pmt`,
+`_make_trigger_msg`) have full `Args`/`Returns`/`Raises` or
+`Args`/`Publishes`/`Drops when` docstrings per
+[ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md).
+`_get_or_create_entry` keeps a one-line summary (it doesn't touch PMT
+directly). `_get_stats_snapshot`, `get_stats`, `_save_stats`,
+`_print_stats`, `_update_stats`, `_start_timeout_timer`, `_bit_errors`,
+`_finalize_entry`, and `_timeout_packet` have no docstring — none of
+them touch PMT directly, so ADR-0004 doesn't require one.
 
-**Naming**: file, class, every constructor parameter, and every method
-name are already snake_case. The GRC yaml's own `label:` field still
-reads `systemTester` (camelCase) — every other block's `label:` in this
-repo uses a human-readable Title Case string (e.g. "CCSDS Reader",
-"BCH Decoder"); this is the one block where that convention wasn't
-applied. `category: '[soarr]'` has no subcategory, unlike most other
-blocks (`'[soarr]/SDLS'`, `'[soarr]/Reception'`, etc.) — consistent with
-this being ground-tooling rather than a protocol-layer block, not
-obviously wrong.
+**Naming**: file, class, every constructor parameter, every method
+name, and the GRC yaml's `label:` field ("System Tester") are all
+snake_case/Title Case, matching every other block's convention.
+`category: '[soarr]'` has no subcategory, unlike most other blocks
+(`'[soarr]/SDLS'`, `'[soarr]/Reception'`, etc.) — consistent with this
+being ground-tooling rather than a protocol-layer block, not obviously
+wrong.
 
 ## CCSDS reference
 
@@ -168,47 +124,24 @@ tracking key.
 
 ## Known issues / TODOs
 
-- **`original`/`transmitted`/`received` messages without an extractable
-  `vcid_counter` are silently dropped, with no fallback tracking
-  mechanism** — the confirmed root cause of this repo's last two
-  baseline `pytest` failures (see Behavior above). `_pending_order`
-  exists but is never read, suggesting a FIFO/insertion-order fallback
-  was intended but never implemented. Whether the right fix is
-  implementing that fallback, or correcting the two failing tests to
-  construct realistic metadata (matching the class's own top-level
-  docstring, which frames `vcid_counter` as *the* synchronization
-  mechanism, not one of several) is a genuine design question —
-  deliberately not resolved here.
-- **No message handler wraps its body in catch-log-drop**, with a
-  concrete reachable failure mode (`_save_stats`'s file I/O) that would
-  currently crash a handler thread.
-- **Five `warn`-level log calls should be `error`**, matching
-  `data_creator`'s own already-fixed precedent for this repo's other
-  ground-tooling block.
-- **`qa_system_tester.py::test_001_descriptive_test_name`** — a test
-  whose own name states it isn't descriptive, duplicating the
-  `test_001` prefix already used by
-  `test_001_waiting_mode_triggers_and_matches_payload` in the same
-  file (Python's `unittest` permits this since the full method names
-  differ, but it reads as a mistake). Its body is `self.tb.run()` on an
-  empty `top_block` — it doesn't exercise `system_tester` at all.
+- No test exercises `handle_transmitted`, `AUTOMATIC_MODE`, the
+  `repetitions` cap, or `stats_path` actually writing a file.
 
 ## Test coverage
 
-- `python/soarr/qa_system_tester.py` — 5 test methods (`test_instance`,
-  `test_001_waiting_mode_triggers_and_matches_payload`,
-  `test_002_payload_difference_counts_as_message_and_bit_error`,
-  `test_003_timeout_marks_packet_lost`, plus the vestigial
-  `test_001_descriptive_test_name` noted above): construction and
+- `python/soarr/qa_system_tester.py` — 6 test methods: construction and
   default parameter values (`test_instance`); a `start`→`original`→
-  `received` flow expected to report zero errors for matching payloads
-  (`test_001`, currently failing — see Known issues); a `start`→
-  `original`→`received` flow with a deliberately different payload
-  expected to report one message error and a nonzero bit-error count
-  (`test_002`, currently failing, same root cause); and a `start`
-  followed by a direct `_timeout_packet` call (bypassing `received`
-  entirely, so it doesn't hit the broken `vcid_counter` path) confirmed
-  to mark the packet lost (`test_003`, passing). No test exercises
-  `handle_transmitted`, `AUTOMATIC_MODE`, the `repetitions` cap, a
-  forced exception past any handler's existing checks, or `stats_path`
-  actually writing a file.
+  `received` flow with matching payloads, each PDU carrying a
+  `telecommand.tc_header.vcid_counter` metadata path, expected to
+  report zero errors (`test_001_waiting_mode_triggers_and_matches_payload`);
+  the same flow with a deliberately different payload, expected to
+  report one message error and a nonzero bit-error count
+  (`test_002_payload_difference_counts_as_message_and_bit_error`); a
+  `start` followed by a direct `_timeout_packet` call (bypassing
+  `received` entirely) confirmed to mark the packet lost
+  (`test_003_timeout_marks_packet_lost`); `_save_stats` raising
+  `OSError` during `handle_received` confirmed not to propagate past
+  the handler (`test_004_save_stats_failure_does_not_crash_handle_received`);
+  and `message_port_pub` raising `RuntimeError` during `handle_start`
+  confirmed not to propagate past the handler
+  (`test_005_trigger_publish_failure_does_not_crash_handle_start`).

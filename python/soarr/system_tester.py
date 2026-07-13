@@ -11,7 +11,6 @@ import json
 import os
 import threading
 import time
-from collections import deque
 
 from gnuradio import gr
 import pmt
@@ -23,11 +22,31 @@ AUTOMATIC_MODE = 1
 
 class system_tester(gr.basic_block):
     """Track bit error rate, message error rate, and lost packets for a loopback test.
-    
-    Synchronized directly via the 'vcid_counter' embedded inside the 'tc_header' metadata.
+
+    Synchronized directly via the 'vcid_counter' embedded inside the 'tc_header' metadata -
+    the sole synchronization mechanism; a message without one is dropped, not tracked
+    by any fallback.
     """
 
     def __init__(self, repetitions=100, mode=0, timeout_s=1.0, stats_path="system_tester_stats.json"):
+        """
+        Args:
+            repetitions (int): cap on how many packets handle_start will
+                begin tracking. <= 0 means no cap.
+            mode (int): 0 (WAITING_TRIGGER_MODE) ignores a new start
+                while any tracked packet is still incomplete; 1
+                (AUTOMATIC_MODE) allows overlapping in-flight packets.
+            timeout_s (float): how long a tracked packet waits for
+                received before being marked lost. <= 0 disables the
+                timeout entirely.
+            stats_path (str | None): where to write a JSON stats
+                snapshot after every packet completes or times out,
+                resolved against the current working directory. None
+                (or empty) disables writing.
+
+        Raises:
+            ValueError: mode is not 0 or 1.
+        """
         gr.basic_block.__init__(self,
             name="system_tester",
             in_sig=None,
@@ -54,7 +73,6 @@ class system_tester(gr.basic_block):
         self.set_msg_handler(pmt.intern("received"), self.handle_received)
 
         self._lock = threading.RLock()
-        self._pending_order = deque()
         self._entries = {}
 
         self._stats = {
@@ -70,6 +88,14 @@ class system_tester(gr.basic_block):
         }
 
     def _extract_payload(self, msg):
+        """
+        Args:
+            msg (pmt): PDU expected to be `(metadata_dict . payload_u8vector)`.
+
+        Returns:
+            bytes | None: the payload bytes, or None if `msg` isn't a
+                pair or its cdr isn't a u8vector.
+        """
         if not pmt.is_pair(msg):
             return None
 
@@ -80,13 +106,19 @@ class system_tester(gr.basic_block):
         return bytes(pmt.u8vector_elements(payload))
 
     def _extract_vcid_counter(self, msg):
-        """Helper to navigate the PMT dictionary structure to find the vcid_counter.
-        
-        Structure: meta -> telecommand -> tc_header -> vcid_counter
+        """Walk meta -> telecommand -> tc_header -> vcid_counter.
+
+        Args:
+            msg (pmt): PDU expected to be `(metadata_dict . payload)`.
+
+        Returns:
+            int | None: the vcid_counter value, or None if `msg` isn't a
+                pair, any level of the path is missing, or the final
+                value isn't an integer PMT.
         """
         if not pmt.is_pair(msg):
             return None
-        
+
         meta = pmt.car(msg)
         if not pmt.is_dict(meta):
             return None
@@ -109,9 +141,25 @@ class system_tester(gr.basic_block):
         return None
 
     def _payload_to_pmt(self, payload_bytes):
+        """
+        Args:
+            payload_bytes (bytes): payload to convert.
+
+        Returns:
+            pmt_u8vector: `payload_bytes` as a PMT u8vector.
+        """
         return pmt.init_u8vector(len(payload_bytes), list(payload_bytes))
 
     def _make_trigger_msg(self, packet_id):
+        """
+        Args:
+            packet_id (int): tracking key to embed as `packet_id` in the
+                trigger's metadata.
+
+        Returns:
+            pmt_pair: PDU `(metadata_dict . PMT_NIL)`, metadata
+                `{packet_id: int, mode: int}`, no payload.
+        """
         meta = pmt.make_dict()
         meta = pmt.dict_add(meta, pmt.intern("packet_id"), pmt.from_long(packet_id))
         meta = pmt.dict_add(meta, pmt.intern("mode"), pmt.from_long(self.mode))
@@ -181,7 +229,6 @@ class system_tester(gr.basic_block):
         }
 
         entry["timer"] = self._start_timeout_timer(packet_id)
-        self._pending_order.append(packet_id)
         self._entries[packet_id] = entry
         self._stats["generated_packets"] += 1
         return entry
@@ -206,7 +253,7 @@ class system_tester(gr.basic_block):
 
         if reference_payload is None:
             self._stats["lost_packets"] += 1
-            self.logger.warn(f"Packet id={entry['packet_id']} completed without a reference payload; marking as lost.")
+            self.logger.error(f"Packet id={entry['packet_id']} completed without a reference payload; marking as lost.")
             return
 
         self._stats["received_packets"] += 1
@@ -237,82 +284,154 @@ class system_tester(gr.basic_block):
 
             entry["completed"] = True
             self._stats["lost_packets"] += 1
-            self.logger.warn(f"Packet id={packet_id} timed out after {self.timeout_s:.3f}s and was marked as lost.")
+            self.logger.error(f"Packet id={packet_id} timed out after {self.timeout_s:.3f}s and was marked as lost.")
             self._update_stats()
 
     def handle_start(self, msg):
-        """Note: handle_start doesn't see the generated metadata structure yet.
-        It generates a trigger message based on basic count, but the stream parsing ports 
-        will automatically track using vcid_counter if it's extracted there instead.
         """
-        with self._lock:
-            if self.repetitions > 0 and self._stats["generated_packets"] >= self.repetitions:
-                self.logger.info("Requested start ignored because the configured repetition limit was reached.")
-                return
+        Args:
+            msg (pmt): any PMT - content is ignored; receipt alone
+                triggers a new tracked packet, subject to
+                repetitions/mode gating.
 
-            if self.mode == WAITING_TRIGGER_MODE:
-                has_outstanding = any(not entry["completed"] for entry in self._entries.values())
-                if has_outstanding:
-                    self._stats["ignored_starts"] += 1
-                    self.logger.info("Waiting-trigger mode is busy; ignoring start request until the active packet completes.")
-                    self._update_stats()
+        Publishes:
+            "trigger" (pmt_pair): PDU with metadata {packet_id, mode},
+                no payload.
+
+        Drops when:
+            - the repetitions cap has been reached (info - not an error, expected steady-state behavior)
+            - mode is WAITING_TRIGGER_MODE and a tracked packet is still incomplete (info - same)
+            - creating the entry or publishing the trigger fails for any other reason (error - unexpected internal failure)
+        """
+        try:
+            with self._lock:
+                if self.repetitions > 0 and self._stats["generated_packets"] >= self.repetitions:
+                    self.logger.info("Requested start ignored because the configured repetition limit was reached.")
                     return
 
-            # Temporary incremental tracking key if created via internal trigger port
-            # (Will synchronize seamlessly when incoming streams report the true vcid_counter)
-            fallback_id = len(self._entries)
-            entry = self._get_or_create_entry(fallback_id, "start")
+                if self.mode == WAITING_TRIGGER_MODE:
+                    has_outstanding = any(not entry["completed"] for entry in self._entries.values())
+                    if has_outstanding:
+                        self._stats["ignored_starts"] += 1
+                        self.logger.info("Waiting-trigger mode is busy; ignoring start request until the active packet completes.")
+                        self._update_stats()
+                        return
 
-        self.logger.debug(f"Emitting trigger for packet id={entry['packet_id']}")
-        self.message_port_pub(pmt.intern("trigger"), self._make_trigger_msg(entry['packet_id']))
+                # Sequential tracking key, independent of vcid_counter -
+                # this is the only tracking key handle_start has, since a
+                # start message carries no metadata to extract one from.
+                fallback_id = len(self._entries)
+                entry = self._get_or_create_entry(fallback_id, "start")
+
+            self.logger.debug(f"Emitting trigger for packet id={entry['packet_id']}")
+            self.message_port_pub(pmt.intern("trigger"), self._make_trigger_msg(entry['packet_id']))
+        except Exception as exc:
+            self.logger.error(f"Failed to start tracking or publish trigger: {exc}")
+            return
 
     def handle_original(self, msg):
-        payload_bytes = self._extract_payload(msg)
-        if payload_bytes is None:
-            self.logger.error("Received original message without a PDU payload. Ignoring it.")
-            return
+        """
+        Args:
+            msg (pmt_pair): PDU with metadata dict and u8vector payload.
+                Metadata keys:
+                    telecommand.tc_header.vcid_counter (int): the
+                        tracking key this message is stored under.
+                Payload (bytes): reference payload stored for later
+                    scoring against the matching `received` message.
 
-        vcid_counter = self._extract_vcid_counter(msg)
-        if vcid_counter is None:
-            self.logger.warn("Could not extract vcid_counter from original metadata path; fallback to stream ordering logic.")
-            return
+        Drops when:
+            - the payload is not a PDU (error - malformed input)
+            - vcid_counter can't be extracted from the metadata (error - can't be tracked, no fallback)
+            - storing the payload fails for any other reason (error - unexpected internal failure)
+        """
+        try:
+            payload_bytes = self._extract_payload(msg)
+            if payload_bytes is None:
+                self.logger.error("Received original message without a PDU payload. Ignoring it.")
+                return
 
-        with self._lock:
-            entry = self._get_or_create_entry(vcid_counter, "original")
-            entry["original"] = payload_bytes
-            self._stats["original_packets"] += 1
-            self.logger.debug(f"Stored original payload for packet id={entry['packet_id']} ({len(payload_bytes)} bytes).")
+            vcid_counter = self._extract_vcid_counter(msg)
+            if vcid_counter is None:
+                self.logger.error("Could not extract vcid_counter from original metadata path. Ignoring it.")
+                return
+
+            with self._lock:
+                entry = self._get_or_create_entry(vcid_counter, "original")
+                entry["original"] = payload_bytes
+                self._stats["original_packets"] += 1
+                self.logger.debug(f"Stored original payload for packet id={entry['packet_id']} ({len(payload_bytes)} bytes).")
+        except Exception as exc:
+            self.logger.error(f"Failed to store original payload: {exc}")
+            return
 
     def handle_transmitted(self, msg):
-        payload_bytes = self._extract_payload(msg)
-        if payload_bytes is None:
-            self.logger.error("Received transmitted message without a PDU payload. Ignoring it.")
-            return
+        """
+        Args:
+            msg (pmt_pair): PDU with metadata dict and u8vector payload.
+                Metadata keys:
+                    telecommand.tc_header.vcid_counter (int): the
+                        tracking key this message is stored under.
+                Payload (bytes): alternate reference payload stored for
+                    later scoring, used only if `original` was never
+                    recorded for this packet.
 
-        vcid_counter = self._extract_vcid_counter(msg)
-        if vcid_counter is None:
-            self.logger.warn("Could not extract vcid_counter from transmitted metadata path.")
-            return
+        Drops when:
+            - the payload is not a PDU (error - malformed input)
+            - vcid_counter can't be extracted from the metadata (error - can't be tracked, no fallback)
+            - storing the payload fails for any other reason (error - unexpected internal failure)
+        """
+        try:
+            payload_bytes = self._extract_payload(msg)
+            if payload_bytes is None:
+                self.logger.error("Received transmitted message without a PDU payload. Ignoring it.")
+                return
 
-        with self._lock:
-            entry = self._get_or_create_entry(vcid_counter, "transmitted")
-            entry["transmitted"] = payload_bytes
-            self._stats["transmitted_packets"] += 1
-            self.logger.debug(f"Stored transmitted payload for packet id={entry['packet_id']} ({len(payload_bytes)} bytes).")
+            vcid_counter = self._extract_vcid_counter(msg)
+            if vcid_counter is None:
+                self.logger.error("Could not extract vcid_counter from transmitted metadata path. Ignoring it.")
+                return
+
+            with self._lock:
+                entry = self._get_or_create_entry(vcid_counter, "transmitted")
+                entry["transmitted"] = payload_bytes
+                self._stats["transmitted_packets"] += 1
+                self.logger.debug(f"Stored transmitted payload for packet id={entry['packet_id']} ({len(payload_bytes)} bytes).")
+        except Exception as exc:
+            self.logger.error(f"Failed to store transmitted payload: {exc}")
+            return
 
     def handle_received(self, msg):
-        payload_bytes = self._extract_payload(msg)
-        if payload_bytes is None:
-            self.logger.error("Received message without a PDU payload. Ignoring it.")
-            return
+        """
+        Args:
+            msg (pmt_pair): PDU with metadata dict and u8vector payload.
+                Metadata keys:
+                    telecommand.tc_header.vcid_counter (int): the
+                        tracking key this message is scored under.
+                Payload (bytes): received payload, scored against
+                    whichever reference payload (`original` or
+                    `transmitted`) is available for this packet.
 
-        vcid_counter = self._extract_vcid_counter(msg)
-        if vcid_counter is None:
-            self.logger.warn("Could not extract vcid_counter from received metadata path.")
-            return
+        Drops when:
+            - the payload is not a PDU (error - malformed input)
+            - vcid_counter can't be extracted from the metadata (error - can't be tracked, no fallback)
+            - scoring the packet or saving stats fails for any other reason (error - unexpected internal failure)
+        """
+        try:
+            payload_bytes = self._extract_payload(msg)
+            if payload_bytes is None:
+                self.logger.error("Received message without a PDU payload. Ignoring it.")
+                return
 
-        with self._lock:
-            entry = self._get_or_create_entry(vcid_counter, "received")
-            entry["received"] = payload_bytes
-            self.logger.debug(f"Stored received payload for packet id={entry['packet_id']} ({len(payload_bytes)} bytes).")
-            self._finalize_entry(entry, payload_bytes)
+            vcid_counter = self._extract_vcid_counter(msg)
+            if vcid_counter is None:
+                self.logger.error("Could not extract vcid_counter from received metadata path. Ignoring it.")
+                return
+
+            with self._lock:
+                entry = self._get_or_create_entry(vcid_counter, "received")
+                entry["received"] = payload_bytes
+                self.logger.debug(f"Stored received payload for packet id={entry['packet_id']} ({len(payload_bytes)} bytes).")
+                self._finalize_entry(entry, payload_bytes)
+        except Exception as exc:
+            self.logger.error(f"Failed to score received payload: {exc}")
+            return
