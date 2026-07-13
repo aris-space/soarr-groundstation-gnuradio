@@ -149,13 +149,19 @@ class qa_sdls_decryption(gr_unittest.TestCase):
 
         self.assertEqual(len(self.published), 0)
 
-    def test_007_non_dict_meta_no_output(self):
+    def test_007_non_dict_meta_dropped_cleanly(self):
         msg = self._make_pdu_from_parts(pmt.PMT_T, pmt.init_u8vector(2, [1, 2]))
 
-        with self.assertRaises(ValueError):
-            self.block.decrypt_message(msg)
+        original_pub = self._capture_pub()
+        try:
+            result = self.block.decrypt_message(msg)
+        finally:
+            self._restore_pub(original_pub)
 
-    def test_008_non_u8vector_payload_no_output(self):
+        self.assertIsNone(result)
+        self.assertEqual(len(self.published), 0)
+
+    def test_008_non_u8vector_payload_dropped_cleanly(self):
         meta = pmt.make_dict()
         meta = pmt.dict_add(
             meta,
@@ -165,8 +171,14 @@ class qa_sdls_decryption(gr_unittest.TestCase):
         meta = pmt.dict_add(meta, pmt.intern("sdls_counter"), pmt.from_long(1))
         msg = self._make_pdu_from_parts(meta, pmt.from_long(123))
 
-        with self.assertRaises(ValueError):
-            self.block.decrypt_message(msg)
+        original_pub = self._capture_pub()
+        try:
+            result = self.block.decrypt_message(msg)
+        finally:
+            self._restore_pub(original_pub)
+
+        self.assertIsNone(result)
+        self.assertEqual(len(self.published), 0)
 
     def test_009_nonce_validation_in_constructor(self):
         with self.assertRaises(ValueError):
@@ -175,6 +187,59 @@ class qa_sdls_decryption(gr_unittest.TestCase):
     def test_010_nonce_type_validation_in_constructor(self):
         with self.assertRaises(TypeError):
             sdls_decryption(nonce=0x1234)
+
+    def test_011_publish_failure_dropped_cleanly(self):
+        key_hex = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
+        counter = 0x1234
+        plaintext = bytes([1, 2, 3, 4])
+        ciphertext = AES.new(
+            bytes.fromhex(key_hex),
+            AES.MODE_CTR,
+            nonce=b"\x00" * 14,
+            initial_value=counter,
+        ).encrypt(plaintext)
+        msg = self._make_pdu(ciphertext, key_hex=key_hex, counter=counter)
+
+        def _raise_on_publish(port, out_msg):
+            raise RuntimeError("forced publish failure")
+
+        self.block.message_port_pub = _raise_on_publish
+        result = self.block.decrypt_message(msg)
+        self.assertIsNone(result)
+
+    def test_012_top_level_counter_pmt_nil_not_confused_with_absent(self):
+        """A top-level sdls_counter explicitly set to PMT_NIL is present,
+        not absent - it must not be silently overridden by a nested
+        sdls.security_header.sdls_counter fallback."""
+        key_hex = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
+        nested_counter = 5
+        plaintext = bytes([1, 2, 3, 4])
+        ciphertext = AES.new(
+            bytes.fromhex(key_hex),
+            AES.MODE_CTR,
+            nonce=b"\x00" * 14,
+            initial_value=nested_counter,
+        ).encrypt(plaintext)
+
+        meta = pmt.make_dict()
+        meta = pmt.dict_add(meta, pmt.intern("crypt_key"), pmt.intern(key_hex))
+        meta = pmt.dict_add(meta, pmt.intern("sdls_counter"), pmt.PMT_NIL)
+
+        nested_header = pmt.make_dict()
+        nested_header = pmt.dict_add(nested_header, pmt.intern("sdls_counter"), pmt.from_long(nested_counter))
+        nested_sdls = pmt.make_dict()
+        nested_sdls = pmt.dict_add(nested_sdls, pmt.intern("security_header"), nested_header)
+        meta = pmt.dict_add(meta, pmt.intern("sdls"), nested_sdls)
+
+        msg = self._make_pdu_from_parts(meta, pmt.init_u8vector(len(ciphertext), list(ciphertext)))
+
+        original_pub = self._capture_pub()
+        try:
+            self.block.decrypt_message(msg)
+        finally:
+            self._restore_pub(original_pub)
+
+        self.assertEqual(len(self.published), 0)
 
 
 if __name__ == '__main__':

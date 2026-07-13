@@ -42,29 +42,31 @@ confirmed-in-practice, not self-verifying from this repo alone. No
 
 **`decryption_state=False`**: `decrypt_message` still runs its three
 shape checks first, unconditionally, before ever looking at
-`decryption_state`; only past those does it check the flag and, if
-`False`, republish the input PDU on `out` completely unchanged, with no
-key/counter extraction. **Opposite order from the TX sibling**:
+`decryption_state` — logged at `error` and dropped on failure exactly
+as it would for `decryption_state=True` (see Error handling below); only
+past those does it check the flag and, if `False`, republish the input
+PDU on `out` completely unchanged, with no key/counter extraction.
+**Still opposite order from the TX sibling**:
 `sdls_encryption.add_encryption` checks `encryption_state` *first*,
-before any shape validation.
+before any shape validation — this block checks shape first,
+`decryption_state` second. Both blocks now wrap their passthrough
+publish in catch-log-drop.
 
 **`crypt_key` lookup** (`_validate_and_extract_key`): a PMT symbol hex
 string or u8vector, rejected if not exactly 32 bytes (AES-256).
 Detects an absent key via `pmt.dict_ref(..., default=pmt.PMT_NIL)`
 followed by `pmt.eqv(key, pmt.PMT_NIL)` — the same pattern
-[sdls_encryption.md](sdls_encryption.md) documents for its own
-`_extract_secret`, which has not been changed either; not a gap
-specific to this block.
+`sdls_encryption.py`'s own `_extract_secret` still uses, unchanged
+there either; not a gap specific to this block.
 
 **`sdls_counter` lookup** (`_extract_counter`): checked first at
-`dict_msg["sdls_counter"]` via `pmt.dict_ref(..., default=pmt.PMT_NIL)`/
-`pmt.eqv(..., pmt.PMT_NIL)` — **ambiguous**, unable to distinguish "key
-absent" from "key present with value `PMT_NIL`" — falling back to the
-nested `dict_msg["sdls"]["security_header"]["sdls_counter"]` path.
-`sdls_encryption`'s own `_extract_counter` instead checks
-`pmt.dict_has_key(...)` first, unambiguously distinguishing the two
-cases (see [sdls_encryption.md](sdls_encryption.md)). In the real RX
-pipeline, this key always arrives at the nested path: `ccsds_reader`
+`dict_msg["sdls_counter"]` via `pmt.dict_has_key`, matching the TX
+sibling's own `_extract_counter` (not the ambiguous
+`pmt.eqv(..., pmt.PMT_NIL)` ordering this method used before), falling
+back to the nested
+`dict_msg["sdls"]["security_header"]["sdls_counter"]` path only if the
+top-level key is genuinely absent. In the real RX pipeline, this key
+always arrives at the nested path: `ccsds_reader`
 populates `sdls.security_header.sdls_counter` directly from the parsed
 SDLS Security Header's `initialization_vector` field
 (`ccsds_reader.py:368`), itself a fixed-width 16-bit wire field — so
@@ -85,38 +87,28 @@ somehow fails — the identical defensive-recheck pattern
 outgoing metadata; `sdls_counter` and every other metadata key pass
 through unmodified.
 
-**Error handling**: `decrypt_message` checks `pmt.is_pair(msg)`,
-`pmt.is_u8vector(payload_u8vector)`, and `pmt.is_dict(dict_msg)`, but
-**raises `ValueError` for all three** instead of catch-log-drop.
-`sdls_encryption.add_encryption` (the TX sibling) already handles the
-identical three checks with log-and-drop instead of raising — direct
-precedent for what this block's fix should look like. Past those three
-checks, **nothing in `decrypt_message` is wrapped in any exception
-handling at all** — not the `decryption_state=False` passthrough
-(unlike `sdls_encryption`'s own passthrough, which is wrapped), not key/
-counter extraction, not decryption, not the final publish. An
-unexpected failure anywhere in that path (e.g. a `message_port_pub`
-failure) would crash the handler thread.
+**Error handling** (compliant with
+[coding-standards.md](../coding-standards.md),
+[ADR-0003](../adr/0003-message-handler-error-policy.md)): `decrypt_message`
+checks `pmt.is_pair(msg)`, `pmt.is_u8vector(payload_u8vector)`, and
+`pmt.is_dict(dict_msg)` as early-return guards, each logged at `error`;
+the full body past those three checks — the `decryption_state=False`
+passthrough, key/counter extraction, decryption, and the final
+publish — is wrapped in catch-log-drop (`except Exception`), also
+logged at `error`. Every log call this block makes reporting a drop
+condition is at `error`, matching that this block sits downstream of
+`ccsds_reader` and isn't on the raw-RF `warn` list; `sdls_encryption`'s
+own equivalent log calls are likewise all at `error`.
 
-Every log call this block makes reporting a drop condition (9 total: 4
-in `_validate_and_extract_key`, 2 in `_extract_counter` plus 1 for the
-counter-range check, 2 in `decrypt_message`'s own "failed to extract"
-messages — separate from the one `self.logger.info("OK")` on success)
-is currently at either `warn` (8 of them) or `error` (1 — the
-counter-range check, already correct). Since this block sits downstream
-of `ccsds_reader` and isn't on the raw-RF `warn` list, **all 8 `warn`
-calls are at the wrong level**; `sdls_encryption`'s own equivalent log
-calls are already all at `error`.
-
-**Docstrings**: none of ADR-0004's required coverage is present. The
-class itself still carries `gr_modtool`'s placeholder
-(`"""docstring for block sdls_decryption"""`); `__init__` and
-`decrypt_message` (the message handler) have no docstring. Every
-private helper — `_validate_and_extract_key`, `_extract_counter`
-(PMT-touching), `_decrypt_payload` (non-PMT, plain bytes/int) — has none
-either. `sdls_encryption.py`'s equivalent methods already carry full
-ADR-0004-compliant docstrings, directly reusable as a template for the
-PMT-touching ones here.
+**Docstrings** (compliant with
+[ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)): a real
+class-level summary; full `Args`/`Raises` for `__init__`; full
+`Args`/`Publishes`/`Drops when` for `decrypt_message` (the message
+handler); full `Args`/`Returns` for the PMT-touching helpers
+(`_validate_and_extract_key`, `_extract_counter`); full
+`Args`/`Returns`/`Raises` for `_decrypt_payload` (non-PMT, plain
+bytes/int, but not trivial — documented anyway, matching
+`sdls_encryption._encrypt_payload`'s own treatment).
 
 **Naming**: file, class, GRC block-id, both constructor parameters, and
 every method name are already snake_case.
@@ -137,30 +129,27 @@ sibling — no algorithm agility.
   `sdls_encryption._extract_secret`'s own current implementation, so
   this isn't an RX-specific gap; fixing it would mean fixing the
   identical pattern in both blocks together, not resolved here.
-- **`decrypt_message` raises instead of catch-log-drop, and has no
-  exception handling anywhere past its three shape checks.**
-  `sdls_encryption.add_encryption` is a direct template for the
-  equivalent checks, already handling them with log-and-drop instead of
-  raising.
 - **`decrypt_message` still checks shape before `decryption_state`**,
   the opposite order from `sdls_encryption.add_encryption` — a
   structural difference between the two blocks, not resolved here.
 
 ## Test coverage
 
-- `python/soarr/qa_sdls_decryption.py` — 11 test methods (`test_instance`
-  + `test_001`-`test_010`): `decryption_state=False` passthrough
+- `python/soarr/qa_sdls_decryption.py` — 13 test methods (`test_instance`
+  + `test_001`-`test_012`): `decryption_state=False` passthrough
   (`test_001`), AES-CTR decryption correctness with `crypt_key` removal
   verified against an independently computed ciphertext (`test_002`),
   invalid key length and counter overflow each dropped with no publish
   (`test_003`, `test_004`), missing `crypt_key`/missing `sdls_counter`
   each dropped with no publish (`test_005`, `test_006`), non-dict
-  metadata and non-u8vector payload each raising `ValueError` through
-  the handler — the current, unfixed behavior (`test_007`, `test_008`),
-  and constructor `nonce` type/length validation (`test_009`,
-  `test_010`). No test covers a forced exception past the shape checks
-  (e.g. a mock-forced publish failure) — every other SDLS block's test
-  file in this repo has one, this is the only one that doesn't.
+  metadata and non-u8vector payload each dropped cleanly instead of
+  raising (`test_007`, `test_008`), constructor `nonce` type/length
+  validation (`test_009`, `test_010`), a mock-forced publish failure
+  proven to be caught and dropped rather than raised through the real
+  handler (`test_011`), and a top-level `sdls_counter` explicitly set to
+  `PMT_NIL` (present, not absent) correctly rejected rather than
+  silently falling back to a nested counter that would otherwise decrypt
+  successfully (`test_012`).
 - `python/soarr/qa_EncryptDecrypt.py` — 8 test methods (`test_instance`
   + `test_001`-`test_007`), pairing this block with the real
   `sdls_encryption`: a full encrypt-then-decrypt round trip, a wrong key
