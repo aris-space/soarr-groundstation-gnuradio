@@ -78,16 +78,11 @@ conda activate radioconda
 pytest .\python\soarr\ -q
 ```
 
-**Known conflict, needs reconciling:** `.vscode/settings.json` currently
-configures Python testing via `unittest` discovery
-(`python.testing.unittestEnabled: true`, `pytestEnabled: false`,
-`unittestArgs: ["-p", "qa_*.py"]`), while
-[`pytest.ini`](../pytest.ini) configures pytest-style discovery
-(`python_files = qa_*.py *_test.py test_*.py`) — the same convention the
-command above and this project's actual test workflow both use. VS Code's
-built-in Test Explorer will not match the documented `pytest` workflow
-until this is reconciled. Use the command-line `pytest` invocation above;
-don't rely on the Test Explorer's results.
+`.vscode/settings.json` configures Python testing via `pytest`
+(`python.testing.pytestEnabled: true`, `pytestArgs: ["python/soarr"]`),
+matching [`pytest.ini`](../pytest.ini)'s discovery rules
+(`python_files = qa_*.py *_test.py test_*.py`) and the command above —
+VS Code's Test Explorer and the command-line invocation agree.
 
 ## Making `gnuradio.soarr` resolve to the workspace
 

@@ -4,13 +4,6 @@ Outstanding, currently-postponed items — kept short; each points to where
 the detail actually lives instead of duplicating it here. Not a status
 log or a session snapshot (see git history for that).
 
-## Repo-level
-
-- **Test discovery conflict**: `.vscode/settings.json` configures
-  `unittest` discovery while `pytest.ini` and the documented workflow use
-  `pytest` — see [development.md](development.md) for the existing note.
-  Needs reconciling, not fixed.
-
 ## Known code gaps (audited 2026-07-14, not yet fixed)
 
 - **ADR-0003 handler-wrap gap in 8 blocks**: a shape-check guard
