@@ -13,6 +13,29 @@ log or a session snapshot (see git history for that).
   `pytest` — see [development.md](development.md) for the existing note.
   Needs reconciling, not fixed.
 
+## Known code gaps (audited 2026-07-14, not yet fixed)
+
+- **ADR-0003 handler-wrap gap in 8 blocks**: a shape-check guard
+  (`pmt.is_pair`/`is_u8vector`/`is_dict`) runs before the handler's
+  `try:` block instead of inside it, so an exception from one of those
+  calls would escape the handler unwrapped instead of being caught,
+  logged, and dropped. Affects `acquisition_idle_sequencer.py`
+  (`handle_msg`), `bch_encoder.py` (`encode_bch`), `ccsds_reader.py`
+  (`decode_ccsds`), `cltu_framer.py` (`add_sequences`), `db_client.py`
+  (`make_db_call`), `encapsulation_header.py` (`add_header`),
+  `sdls_authentication.py` (`add_authentication`), and
+  `sdls_encryption.py` (`add_encryption`). The RX-side siblings of the
+  last two (`sdls_authentication_verify.py`, `sdls_decryption.py`)
+  already moved the equivalent calls inside `try` correctly, so this
+  looks like a leftover from earlier in the TX-side blocks' cleanup, not
+  a systemic pattern across the whole codebase.
+- **ADR-0004 docstring-shape mismatch in 2 non-handler helpers**:
+  `ccsds_receiver.py`'s `_publishFrame` and `data_creator.py`'s
+  `generate_message` are private helpers (not themselves registered via
+  `set_msg_handler`) but use handler-style `Publishes`/`Drops when`
+  docstrings instead of the `Args`/`Returns`/`Raises` shape ADR-0004
+  requires for a PMT-touching private helper.
+
 ## Deferred design questions (per-block PRDs)
 
 Each of these is a parameter or code path a block's own PRD documents as
