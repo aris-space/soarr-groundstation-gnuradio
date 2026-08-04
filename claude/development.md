@@ -83,6 +83,8 @@ pytest .\python\soarr\ -q
 matching [`pytest.ini`](../pytest.ini)'s discovery rules
 (`python_files = qa_*.py *_test.py test_*.py`) and the command above —
 VS Code's Test Explorer and the command-line invocation agree.
+`cmake.ctest.testExplorerIntegrationEnabled: false` keeps CMake Tools'
+CTest tree out of the same Testing panel, so it shows pytest only.
 
 ## Making `gnuradio.soarr` resolve to the workspace
 

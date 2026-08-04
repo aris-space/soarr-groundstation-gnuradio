@@ -8,6 +8,7 @@
     "cmake.buildDirectory": "C:/ARIS/soarr-groundstation-gnuradio/build",
     "cmake.generator": "Visual Studio 17 2022",
     "cmake.platform": "x64",
+    "cmake.ctest.testExplorerIntegrationEnabled": false,
     "cmake.configureEnvironment": {
         "CMAKE_PREFIX_PATH": "C:/Users/yanni/anaconda3/envs/radioconda/Library"
     },
