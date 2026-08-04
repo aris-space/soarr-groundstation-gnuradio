@@ -6,8 +6,6 @@ log or a session snapshot (see git history for that).
 
 ## Repo-level
 
-- **No `LICENSE` file; `MANIFEST.yml` has blank `license`/`repo`/`website`
-  fields.** Pre-release blocker, not yet resolved.
 - **Test discovery conflict**: `.vscode/settings.json` configures
   `unittest` discovery while `pytest.ini` and the documented workflow use
   `pytest` — see [development.md](development.md) for the existing note.
@@ -29,12 +27,6 @@ log or a session snapshot (see git history for that).
   already moved the equivalent calls inside `try` correctly, so this
   looks like a leftover from earlier in the TX-side blocks' cleanup, not
   a systemic pattern across the whole codebase.
-- **ADR-0004 docstring-shape mismatch in 2 non-handler helpers**:
-  `ccsds_receiver.py`'s `_publishFrame` and `data_creator.py`'s
-  `generate_message` are private helpers (not themselves registered via
-  `set_msg_handler`) but use handler-style `Publishes`/`Drops when`
-  docstrings instead of the `Args`/`Returns`/`Raises` shape ADR-0004
-  requires for a PMT-touching private helper.
 
 ## Deferred design questions (per-block PRDs)
 
