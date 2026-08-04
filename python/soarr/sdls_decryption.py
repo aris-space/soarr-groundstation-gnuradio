@@ -71,11 +71,11 @@ class sdls_decryption(gr.basic_block):
                 absent, malformed, or the wrong length.
         """
         # Extract and validate the decryption key from dict
-        key = pmt.dict_ref(dict_msg, pmt.intern("crypt_key"), pmt.PMT_NIL)
-        if pmt.eqv(key, pmt.PMT_NIL):
-            self.logger.error(f"Received dict message with empty crypt_key: {dict_msg}")
-            return None # Early exit if crypt_key is empty
+        if not pmt.dict_has_key(dict_msg, pmt.intern("crypt_key")):
+            self.logger.error(f"Received dict message with missing crypt_key: {dict_msg}")
+            return None # Early exit if crypt_key is absent
 
+        key = pmt.dict_ref(dict_msg, pmt.intern("crypt_key"), pmt.PMT_NIL)
 
         # Parse the key as bytes.
         if pmt.is_symbol(key):
@@ -189,25 +189,25 @@ class sdls_decryption(gr.basic_block):
             - sdls_counter is absent, non-integer, or out of range (error - same)
             - decryption or publishing fails, in either the decryption or the decryption_state=False passthrough path (error - same)
         """
-        if not pmt.is_pair(msg):
-            self.logger.error(f"Received non-PDU message: {msg}")
-            return
-
-        dict_msg = pmt.car(msg)
-        payload_u8vector = pmt.cdr(msg)
-
-        if not pmt.is_u8vector(payload_u8vector):
-            self.logger.error(f"Received non-u8vector payload: {payload_u8vector}")
-            return
-
-        if not pmt.is_dict(dict_msg):
-            self.logger.error(f"Received non-dict metadata: {dict_msg}")
-            return
-
-        # Full body from here on wrapped in catch-log-drop, including the
-        # final publish - a raise anywhere in here must never escape this
+        # Full body wrapped in catch-log-drop, including the final
+        # publish - a raise anywhere in here must never escape this
         # handler.
         try:
+            if not pmt.is_pair(msg):
+                self.logger.error(f"Received non-PDU message: {msg}")
+                return
+
+            dict_msg = pmt.car(msg)
+            payload_u8vector = pmt.cdr(msg)
+
+            if not pmt.is_u8vector(payload_u8vector):
+                self.logger.error(f"Received non-u8vector payload: {payload_u8vector}")
+                return
+
+            if not pmt.is_dict(dict_msg):
+                self.logger.error(f"Received non-dict metadata: {dict_msg}")
+                return
+
             if self.decryption_state is False:
                 # If decryption is disabled, pass the message through unchanged
                 self.message_port_pub(pmt.intern("out"), msg)

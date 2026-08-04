@@ -32,7 +32,8 @@ class sdls_encryption(gr.basic_block):
         """
         Args:
             encryption_state (bool): if False, add_encryption becomes a
-                pure passthrough - no validation, no metadata mutation.
+                pure passthrough after its shape checks - no validation,
+                no metadata mutation.
             nonce (bytes): fixed 14-byte value combined with the
                 per-message sdls_counter into one 16-byte AES-CTR counter
                 block. Never transmitted - RX's sdls_decryption must be
@@ -73,11 +74,11 @@ class sdls_encryption(gr.basic_block):
                 absent, malformed, or the wrong length.
         """
         # Extract and validate the encryption key from dict
-        key = pmt.dict_ref(dict_msg, pmt.intern("crypt_key"), pmt.PMT_NIL)
-        if pmt.eqv(key, pmt.PMT_NIL):
-            self.logger.error(f"Received dict message with empty crypt_key: {dict_msg}")
-            return None # Early exit if crypt_key is empty
+        if not pmt.dict_has_key(dict_msg, pmt.intern("crypt_key")):
+            self.logger.error(f"Received dict message with missing crypt_key: {dict_msg}")
+            return None # Early exit if crypt_key is absent
 
+        key = pmt.dict_ref(dict_msg, pmt.intern("crypt_key"), pmt.PMT_NIL)
 
         # Parse the key as bytes.
         if pmt.is_symbol(key):
@@ -181,7 +182,7 @@ class sdls_encryption(gr.basic_block):
             "out" (pmt_pair): PDU with `crypt_key` removed from metadata
                 and the payload replaced by its AES-256-CTR ciphertext.
                 If encryption_state is False, republishes the input
-                unchanged instead.
+                unchanged instead (after the same shape checks).
 
         Drops when:
             - msg is not a PDU pair (error - malformed input at the TX boundary, not raw RF noise)
@@ -189,17 +190,8 @@ class sdls_encryption(gr.basic_block):
             - metadata is not a dict (error - same)
             - crypt_key is absent, malformed, or not 32 bytes (error - same)
             - sdls_counter is absent, non-integer, or out of range (error - same)
-            - encryption or publishing fails, in either the encrypted or the encryption_state=False passthrough path (error - same)
+            - encryption, passthrough, or publishing fails, in either the encrypted or the encryption_state=False passthrough path (error - same)
         """
-        if self.encryption_state is False:
-            try:
-                self.logger.info(f"No encryption applied since encryption_state is False. Passing through message.")
-                self.message_port_pub(pmt.intern("out"), msg)
-            except Exception as exc:
-                self.logger.error(f"Failed to publish passthrough message: {exc}")
-            return # Early exit if encryption is disabled
-
-
         # Expecting a PDU with dict and payload
 
         # Full body wrapped in catch-log-drop, including the final
@@ -221,6 +213,11 @@ class sdls_encryption(gr.basic_block):
             if not pmt.is_dict(dict_msg):
                 self.logger.error(f"Received message with non-dict metadata: {msg}")
                 return
+
+            if self.encryption_state is False:
+                self.logger.info(f"No encryption applied since encryption_state is False. Passing through message.")
+                self.message_port_pub(pmt.intern("out"), msg)
+                return # Early exit if encryption is disabled
 
             # Extract the encryption key from the dict
             key_bytes = self._extract_secret(dict_msg)
@@ -246,5 +243,5 @@ class sdls_encryption(gr.basic_block):
             self.message_port_pub(pmt.intern("out"), msg_out)
             self.logger.info("OK")
         except Exception as exc:
-            self.logger.error(f"Failed to encrypt or publish message: {exc}")
+            self.logger.error(f"Failed to encrypt, pass through, or publish message: {exc}")
             return

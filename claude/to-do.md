@@ -4,17 +4,4 @@ Outstanding, currently-postponed items — kept short; each points to where
 the detail actually lives instead of duplicating it here. Not a status
 log or a session snapshot (see git history for that).
 
-## Deferred design questions (per-block PRDs)
-
-Each of these is a parameter or code path a block's own PRD documents as
-a genuine, deliberately-unresolved design question — see the linked
-PRD's "Known issues / TODOs" section for full detail:
-
-- [sdls_decryption](prd/sdls_decryption.md) — `_validate_and_extract_key`
-  still uses the ambiguous `PMT_NIL`-comparison pattern to detect an
-  absent `crypt_key`, matching `sdls_encryption._extract_secret`'s own
-  current implementation; fixing one without the other would leave the
-  pattern inconsistent, so both are deferred together. Also:
-  `decrypt_message` checks shape before `decryption_state`, the opposite
-  order from `sdls_encryption.add_encryption` — a structural difference
-  between the two blocks, not resolved.
+Nothing outstanding right now.

@@ -35,35 +35,31 @@ confirmed-in-practice, not self-verifying from this repo alone. No
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `decryption_state` | bool | `True` | `False` makes the block a pure passthrough — input republished on `out` unchanged, no validation, no metadata mutation. Named to mirror `sdls_encryption`'s `encryption_state`. |
+| `decryption_state` | bool | `True` | `False` makes the block a pure passthrough after its shape checks — input republished on `out` unchanged, no key/counter validation, no metadata mutation. Named to mirror `sdls_encryption`'s `encryption_state`. |
 | `nonce` | bytes | `b"\x00" * 14` (all-zero) | Fixed for the block's lifetime, combined with the per-message `sdls_counter` into the same 16-byte AES-CTR counter block `sdls_encryption` used to encrypt. Must match `sdls_encryption`'s own `nonce` out-of-band, or the recovered plaintext is garbage rather than the original data (`qa_EncryptDecrypt.py::test_005_nonce_mismatch_changes_plaintext`). Validated in `__init__` (`TypeError`/`ValueError` if not exactly 14 bytes). |
 
 ## Behavior / edge cases / current error handling
 
-**`decryption_state=False`**: `decrypt_message` still runs its three
-shape checks first, unconditionally, before ever looking at
+**`decryption_state=False`**: `decrypt_message` runs its three shape
+checks first, unconditionally, before ever looking at
 `decryption_state` — logged at `error` and dropped on failure exactly
 as it would for `decryption_state=True` (see Error handling below); only
 past those does it check the flag and, if `False`, republish the input
 PDU on `out` completely unchanged, with no key/counter extraction.
-**Still opposite order from the TX sibling**:
-`sdls_encryption.add_encryption` checks `encryption_state` *first*,
-before any shape validation — this block checks shape first,
-`decryption_state` second. Both blocks now wrap their passthrough
-publish in catch-log-drop.
+**Same order as the TX sibling**: `sdls_encryption.add_encryption` also
+checks shape first, `encryption_state` second — a malformed message is
+rejected regardless of either flag's value. Both blocks wrap their
+passthrough publish in catch-log-drop.
 
 **`crypt_key` lookup** (`_validate_and_extract_key`): a PMT symbol hex
 string or u8vector, rejected if not exactly 32 bytes (AES-256).
-Detects an absent key via `pmt.dict_ref(..., default=pmt.PMT_NIL)`
-followed by `pmt.eqv(key, pmt.PMT_NIL)` — the same pattern
-`sdls_encryption.py`'s own `_extract_secret` still uses, unchanged
-there either; not a gap specific to this block.
+Detects an absent key via `pmt.dict_has_key`, checked before the value
+is ever fetched — the same pattern `_extract_counter` uses below, and
+`sdls_encryption.py`'s own `_extract_secret` uses too.
 
 **`sdls_counter` lookup** (`_extract_counter`): checked first at
 `dict_msg["sdls_counter"]` via `pmt.dict_has_key`, matching the TX
-sibling's own `_extract_counter` (not the ambiguous
-`pmt.eqv(..., pmt.PMT_NIL)` ordering this method used before), falling
-back to the nested
+sibling's own `_extract_counter`, falling back to the nested
 `dict_msg["sdls"]["security_header"]["sdls_counter"]` path only if the
 top-level key is genuinely absent. In the real RX pipeline, this key
 always arrives at the nested path: `ccsds_reader`
@@ -89,16 +85,15 @@ through unmodified.
 
 **Error handling** (compliant with
 [coding-standards.md](../coding-standards.md),
-[ADR-0003](../adr/0003-message-handler-error-policy.md)): `decrypt_message`
-checks `pmt.is_pair(msg)`, `pmt.is_u8vector(payload_u8vector)`, and
-`pmt.is_dict(dict_msg)` as early-return guards, each logged at `error`;
-the full body past those three checks — the `decryption_state=False`
+[ADR-0003](../adr/0003-message-handler-error-policy.md)): `decrypt_message`'s
+full body — the `pmt.is_pair(msg)`/`pmt.is_u8vector(payload_u8vector)`/
+`pmt.is_dict(dict_msg)` shape checks, the `decryption_state=False`
 passthrough, key/counter extraction, decryption, and the final
-publish — is wrapped in catch-log-drop (`except Exception`), also
-logged at `error`. Every log call this block makes reporting a drop
-condition is at `error`, matching that this block sits downstream of
-`ccsds_reader` and isn't on the raw-RF `warn` list; `sdls_encryption`'s
-own equivalent log calls are likewise all at `error`.
+publish — is wrapped in catch-log-drop (`except Exception`). Every log
+call this block makes reporting a drop condition is at `error`,
+matching that this block sits downstream of `ccsds_reader` and isn't on
+the raw-RF `warn` list; `sdls_encryption`'s own equivalent log calls are
+likewise all at `error`.
 
 **Docstrings** (compliant with
 [ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)): a real
@@ -120,18 +115,6 @@ half of SDLS's Security Header/Trailer construction, same standard
 [sdls_encryption.md](sdls_encryption.md) cites for the TX side.
 **Simplified**: only AES-256-CTR is supported, matching the TX
 sibling — no algorithm agility.
-
-## Known issues / TODOs
-
-- **`_validate_and_extract_key` still uses the ambiguous
-  `PMT_NIL`-comparison pattern** to detect an absent `crypt_key`, rather
-  than `_extract_counter`'s `pmt.dict_has_key`-first check. Matches
-  `sdls_encryption._extract_secret`'s own current implementation, so
-  this isn't an RX-specific gap; fixing it would mean fixing the
-  identical pattern in both blocks together, not resolved here.
-- **`decrypt_message` still checks shape before `decryption_state`**,
-  the opposite order from `sdls_encryption.add_encryption` — a
-  structural difference between the two blocks, not resolved here.
 
 ## Test coverage
 

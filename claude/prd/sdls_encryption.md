@@ -29,21 +29,28 @@ RX counterpart: [sdls_decryption](sdls_decryption.md).
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `encryption_state` | bool | `True` | `False` makes the block a pure passthrough — input republished on `out` unchanged, no validation, no metadata mutation. Named to mirror `sdls_decryption`'s `decryption_state`. |
+| `encryption_state` | bool | `True` | `False` makes the block a pure passthrough after its shape checks — input republished on `out` unchanged, no key/counter validation, no metadata mutation. Named to mirror `sdls_decryption`'s `decryption_state`. |
 | `nonce` | bytes | `b"\x00" * 14` (all-zero) | Fixed for the block's lifetime, combined with the per-message `sdls_counter` into one 16-byte AES-CTR counter block. Never transmitted — RX's `sdls_decryption` must be configured with the identical value out-of-band. Validated in `__init__` (`TypeError`/`ValueError` if not exactly 14 bytes). |
 
 ## Behavior / edge cases / current error handling
 
-**`encryption_state=False`**: republishes the input PDU on `out`
-completely unchanged — no shape validation, no key/counter extraction.
+**Shape validation runs first, unconditionally**: `add_encryption`
+rejects a non-PDU input, non-dict metadata, or non-u8vector payload
+without publishing, regardless of `encryption_state`. Only past those
+checks does it look at `encryption_state`.
 
-**Input validation** (`encryption_state=True`): rejects a non-PDU input,
-non-dict metadata, or non-u8vector payload without publishing.
+**`encryption_state=False`**: republishes the already-shape-validated
+input PDU on `out` completely unchanged — no key/counter extraction.
+**Same order as the RX sibling**: `sdls_decryption.decrypt_message`
+also checks shape first, `decryption_state` second.
 
-**`crypt_key` lookup** — accepts either form:
+**`crypt_key` lookup** (`_extract_secret`) — accepts either form:
 - a PMT symbol holding a hex string (decoded via `bytes.fromhex`), or
 - a u8vector.
 
+Detects an absent key via `pmt.dict_has_key`, checked before the value
+is ever fetched — the same pattern `_extract_counter` uses below, and
+`sdls_decryption.py`'s own `_validate_and_extract_key` uses too.
 Rejected (no publish) if absent, an invalid hex string, an unsupported
 PMT type, or not exactly 32 bytes (AES-256 key size).
 
@@ -68,11 +75,11 @@ every other metadata key pass through unmodified.
 [coding-standards.md](../coding-standards.md),
 [ADR-0003](../adr/0003-message-handler-error-policy.md)): every rejection
 above logs at `error` (this TX-side block isn't in the raw-RF `warn`
-list). Both publish paths are wrapped in catch-log-drop: the encrypted
-path (everything past key/counter extraction, including the publish
-call), and the separate `encryption_state=False` passthrough's publish
-call — two distinct code paths, both guarded, so an internal failure in
-either (e.g. a future encryption-library incompatibility, or a publish
+list). `add_encryption`'s full body — the shape checks, the
+`encryption_state=False` passthrough, key/counter extraction,
+encryption, and the final publish — is wrapped in one catch-log-drop
+(`except Exception`), so an internal failure anywhere in either path
+(e.g. a future encryption-library incompatibility, or a publish
 failure) is logged and dropped rather than escaping the handler.
 
 **Docstrings** (compliant with
@@ -133,20 +140,22 @@ support for SDLS's other permitted cipher suites.
 
 ## Test coverage
 
-- `python/soarr/qa_sdls_encryption.py` — 15 test methods (`test_instance`
-  + `test_001`–`test_014`): `encryption_state=False` passthrough, AES-CTR
+- `python/soarr/qa_sdls_encryption.py` — 16 test methods (`test_instance`
+  + `test_001`–`test_015`): `encryption_state=False` passthrough, AES-CTR
   encryption correctness with `crypt_key` removal verified against an
   independently computed expected ciphertext, invalid key length /
   counter overflow / missing key / missing counter / non-dict metadata /
   non-u8vector payload all rejected with no publish, constructor `nonce`
   type/length validation, counter value changing ciphertext between two
   messages with the same key, a full
-  encrypt-then-decrypt-with-PyCryptodome-directly round trip, and two
+  encrypt-then-decrypt-with-PyCryptodome-directly round trip, two
   mock-forced internal-failure tests proving both publish paths are
   caught and dropped rather than raised through the real handler
   (`test_013` for the encrypted path, mirroring `encapsulation_header`'s
   `test_020`; `test_014` for the `encryption_state=False` passthrough
-  path specifically).
+  path specifically), and a non-PDU input rejected even with
+  `encryption_state=False`, proving shape validation runs regardless of
+  the flag (`test_015`).
 - `python/soarr/qa_EncryptDecrypt.py` — 8 test methods pairing this block
   with its RX counterpart `sdls_decryption`: round trip, wrong key, wrong
   counter, and nonce-mismatch all changing the recovered plaintext as
