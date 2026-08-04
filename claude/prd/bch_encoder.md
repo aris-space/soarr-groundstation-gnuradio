@@ -70,13 +70,13 @@ log line (see Pipeline position above).
 
 **Error handling** (compliant with
 [coding-standards.md](../coding-standards.md),
-[ADR-0003](../adr/0003-message-handler-error-policy.md)): `encode_bch`
-checks `msg` is a pair and its payload is a u8vector before use; the full
-body past those two checks — payload extraction, the empty-payload check,
-the encoding loop, PDU construction, and every `message_port_pub` call —
-is wrapped in catch-log-drop (`except Exception`), all logged at `error`
-(this TX-side block isn't in the raw-RF `warn` list). The handler name,
-`encode_bch`, matches every sibling block's snake_case convention.
+[ADR-0003](../adr/0003-message-handler-error-policy.md)): `encode_bch`'s
+full body — the pair/u8vector shape checks, payload extraction, the
+empty-payload check, the encoding loop, PDU construction, and every
+`message_port_pub` call — is wrapped in catch-log-drop (`except
+Exception`), all logged at `error` (this TX-side block isn't in the
+raw-RF `warn` list). The handler name, `encode_bch`, matches every
+sibling block's snake_case convention.
 
 **Docstrings** (compliant with
 [ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)): full

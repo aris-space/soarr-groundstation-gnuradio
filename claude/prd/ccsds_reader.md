@@ -111,13 +111,12 @@ variant the comment describes.
 
 **Error handling** (compliant with
 [coding-standards.md](../coding-standards.md),
-[ADR-0003](../adr/0003-message-handler-error-policy.md)): `decode_ccsds`
-checks `pmt.is_pair(msg)` and `pmt.is_u8vector(in_body)` before use, both
-logged at `warn` (matching this block's membership in the raw-RF `warn`
-list); the full body past those two checks — parsing, building every
-metadata dict, extracting `data`, and the final `message_port_pub`
-call — is wrapped in catch-log-drop (`except Exception`), also logged at
-`warn`.
+[ADR-0003](../adr/0003-message-handler-error-policy.md)): `decode_ccsds`'s
+full body — the `pmt.is_pair(msg)`/`pmt.is_u8vector(in_body)` shape
+checks, parsing, building every metadata dict, extracting `data`, and
+the final `message_port_pub` call — is wrapped in catch-log-drop
+(`except Exception`), all logged at `warn` (matching this block's
+membership in the raw-RF `warn` list).
 
 **Docstrings** (compliant with
 [ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)): a real

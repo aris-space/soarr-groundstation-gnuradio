@@ -90,14 +90,14 @@ database with non-u8vector payload"`, publishing nothing.
 
 **Error handling** (compliant with
 [coding-standards.md](../coding-standards.md),
-[ADR-0003](../adr/0003-message-handler-error-policy.md)): `make_db_call`
-checks `msg` is a pair and its metadata is a dict before use; the full
-body past those two checks is wrapped in catch-log-drop (`except
-Exception`), including the counter-validation/increment steps' own more
-specific inner `try`/`except` blocks (preserved as-is, since they encode
-real business logic — whether to auto-reset a maxed-out counter — not
-just generic error handling) and the final `db_callback` publish. All
-logged at `error` (this block is not on the raw-RF `warn` list),
+[ADR-0003](../adr/0003-message-handler-error-policy.md)): `make_db_call`'s
+full body — the pair/dict shape checks, the counter-validation/increment
+steps' own more specific inner `try`/`except` blocks (preserved as-is,
+since they encode real business logic — whether to auto-reset a
+maxed-out counter — not just generic error handling), and the final
+`db_callback` publish — is wrapped in catch-log-drop (`except
+Exception`). All logged at `error` (this block is not on the raw-RF
+`warn` list),
 including `_init_database`'s two construction-time fallback logs
 (`type=2`/unrecognized `type`), now consistent with `_load_yaml_db`'s
 own fallback logs, which already used `error` for the same category of

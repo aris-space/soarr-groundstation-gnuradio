@@ -66,14 +66,12 @@ end-of-message marker with no other effect, same as documented for
 
 **Error handling** (compliant with
 [coding-standards.md](../coding-standards.md),
-[ADR-0003](../adr/0003-message-handler-error-policy.md)): `add_sequences`
-checks `msg` is a pair and its payload is a u8vector before use; the
-full body past those two shape checks —
-extracting the payload, validating its size is exactly
-`PAYLOAD_SIZE_BYTES`, packing both sequences, building the CLTU, and the
-`message_port_pub` call — is wrapped in catch-log-drop (`except
-Exception`), logged at `error` (this TX-side block isn't in the raw-RF
-`warn` list).
+[ADR-0003](../adr/0003-message-handler-error-policy.md)): `add_sequences`'s
+full body — the pair/u8vector shape checks, extracting the payload,
+validating its size is exactly `PAYLOAD_SIZE_BYTES`, packing both
+sequences, building the CLTU, and the `message_port_pub` call — is
+wrapped in catch-log-drop (`except Exception`), logged at `error` (this
+TX-side block isn't in the raw-RF `warn` list).
 
 **Docstrings** (compliant with
 [ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)): full
