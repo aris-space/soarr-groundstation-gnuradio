@@ -128,22 +128,22 @@ class bch_encoder(gr.basic_block):
             - payload is empty (error - same, nothing to encode)
             - encoding or publishing fails (error - same)
         """
-        if not pmt.is_pair(msg):
-            self.logger.error("Input message is not a pair.")
-            return
-
-        # Unpack PDU to get meta and body
-        meta = pmt.car(msg)
-        body_pmt = pmt.cdr(msg)
-
-        if not pmt.is_u8vector(body_pmt):
-            self.logger.error("Input message body is not a PDU (u8vector).")
-            return
-
-        # Full body from here on wrapped in catch-log-drop, including the
-        # final publish - a raise anywhere in here must never escape this
+        # Full body wrapped in catch-log-drop, including the final
+        # publish - a raise anywhere in here must never escape this
         # handler.
         try:
+            if not pmt.is_pair(msg):
+                self.logger.error("Input message is not a pair.")
+                return
+
+            # Unpack PDU to get meta and body
+            meta = pmt.car(msg)
+            body_pmt = pmt.cdr(msg)
+
+            if not pmt.is_u8vector(body_pmt):
+                self.logger.error("Input message body is not a PDU (u8vector).")
+                return
+
             # Convert body to bytes for processing
             payload_bytes = bytes(pmt.u8vector_elements(body_pmt))
 

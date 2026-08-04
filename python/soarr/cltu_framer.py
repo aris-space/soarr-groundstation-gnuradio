@@ -89,23 +89,23 @@ class cltu_framer(gr.basic_block):
             - payload is not exactly 8 bytes (error - same)
             - packing the sequences or publishing fails (error - same; covers a bad start_sequence/tail_sequence value reassigned after construction, which bypasses __init__'s validation)
         """
-        if not pmt.is_pair(msg):
-            self.logger.error("Input message is not a pair.")
-            return
-
-        # unpack PDU to get meta and body
-        meta = pmt.car(msg)
-        body_pmt = pmt.cdr(msg)
-
-        if not pmt.is_u8vector(body_pmt):
-            self.logger.error("Input message body is not a PDU.")
-            return
-
-        # Full body from here on wrapped in catch-log-drop, including the
-        # final publish - a raise anywhere in here (e.g. struct.pack on a
+        # Full body wrapped in catch-log-drop, including the final
+        # publish - a raise anywhere in here (e.g. struct.pack on a
         # runtime-reassigned out-of-range sequence value) must never
         # escape this handler.
         try:
+            if not pmt.is_pair(msg):
+                self.logger.error("Input message is not a pair.")
+                return
+
+            # unpack PDU to get meta and body
+            meta = pmt.car(msg)
+            body_pmt = pmt.cdr(msg)
+
+            if not pmt.is_u8vector(body_pmt):
+                self.logger.error("Input message body is not a PDU.")
+                return
+
             # Convert body to bytes for easy concatenation
             payload_bytes = bytes(pmt.u8vector_elements(body_pmt))
 

@@ -134,16 +134,16 @@ class acquisition_idle_sequencer(gr.sync_block):
             - payload is not a u8vector (error - same)
             - queuing the payload fails (error - same)
         """
-        if not pmt.is_pair(msg):
-            self.logger.error("Input message is not a pair.")
-            return
-
-        vec = pmt.cdr(msg)
-        if not pmt.is_u8vector(vec):
-            self.logger.error("Input message body is not a PDU (u8vector).")
-            return
-
         try:
+            if not pmt.is_pair(msg):
+                self.logger.error("Input message is not a pair.")
+                return
+
+            vec = pmt.cdr(msg)
+            if not pmt.is_u8vector(vec):
+                self.logger.error("Input message body is not a PDU (u8vector).")
+                return
+
             payload_bytes = bytes(pmt.u8vector_elements(vec))
             self._pdu_queue.append(payload_bytes)
             self.logger.trace(f"msg queued t={time.time():.3f} queue_len={len(self._pdu_queue)} size={len(payload_bytes)}")

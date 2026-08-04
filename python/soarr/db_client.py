@@ -498,16 +498,16 @@ class db_client(gr.basic_block):
             - the entry's stored counters are invalid (error - same)
             - an internal failure occurs while building or publishing the response (error - same)
         """
-        if not pmt.is_pair(msg):
-            self.logger.error(f"DB query message is not a pair: {msg}")
-            return
-
-        meta = pmt.car(msg)
-        if not pmt.is_dict(meta):
-            self.logger.error("DB query metadata is not a dictionary.")
-            return
-
         try:
+            if not pmt.is_pair(msg):
+                self.logger.error(f"DB query message is not a pair: {msg}")
+                return
+
+            meta = pmt.car(msg)
+            if not pmt.is_dict(meta):
+                self.logger.error("DB query metadata is not a dictionary.")
+                return
+
             entry = self._entry_from_scid_spi(meta)
             if entry is None:
                 self.logger.error("DB query missing or unknown SCID/SPI.")

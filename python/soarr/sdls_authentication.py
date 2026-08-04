@@ -230,36 +230,35 @@ class sdls_authentication(gr.basic_block):
 
         # Expecting a PDU with a dict containing 'auth_key' and 'sdls_counter', and a u8vector payload.
 
-        if not pmt.is_pair(msg):
-            self.logger.error(f"Received non-PDU message: {msg}")
-            return # Early exit if message is not a pair (dict, payload)
-
-        dict_msg = pmt.car(msg)
-        payload_u8vector = pmt.cdr(msg)
-
-        if not pmt.is_dict(dict_msg):
-            self.logger.error(f"Received non-dict message: {dict_msg}")
-            return # Early exit if message is not a dict
-
-        if not pmt.is_u8vector(payload_u8vector):
-            self.logger.error(f"Received non-u8vector payload: {payload_u8vector}")
-            return # Early exit if payload is not a u8vector
-
-
-        # Extract the secret key from the message dict, with validation.
-        secret_bytes = self._extract_secret(dict_msg)
-        if secret_bytes is None:
-            return
-
-        # Extract the counter value from the message dict, with validation.
-        counter = self._extract_counter(dict_msg)
-        if counter is None:
-            return
-
-        # Full body from here on wrapped in catch-log-drop, including the
-        # final publish - a raise anywhere in here, including from
+        # Full body wrapped in catch-log-drop, including the final
+        # publish - a raise anywhere in here, including from
         # message_port_pub itself, must never escape this handler.
         try:
+            if not pmt.is_pair(msg):
+                self.logger.error(f"Received non-PDU message: {msg}")
+                return # Early exit if message is not a pair (dict, payload)
+
+            dict_msg = pmt.car(msg)
+            payload_u8vector = pmt.cdr(msg)
+
+            if not pmt.is_dict(dict_msg):
+                self.logger.error(f"Received non-dict message: {dict_msg}")
+                return # Early exit if message is not a dict
+
+            if not pmt.is_u8vector(payload_u8vector):
+                self.logger.error(f"Received non-u8vector payload: {payload_u8vector}")
+                return # Early exit if payload is not a u8vector
+
+            # Extract the secret key from the message dict, with validation.
+            secret_bytes = self._extract_secret(dict_msg)
+            if secret_bytes is None:
+                return
+
+            # Extract the counter value from the message dict, with validation.
+            counter = self._extract_counter(dict_msg)
+            if counter is None:
+                return
+
             # Compute the authentication tag (CMAC) over the nonce+counter and payload.
             mac_tag = self._get_authentication_tag(secret_bytes, counter, payload_u8vector)
 

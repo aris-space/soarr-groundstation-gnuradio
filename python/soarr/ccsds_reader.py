@@ -319,17 +319,17 @@ class ccsds_reader(gr.basic_block):
             - the payload is not a u8vector (warn - same)
             - parsing the frame or building its metadata fails for any reason (warn - same)
         """
-        if not pmt.is_pair(msg):
-            self.logger.warn("Received message is not a PDU (pair).")
-            return
-
-        in_meta = pmt.car(msg)
-        in_body = pmt.cdr(msg)
-        if not pmt.is_u8vector(in_body):
-            self.logger.warn("Received message body is not a u8vector.")
-            return
-
         try:
+            if not pmt.is_pair(msg):
+                self.logger.warn("Received message is not a PDU (pair).")
+                return
+
+            in_meta = pmt.car(msg)
+            in_body = pmt.cdr(msg)
+            if not pmt.is_u8vector(in_body):
+                self.logger.warn("Received message body is not a u8vector.")
+                return
+
             frame_bytes = bytes(pmt.u8vector_elements(in_body))
 
             parsed = self.ccsds_message().parse(frame_bytes)

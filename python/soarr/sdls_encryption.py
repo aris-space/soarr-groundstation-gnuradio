@@ -201,37 +201,36 @@ class sdls_encryption(gr.basic_block):
 
 
         # Expecting a PDU with dict and payload
-        if not pmt.is_pair(msg):
-            self.logger.error(f"Received non-PDU message: {msg}")
-            return
 
-        # Extract the dict and payload from the PDU
-        dict_msg = pmt.car(msg)
-        payload_u8vector = pmt.cdr(msg)
-
-        if not pmt.is_u8vector(payload_u8vector):
-            self.logger.error(f"Received message with non-u8vector payload: {msg}")
-            return
-
-        if not pmt.is_dict(dict_msg):
-            self.logger.error(f"Received message with non-dict metadata: {msg}")
-            return
-
-
-        # Extract the encryption key from the dict
-        key_bytes = self._extract_secret(dict_msg)
-        if key_bytes is None:
-            return
-
-        # Extract the counter value from the dict
-        counter = self._extract_counter(dict_msg)
-        if counter is None:
-            return
-
-        # Full body from here on wrapped in catch-log-drop, including the
-        # final publish - a raise anywhere in here, including from
+        # Full body wrapped in catch-log-drop, including the final
+        # publish - a raise anywhere in here, including from
         # message_port_pub itself, must never escape this handler.
         try:
+            if not pmt.is_pair(msg):
+                self.logger.error(f"Received non-PDU message: {msg}")
+                return
+
+            # Extract the dict and payload from the PDU
+            dict_msg = pmt.car(msg)
+            payload_u8vector = pmt.cdr(msg)
+
+            if not pmt.is_u8vector(payload_u8vector):
+                self.logger.error(f"Received message with non-u8vector payload: {msg}")
+                return
+
+            if not pmt.is_dict(dict_msg):
+                self.logger.error(f"Received message with non-dict metadata: {msg}")
+                return
+
+            # Extract the encryption key from the dict
+            key_bytes = self._extract_secret(dict_msg)
+            if key_bytes is None:
+                return
+
+            # Extract the counter value from the dict
+            counter = self._extract_counter(dict_msg)
+            if counter is None:
+                return
             # Encrypt the payload
             payload_bytes = bytes(pmt.u8vector_elements(payload_u8vector))
             ciphertext_bytes = self._encrypt_payload(key_bytes, counter, payload_bytes)

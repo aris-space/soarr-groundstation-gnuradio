@@ -153,25 +153,25 @@ class encapsulation_header(gr.basic_block):
             - payload is not a u8vector (error - same)
             - header packing or publishing fails, e.g. payload too large to encode (error - this block isn't directly exposed to raw RF data, so a failure here isn't plausibly channel noise)
         """
-        if not pmt.is_pair(msg):
-            self.logger.error(f"Received non-PDU message: {msg}")
-            return
-
-        dict_msg = pmt.car(msg)
-        payload = pmt.cdr(msg)
-
-        if not pmt.is_dict(dict_msg):
-            self.logger.error(f"Received PDU with non-dict metadata: {dict_msg}")
-            return
-
-        if not pmt.is_u8vector(payload):
-            self.logger.error(f"Received PDU with non-u8vector payload: {payload}")
-            return
-
-        # Full body from here on wrapped in catch-log-drop, including the
-        # final publish call - a raise anywhere in here, including from
+        # Full body wrapped in catch-log-drop, including the final
+        # publish call - a raise anywhere in here, including from
         # message_port_pub itself, must never escape this handler.
         try:
+            if not pmt.is_pair(msg):
+                self.logger.error(f"Received non-PDU message: {msg}")
+                return
+
+            dict_msg = pmt.car(msg)
+            payload = pmt.cdr(msg)
+
+            if not pmt.is_dict(dict_msg):
+                self.logger.error(f"Received PDU with non-dict metadata: {dict_msg}")
+                return
+
+            if not pmt.is_u8vector(payload):
+                self.logger.error(f"Received PDU with non-u8vector payload: {payload}")
+                return
+
             payload_bytes = bytes(pmt.u8vector_elements(payload))
 
             protocol_id = PROTOCOL_ID_IDLE if payload_bytes == b'' else PROTOCOL_ID_DATA
