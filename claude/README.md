@@ -20,7 +20,7 @@ this project is, domain vocabulary) — start there, not here.
    - [0005 — RX path canonical block](adr/0005-rx-path-canonical-block.md)
    - [0006 — Rename gr-sage to gr-soarr](adr/0006-rename-sage-to-soarr.md)
 6. `prd/` — one requirements doc per block (20 total, written in
-   signal-flow order per the parent plan's Step 4). In progress:
+   signal-flow order):
    - [encapsulation_header](prd/encapsulation_header.md)
    - [sdls_encryption](prd/sdls_encryption.md)
    - [sdls_authentication](prd/sdls_authentication.md)
@@ -41,6 +41,8 @@ this project is, domain vocabulary) — start there, not here.
    - [sdls_authentication_verify](prd/sdls_authentication_verify.md)
    - [sdls_decryption](prd/sdls_decryption.md)
    - [system_tester](prd/system_tester.md)
+7. [to-do.md](to-do.md) — outstanding, currently-postponed items
+   (repo-level gaps, deferred per-block design questions)
 
 ## Folder map
 
@@ -50,8 +52,9 @@ claude/
 ├── architecture.md
 ├── development.md
 ├── coding-standards.md
+├── to-do.md              outstanding/postponed items
 ├── adr/                 six accepted ADRs
-└── prd/                 one per block, 20 total (in progress)
+└── prd/                 one per block, 20 total
 ```
 
 ## Doc conventions
