@@ -131,14 +131,12 @@ class data_creator(gr.basic_block):
         Args:
             msg (pmt_any): ignored; content is never inspected.
 
-        Publishes:
-            "out" (pmt_pair): PDU with metadata dict (telecommand.tc_header.
-                {scid,bypass_flag,control_flag,vcid,vcid_counter},
-                sdls.security_header.{spi,security_param_index,sdls_counter})
-                and the configured/generated payload.
-
-        Drops when:
-            - building or publishing the message fails for any reason (error)
+        Returns: None. Publishes a PDU with metadata dict
+            (telecommand.tc_header.{scid,bypass_flag,control_flag,vcid,
+            vcid_counter}, sdls.security_header.{spi,security_param_index,
+            sdls_counter}) and the configured/generated payload, on "out" -
+            unless building or publishing fails, in which case the
+            failure is caught, logged, and nothing is published.
         """
         try:
             # Create a PMT dictionary to hold the message fields
