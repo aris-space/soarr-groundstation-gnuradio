@@ -48,7 +48,7 @@ return values `ccsds_receiver` itself relies on).
 |---|---|---|---|
 | `message_type` | int | `0` | `0`=TC, `1`=TM, `2`=Fixed Length. Validated in `__init__` (raises `ValueError` if outside `0`-`2`). Selecting `1` (TM) doesn't fail construction — the `NotImplementedError` for TM only fires later, from inside the message handler (see Behavior). |
 | `field_type` | int | `0` | `0`=TC Field, `1`=Encapsulation Field. Validated in `__init__` (raises `ValueError` if outside `0`-`1`). Same pattern as `message_type`: `1` passes construction, only raises from inside the handler when actually exercised. Only meaningful when `message_type=0`; the GRC yaml hides this parameter otherwise. |
-| `fixed_byte_length` | int | `0` | Target byte count for Fixed Length mode. **Not validated in `__init__` at all** — no range or positivity check, unlike `message_type`/`field_type`. Only meaningful when `message_type=2`. |
+| `fixed_byte_length` | int | `0` | Target byte count for Fixed Length mode. Validated in `__init__` (raises `ValueError` if outside `0`-`1023`), matching the GRC yaml's own asserts. Only meaningful when `message_type=2`. |
 | `scid` | int | `0` | Spacecraft ID to filter on. Only applied if `scid_filter_enable=True`; otherwise `self.scid` is set to `None` and no filtering occurs. |
 | `vcid` | int | `0` | Virtual Channel ID to filter on. Same enable-flag pattern as `scid`. |
 | `scid_filter_enable` | bool | `False` | Gates whether `scid` is stored (`self.scid`) or discarded in favor of `None` (no filtering). |
@@ -177,19 +177,10 @@ published frame is exactly whatever bytes were accumulated, with no CRC
 check against the field this codebase's TX side adds via the stock
 `digital.crc_append` block.
 
-## Known issues / TODOs
-
-- **`fixed_byte_length` has no Python-side constructor validation**,
-  unlike `message_type`/`field_type` — the GRC yaml's own asserts require
-  `0 <= fixed_byte_length < 1024`, but nothing enforces that range (or
-  any range) when the class is constructed directly in Python. Whether
-  to add one, and what range, is a design question — deliberately not
-  resolved here.
-
 ## Test coverage
 
-- `python/soarr/qa_ccsds_receiver.py` — 10 test methods (`test_instance`
-  + `test_001`-`test_009`): construction and its default parameter
+- `python/soarr/qa_ccsds_receiver.py` — 11 test methods (`test_instance`
+  + `test_001`-`test_010`): construction and its default parameter
   values (`test_instance`), an invalid TFPH (`tfvn=1`) never publishing
   (`test_001`), a complete 2-codeword TC frame published with the
   correct bytes, length, and TFPH field values recoverable from the
@@ -199,6 +190,8 @@ check against the field this codebase's TX side adds via the stock
   already-consumed codeword (`test_005`), invalid reserved bits never
   publishing (`test_006`), TM mode dropped cleanly instead of raising
   (`test_007`), Encapsulation Field dropped cleanly instead of raising
-  (`test_008`), and a mock-forced publish failure proven to be caught
-  and dropped rather than raised through the real handler (`test_009`).
-  No test in this repo constructs `message_type=2` (Fixed Length mode).
+  (`test_008`), a mock-forced publish failure proven to be caught
+  and dropped rather than raised through the real handler (`test_009`),
+  and a negative or `>= 1024` `fixed_byte_length` raising `ValueError`
+  at construction (`test_010`). No test in this repo constructs
+  `message_type=2` (Fixed Length mode).

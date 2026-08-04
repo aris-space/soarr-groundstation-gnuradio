@@ -42,7 +42,7 @@ class ccsds_receiver(gr.basic_block):
                 raises NotImplementedError from the message handler if
                 selected.
             fixed_byte_length (int): Target byte count for Fixed Length
-                mode. Not validated here.
+                mode.
             scid (int): Spacecraft ID to filter on, if scid_filter_enable.
             vcid (int): Virtual Channel ID to filter on, if
                 vcid_filter_enable.
@@ -50,8 +50,8 @@ class ccsds_receiver(gr.basic_block):
             vcid_filter_enable (bool): Enables VCID filtering.
 
         Raises:
-            ValueError: message_type is outside 0-2, or field_type is
-                outside 0-1.
+            ValueError: message_type is outside 0-2, field_type is
+                outside 0-1, or fixed_byte_length is outside 0-1023.
         """
         gr.basic_block.__init__(self,
             name="ccsds_receiver",
@@ -65,6 +65,10 @@ class ccsds_receiver(gr.basic_block):
         # ENUM: 0 => TC field, 1 => Encapsulation Field, 2 => fixed length (input)
         if field_type < LENGTH_TYPE_TC_FIELD or field_type > LENGTH_TYPE_ENCAPSULATION_FIELD:
             raise ValueError(f"Invalid length type: {field_type}. Must be between 0 and 1.")
+
+        # Matches the GRC yaml's own asserts (0 <= fixed_byte_length < 1024).
+        if fixed_byte_length < 0 or fixed_byte_length >= 1024:
+            raise ValueError(f"Invalid fixed byte length: {fixed_byte_length}. Must be between 0 and 1023.")
 
         self.message_type = message_type
         self.field_type = field_type

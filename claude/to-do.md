@@ -10,10 +10,6 @@ Each of these is a parameter or code path a block's own PRD documents as
 a genuine, deliberately-unresolved design question — see the linked
 PRD's "Known issues / TODOs" section for full detail:
 
-- [ccsds_receiver](prd/ccsds_receiver.md) — `fixed_byte_length` has no
-  Python-side constructor validation (the GRC yaml enforces
-  `0 <= fixed_byte_length < 1024`, direct Python construction doesn't);
-  whether to add one, and what range, is undecided.
 - [lfsr_descrambler](prd/lfsr_descrambler.md) (and
   [lfsr_scrambler](prd/lfsr_scrambler.md), which defers the same question
   to this PRD) — `mask` is accepted, unvalidated, and never used; same

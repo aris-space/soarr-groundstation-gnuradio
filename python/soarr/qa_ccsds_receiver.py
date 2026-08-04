@@ -245,6 +245,12 @@ class qa_ccsds_receiver(gr_unittest.TestCase):
 
         self.assertIsNone(result)
 
+    def test_010_invalid_fixed_byte_length_raises(self):
+        with self.assertRaises(ValueError):
+            ccsds_receiver(fixed_byte_length=-1)
+        with self.assertRaises(ValueError):
+            ccsds_receiver(fixed_byte_length=1024)
+
 
 if __name__ == '__main__':
     gr_unittest.run(qa_ccsds_receiver)
