@@ -17,11 +17,6 @@ log or a session snapshot (see git history for that).
   combined PDU — a real 1-in-1-out to N-in-1-out contract change. No
   test in the repo proves or disproves multi-codeword framing either
   way.
-- [acquisition_idle_sequencer](prd/acquisition_idle_sequencer.md) —
-  `grc/soarr_acquisition_idle_sequencer.block.yml`'s `make` template
-  passes only 5 of the constructor's 6 arguments; `max_idle_chunk` has no
-  `parameters:` entry, so a flowgraph built through GRC can never
-  configure it and always gets the code default.
 - [db_client](prd/db_client.md) — `forward_body=False` makes
   `db_client`'s response silently unusable by `inject_db`: the entire
   `db_callback` message is dropped, not just its payload, with no

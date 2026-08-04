@@ -4,7 +4,7 @@ category: '[soarr]'
 
 templates:
   imports: from gnuradio import soarr
-  make: soarr.acquisition_idle_sequencer(${idle_sequence}, ${acquisition_sequence}, ${initial_acquisition}, ${diff_encoded}, ${tsb_tag_name})
+  make: soarr.acquisition_idle_sequencer(${idle_sequence}, ${acquisition_sequence}, ${initial_acquisition}, ${diff_encoded}, ${tsb_tag_name}, ${max_idle_chunk})
 
 parameters:
 - id: diff_encoded
@@ -35,6 +35,11 @@ parameters:
   label: UHD TSB Tag Name
   dtype: string
   default: packet_len
+
+- id: max_idle_chunk
+  label: Max Idle Chunk (bytes)
+  dtype: int
+  default: 64
 
 inputs:
 - label: in

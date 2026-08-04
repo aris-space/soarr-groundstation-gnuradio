@@ -95,11 +95,6 @@ every handler method name are already snake_case.
   public attributes re-read fresh on every message. No test in this repo
   exercises runtime reassignment of this block's acquisition bytes either
   way.
-- **`grc/soarr_acquisition_idle_sequencer.block.yml`'s `make` template
-  passes only 5 of the constructor's 6 arguments** — `max_idle_chunk` has
-  no `parameters:` entry and isn't in the template string, so a flowgraph
-  built through GRC can never configure it and always gets the code
-  default of `64`.
 
 ## Test coverage
 
