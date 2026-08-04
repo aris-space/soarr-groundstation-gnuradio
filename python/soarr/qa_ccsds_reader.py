@@ -98,6 +98,18 @@ class qa_ccsds_reader(gr_unittest.TestCase):
         instance = ccsds_reader(sdls_type=2, encapsulation_used=False, data_type=0)
         self.assertEqual(instance.sdls_type, 2)
 
+    def test_invalid_sdls_type_raises(self):
+        with self.assertRaises(ValueError):
+            ccsds_reader(sdls_type=-1)
+        with self.assertRaises(ValueError):
+            ccsds_reader(sdls_type=4)
+
+    def test_invalid_data_type_raises(self):
+        with self.assertRaises(ValueError):
+            ccsds_reader(data_type=-1)
+        with self.assertRaises(ValueError):
+            ccsds_reader(data_type=2)
+
     def test_ccsds_message_structure_minimal(self):
         """Test CCSDS message structure with minimal headers (TC header + data + FECF)"""
         instance = ccsds_reader(sdls_type=0, encapsulation_used=False, data_type=0)

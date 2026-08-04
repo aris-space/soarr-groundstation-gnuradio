@@ -45,12 +45,9 @@ by anything in this repo.
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `sdls_type` | int | `3` | `0`=No SDLS, `1`=Encryption only, `2`=Authentication only, `3`=Both. Not validated in `__init__` — no range check at all. |
-| `encapsulation_used` | bool | `True` | Whether the parser expects an Encapsulation Packet Protocol header. Not validated (any truthy/falsy value is accepted as-is). |
-| `data_type` | int | `0` | `0`=Raw, `1`=CSP (adds a `csp_header` field). Not validated — no range check at all. Genuinely controls `ccsds_message()`'s structure (see Behavior). |
-
-None of the three constructor parameters is validated — no range or
-type checks anywhere in `__init__`.
+| `sdls_type` | int | `3` | `0`=No SDLS, `1`=Encryption only, `2`=Authentication only, `3`=Both. Validated in `__init__` (raises `ValueError` if outside `0`-`3`). |
+| `encapsulation_used` | bool | `True` | Whether the parser expects an Encapsulation Packet Protocol header. Not validated (any truthy/falsy value is accepted as-is) — a bool has no invalid range to check. |
+| `data_type` | int | `0` | `0`=Raw, `1`=CSP (adds a `csp_header` field). Validated in `__init__` (raises `ValueError` if outside `0`-`1`). Genuinely controls `ccsds_message()`'s structure (see Behavior). |
 
 ## Behavior / edge cases / current error handling
 
@@ -158,16 +155,9 @@ Protocol) header is not a CCSDS standard — it's a separate,
 widely-used-in-practice convention layered on top, included here because
 `data_type=1` selects it.
 
-## Known issues / TODOs
-
-- **No constructor-time validation for any of the three parameters** —
-  `sdls_type` and `data_type` in particular control which `construct`
-  structure gets built; an out-of-range value isn't rejected until (or
-  unless) parsing itself fails downstream.
-
 ## Test coverage
 
-- `python/soarr/qa_ccsds_reader.py` — 19 test methods: construction with
+- `python/soarr/qa_ccsds_reader.py` — 21 test methods: construction with
   default and several custom parameter combinations
   (`test_instance_default`, `test_instance_custom_tc_no_security`,
   `test_instance_csp_encryption`, `test_instance_authentication_only`),
@@ -176,7 +166,10 @@ widely-used-in-practice convention layered on top, included here because
   `_with_csp`, `_with_encapsulation`, `_with_sdls`, `_full`,
   `test_sdls_encryption_only`, `test_sdls_authentication_only`,
   `test_sdls_no_security` — structural checks against `subcons` field
-  names, not a build/parse round-trip), message port registration
+  names, not a build/parse round-trip), an out-of-range `sdls_type` or
+  `data_type` each raising `ValueError` at construction
+  (`test_invalid_sdls_type_raises`, `test_invalid_data_type_raises`),
+  message port registration
   (`test_message_port_registration`), two full build-then-decode
   round trips through the real `decode_ccsds` handler
   (`test_decode_full_packet_outputs_all_fields_and_unchanged_u8vector`,

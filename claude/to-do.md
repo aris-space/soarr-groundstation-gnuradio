@@ -46,6 +46,7 @@ log or a session snapshot (see git history for that).
   ties these together; a flowgraph setting `iv_length_bytes` to anything
   but 2 would produce a wire-transmitted IV width that doesn't match
   what TX/RX actually used for their AES-CTR/CMAC counter blocks.
+
 ## Deferred design questions
 
 - [acquisition_idle_sequencer](prd/acquisition_idle_sequencer.md) — the
@@ -76,10 +77,6 @@ log or a session snapshot (see git history for that).
 
 ## Test-coverage gaps (no known bug, just untested)
 
-- [ccsds_reader](prd/ccsds_reader.md) — no constructor-time validation
-  for any of its 3 parameters (`sdls_type`, `encapsulation_used`,
-  `data_type`); an out-of-range value isn't rejected until parsing
-  itself fails downstream, if it fails at all.
 - [sdls_authentication](prd/sdls_authentication.md) and
   [sdls_encryption](prd/sdls_encryption.md) — the nested
   `sdls.security_header.sdls_counter` fallback path is the *only* path

@@ -25,11 +25,21 @@ class ccsds_reader(gr.basic_block):
             encapsulation_used (bool): whether to expect an
                 Encapsulation Packet Protocol header.
             data_type (int): 0=Raw, 1=CSP (adds a csp_header field).
+
+        Raises:
+            ValueError: sdls_type is outside 0-3, or data_type is
+                outside 0-1.
         """
         gr.basic_block.__init__(self,
             name="CCSDS Reader",
             in_sig=None,
             out_sig=None)
+
+        if sdls_type < 0 or sdls_type > 3:
+            raise ValueError(f"Invalid sdls_type: {sdls_type}. Must be between 0 and 3.")
+
+        if data_type < 0 or data_type > 1:
+            raise ValueError(f"Invalid data_type: {data_type}. Must be between 0 and 1.")
 
         self.sdls_type = sdls_type
         self.encapsulation_used = encapsulation_used
