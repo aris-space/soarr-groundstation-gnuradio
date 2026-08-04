@@ -76,28 +76,26 @@ class qa_ccsds_reader(gr_unittest.TestCase):
         """Test instantiation with default parameters"""
         instance = ccsds_reader()
         self.assertIsNotNone(instance)
-        self.assertEqual(instance.message_type, 0)  # TC
         self.assertEqual(instance.sdls_type, 3)     # Both
         self.assertEqual(instance.encapsulation_used, True)
         self.assertEqual(instance.data_type, 0)     # Raw
 
     def test_instance_custom_tc_no_security(self):
         """Test TC with no security"""
-        instance = ccsds_reader(message_type=0, sdls_type=0, encapsulation_used=False, data_type=0)
-        self.assertEqual(instance.message_type, 0)
+        instance = ccsds_reader(sdls_type=0, encapsulation_used=False, data_type=0)
         self.assertEqual(instance.sdls_type, 0)
         self.assertEqual(instance.encapsulation_used, False)
         self.assertEqual(instance.data_type, 0)
 
     def test_instance_csp_encryption(self):
         """Test CSP with encryption only"""
-        instance = ccsds_reader(message_type=0, sdls_type=1, encapsulation_used=True, data_type=1)
+        instance = ccsds_reader(sdls_type=1, encapsulation_used=True, data_type=1)
         self.assertEqual(instance.data_type, 1)
         self.assertEqual(instance.sdls_type, 1)
 
     def test_instance_authentication_only(self):
         """Test authentication only SDLS"""
-        instance = ccsds_reader(message_type=0, sdls_type=2, encapsulation_used=False, data_type=0)
+        instance = ccsds_reader(sdls_type=2, encapsulation_used=False, data_type=0)
         self.assertEqual(instance.sdls_type, 2)
 
     def test_ccsds_message_structure_minimal(self):
@@ -197,7 +195,7 @@ class qa_ccsds_reader(gr_unittest.TestCase):
         total_length = 5 + 6 + 4 + 4 + len(payload_bytes) + 16 + 2
         frame_length = total_length - 1
 
-        instance = ccsds_reader(message_type=0, sdls_type=3, encapsulation_used=True, data_type=1)
+        instance = ccsds_reader(sdls_type=3, encapsulation_used=True, data_type=1)
 
         packet_bytes = instance.ccsds_message().build(
             dict(
@@ -273,7 +271,7 @@ class qa_ccsds_reader(gr_unittest.TestCase):
         total_length = 5 + len(payload_bytes) + 2
         frame_length = total_length - 1
 
-        instance = ccsds_reader(message_type=0, sdls_type=0, encapsulation_used=False, data_type=0)
+        instance = ccsds_reader(sdls_type=0, encapsulation_used=False, data_type=0)
 
         packet_bytes = instance.ccsds_message().build(
             dict(
@@ -324,7 +322,7 @@ class qa_ccsds_reader(gr_unittest.TestCase):
         total_length = 5 + 1 + len(payload_bytes) + 2
         frame_length = total_length - 1
 
-        instance = ccsds_reader(message_type=0, sdls_type=0, encapsulation_used=True, data_type=0)
+        instance = ccsds_reader(sdls_type=0, encapsulation_used=True, data_type=0)
 
         packet_bytes = instance.ccsds_message().build(
             dict(
@@ -398,7 +396,7 @@ class qa_ccsds_reader(gr_unittest.TestCase):
         total_length = 5 + len(payload_bytes) + 2
         frame_length = total_length - 1
 
-        instance = ccsds_reader(message_type=0, sdls_type=0, encapsulation_used=False, data_type=0)
+        instance = ccsds_reader(sdls_type=0, encapsulation_used=False, data_type=0)
 
         packet_bytes = instance.ccsds_message().build(
             dict(

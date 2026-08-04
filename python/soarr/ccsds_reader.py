@@ -17,12 +17,9 @@ class ccsds_reader(gr.basic_block):
     republishes the parsed fields as PDU metadata alongside the
     extracted data payload.
     """
-    def __init__(self, message_type:int=0, sdls_type:int=3, encapsulation_used:bool=True, data_type:int=0):
+    def __init__(self, sdls_type:int=3, encapsulation_used:bool=True, data_type:int=0):
         """
         Args:
-            message_type (int): 0=TC, 1=TM. Accepted but not currently
-                read anywhere else in the class; TM has no effect on
-                parsing.
             sdls_type (int): 0=No SDLS, 1=Encryption only,
                 2=Authentication only, 3=Both.
             encapsulation_used (bool): whether to expect an
@@ -34,7 +31,6 @@ class ccsds_reader(gr.basic_block):
             in_sig=None,
             out_sig=None)
 
-        self.message_type = message_type
         self.sdls_type = sdls_type
         self.encapsulation_used = encapsulation_used
         self.data_type = data_type
@@ -168,7 +164,6 @@ class ccsds_reader(gr.basic_block):
         - Frame Error Control Field (always present)
         
         Parameters:
-            message_type: 0=TC, 1=TM (currently only TC supported)
             sdls_type: 0=No SDLS, 1=Encryption only, 2=Authentication only, 3=Both
             encapsulation_used: True/False for encapsulation header
             data_type: 0=Raw, 1=CSP

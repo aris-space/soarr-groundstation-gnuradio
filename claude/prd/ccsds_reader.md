@@ -45,13 +45,12 @@ by anything in this repo.
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `message_type` | int | `0` | GRC-exposed as a TC/TM enum (`0`/`1`), but **`self.message_type` is stored and never read anywhere else in the class** — `ccsds_message()` always builds a TC-shaped parser regardless of this value. Selecting TM in GRC has no effect on parsing. |
 | `sdls_type` | int | `3` | `0`=No SDLS, `1`=Encryption only, `2`=Authentication only, `3`=Both. Not validated in `__init__` — no range check at all. |
 | `encapsulation_used` | bool | `True` | Whether the parser expects an Encapsulation Packet Protocol header. Not validated (any truthy/falsy value is accepted as-is). |
-| `data_type` | int | `0` | `0`=Raw, `1`=CSP (adds a `csp_header` field). Not validated — no range check at all. Unlike `message_type`, this parameter genuinely controls `ccsds_message()`'s structure (see Behavior). |
+| `data_type` | int | `0` | `0`=Raw, `1`=CSP (adds a `csp_header` field). Not validated — no range check at all. Genuinely controls `ccsds_message()`'s structure (see Behavior). |
 
-None of the four constructor parameters is validated — no range or type
-checks anywhere in `__init__`.
+None of the three constructor parameters is validated — no range or
+type checks anywhere in `__init__`.
 
 ## Behavior / edge cases / current error handling
 
@@ -161,11 +160,7 @@ widely-used-in-practice convention layered on top, included here because
 
 ## Known issues / TODOs
 
-- **`message_type` is accepted, GRC-exposed as a TC/TM choice, and
-  completely unused.** See Parameters above. Whether this is a
-  forward-looking placeholder for real TM support or simply dead is a
-  design question — deliberately not resolved here.
-- **No constructor-time validation for any of the four parameters** —
+- **No constructor-time validation for any of the three parameters** —
   `sdls_type` and `data_type` in particular control which `construct`
   structure gets built; an out-of-range value isn't rejected until (or
   unless) parsing itself fails downstream.

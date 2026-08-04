@@ -10,9 +10,6 @@ Each of these is a parameter or code path a block's own PRD documents as
 a genuine, deliberately-unresolved design question — see the linked
 PRD's "Known issues / TODOs" section for full detail:
 
-- [ccsds_reader](prd/ccsds_reader.md) — `message_type` is accepted and
-  GRC-exposed as a TC/TM choice but completely unused; same
-  placeholder-or-dead question.
 - [ccsds_receiver](prd/ccsds_receiver.md) — `fixed_byte_length` has no
   Python-side constructor validation (the GRC yaml enforces
   `0 <= fixed_byte_length < 1024`, direct Python construction doesn't);

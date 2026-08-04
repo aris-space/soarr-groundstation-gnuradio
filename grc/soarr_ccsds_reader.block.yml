@@ -4,7 +4,7 @@ category: '[soarr]/Reception'
 
 templates:
   imports: from gnuradio import soarr
-  make: soarr.ccsds_reader(int(${message_type}), int(${sdls_type}), ${encapsulation_used}, int(${data_type}))
+  make: soarr.ccsds_reader(int(${sdls_type}), ${encapsulation_used}, int(${data_type}))
 
 #  Make one 'parameters' list entry for every parameter you want settable from the GUI.
 #     Keys include:
@@ -13,13 +13,6 @@ templates:
 #     * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
 #     * default
 parameters:
-- id: message_type
-  label: Message Type
-  dtype: enum
-  default: '0'
-  options: ['0', '1']
-  option_labels: ['TC (Telecommand)', 'TM (Telemetry)']
-
 - id: sdls_type
   label: SDLS Security Type
   dtype: enum
