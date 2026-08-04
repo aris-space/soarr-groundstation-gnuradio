@@ -258,10 +258,10 @@ class ccsds_receiver(gr.basic_block):
                 length-minus-one convention); `data_length + 1` bytes are
                 sliced from `frame_buffer` and published.
 
-        Publishes:
-            "out" (pmt_pair): PDU with a freshly built metadata dict
-                carrying only `frame_length` (int, the published frame's
-                actual byte count) and the sliced frame bytes as payload.
+        Returns: None. Publishes a PDU with a freshly built metadata
+            dict carrying only `frame_length` (int, the published
+            frame's actual byte count) and the sliced frame bytes as
+            payload, on "out".
         """
         frame_data = bytes(self.frame_buffer[:data_length+1])  # +1 to include the last byte that made the length reach 0 or below
         metadata = pmt.make_dict()  # Empty metadata for now, can be extended with relevant info if needed
