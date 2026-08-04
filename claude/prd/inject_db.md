@@ -39,7 +39,7 @@ RX chain diagram only — not independently wired or tested in this repo.
 |---|---|---|---|
 | `in` | input | PDU: `(metadata_dict . payload_u8vector)`. Metadata must include `scid`/`spi` (int) and `bypass`/`control` (bool) — each checked at the top level first, falling back to the nested `telecommand.tc_header`/`sdls.security_header` path (see Behavior). | `pmt.cons({scid: 0x155, ...}, u8vector(payload))` |
 | `db_call` | output | The same PDU received on `in`, unmodified, forwarded to `db_client` as a query. | same as `in` |
-| `db_callback` | input | PDU: `(metadata_dict . payload_u8vector)` — `db_client`'s query response. Metadata must include everything `in` requires, plus `auth_key`/`crypt_key` (symbol hex string or `PMT_NIL`) and `vcid`/`vcid_counter`/`sdls_counter` (int). | `pmt.cons({auth_key: "...", ...}, u8vector(payload))` |
+| `db_callback` | input | PDU: `(metadata_dict . payload_or_PMT_NIL)` — `db_client`'s query response. The payload need not be a u8vector as long as a prior `in` message left pending state to supply one instead (see Behavior) — e.g. `db_client(forward_body=False)`'s `PMT_NIL` payload. Metadata must include everything `in` requires, plus `auth_key`/`crypt_key` (symbol hex string or `PMT_NIL`) and `vcid`/`vcid_counter`/`sdls_counter` (int). | `pmt.cons({auth_key: "...", ...}, u8vector(payload))` |
 | `out` | output | The `db_callback` PDU's metadata, merged with the original `in` PDU's metadata (`in`'s keys win — see Behavior), paired with the *original* `in` PDU's payload (not `db_callback`'s). | `pmt.cons({merged}, u8vector(original_payload))` |
 
 ## Parameters
@@ -49,15 +49,19 @@ None.
 ## Behavior / edge cases / current error handling
 
 **Two-phase flow, correlated by single-slot instance state**: `send_db_call`
-(the `in` handler) validates the incoming PDU, stores it as
-`self._pending_meta`/`self._pending_payload`, and forwards it unchanged
-on `db_call`. `send_msg_out` (the `db_callback` handler) validates the
-callback PDU, merges it with `_pending_meta` (see below), re-attaches the
-*original* pending payload, clears both pending fields, validates the
-merged result against a larger required-key set, and publishes on `out`.
-If `_pending_meta` is `None` (no `in` message preceded this callback),
-`send_msg_out` validates and forwards the callback PDU's own metadata
-directly, with no merge.
+(the `in` handler) validates the incoming PDU (requiring a u8vector
+payload), stores it as `self._pending_meta`/`self._pending_payload`, and
+forwards it unchanged on `db_call`. `send_msg_out` (the `db_callback`
+handler) validates the callback PDU's shape (metadata dict required, but
+its own payload need not be a u8vector), merges it with `_pending_meta`
+(see below), re-attaches the *original* pending payload — discarding the
+callback's own payload entirely, whatever it was — clears both pending
+fields, validates the merged result against a larger required-key set,
+and publishes on `out`. If `_pending_meta` is `None` (no `in` message
+preceded this callback), there's no pending payload to fall back on, so
+the callback's own payload must be a u8vector or the message is dropped;
+otherwise `send_msg_out` validates and forwards the callback PDU's own
+metadata and payload directly, with no merge.
 
 **Metadata merge** (`_merge_metadata`/`_should_merge_key`/
 `_merge_key_into_nested`/`_resolve_key`): for every key in the
@@ -145,8 +149,8 @@ correct state.
 
 ## Test coverage
 
-- `python/soarr/qa_inject_db.py` — 17 test methods (`test_instance` +
-  `test_001`–`test_016`): a valid `in` PDU (with nested `telecommand`/
+- `python/soarr/qa_inject_db.py` — 19 test methods (`test_instance` +
+  `test_001`–`test_018`): a valid `in` PDU (with nested `telecommand`/
   `sdls` metadata) emitting a `db_call`, a missing required key and a
   non-integer `scid` each emitting nothing, a `db_callback` with valid
   symbol-hex `auth_key`/`crypt_key` emitting `out`, a genuinely nil
@@ -163,6 +167,11 @@ correct state.
   `crypt_key` genuinely absent (not merely nil) also accepted
   (`test_014`), and a mock-forced publish failure proven to be caught
   and dropped rather than raised through the real handler, for both
-  `send_db_call` (`test_015`) and `send_msg_out` (`test_016`). No test
+  `send_db_call` (`test_015`) and `send_msg_out` (`test_016`), a
+  `db_callback` with a `PMT_NIL` payload (simulating
+  `db_client(forward_body=False)`) still publishing successfully using
+  the pending payload from a preceding `send_db_call` (`test_017`), and
+  the same `PMT_NIL` payload rejected when no `send_db_call` preceded it,
+  since there's no pending payload to fall back on (`test_018`). No test
   exercises more than one in-flight request at a time (see Known issues
   above).

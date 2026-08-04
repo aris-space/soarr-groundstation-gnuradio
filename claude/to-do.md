@@ -17,11 +17,6 @@ log or a session snapshot (see git history for that).
   combined PDU — a real 1-in-1-out to N-in-1-out contract change. No
   test in the repo proves or disproves multi-codeword framing either
   way.
-- [db_client](prd/db_client.md) — `forward_body=False` makes
-  `db_client`'s response silently unusable by `inject_db`: the entire
-  `db_callback` message is dropped, not just its payload, with no
-  warning from either block. A cross-block design interaction, not
-  fixable in `db_client.py` alone.
 - [inject_db](prd/inject_db.md) — single-slot pending state causes
   cross-request metadata corruption under concurrent/pipelined `in`
   messages, reproduced directly: a second `send_db_call` before the

@@ -267,34 +267,42 @@ class inject_db(gr.basic_block):
 
         return pmt.dict_add(dict_msg, pmt.intern(key), value)
 
-    def _extract_pdu(self, msg, source="message"):
+    def _extract_pdu(self, msg, source="message", require_u8vector_payload=True):
         """
         Args:
             msg (pmt_any): value expected to be a PDU pair.
             source (str): human-readable origin, used only in log messages
                 (e.g. "input", "database").
+            require_u8vector_payload (bool): if False, a non-u8vector
+                payload (e.g. PMT_NIL) is returned as-is instead of being
+                rejected - used for the db_callback path, where a
+                non-u8vector payload is expected whenever
+                db_client(forward_body=False) is in use, and gets
+                replaced by the pending request's own payload before
+                publishing (see send_msg_out).
 
         Returns:
-            tuple[pmt_dict, pmt_u8vector] | None: (metadata dict, payload)
-                if msg is a valid PDU pair with dict metadata and a
-                u8vector payload; otherwise logs at error and returns None.
+            tuple[pmt_dict, pmt_any] | None: (metadata dict, payload) if
+                msg is a valid PDU pair with dict metadata and (unless
+                require_u8vector_payload is False) a u8vector payload;
+                otherwise logs at error and returns None.
         """
         if not pmt.is_pair(msg):
             self.logger.error(f"Received non-PDU {source}: {msg}")
             return None
 
         dict_msg = pmt.car(msg)
-        payload_u8vector = pmt.cdr(msg)
+        payload = pmt.cdr(msg)
 
         if not pmt.is_dict(dict_msg):
             self.logger.error(f"Received {source} with non-dict metadata: {msg}")
             return None
 
-        if not pmt.is_u8vector(payload_u8vector):
+        if require_u8vector_payload and not pmt.is_u8vector(payload):
             self.logger.error(f"Received {source} with non-u8vector payload: {msg}")
             return None
 
-        return (dict_msg, payload_u8vector)
+        return (dict_msg, payload)
 
     def _check_keys(self, dict_msg, key_specs) -> bool:
         """
@@ -371,11 +379,13 @@ class inject_db(gr.basic_block):
     def send_msg_out(self, msg):
         """
         Args:
-            msg (pmt_pair): PDU with metadata dict and u8vector payload -
-                db_client's query response. Metadata must include
-                everything send_db_call requires, plus `auth_key`/
-                `crypt_key` (symbol hex string or PMT_NIL) and `vcid`/
-                `vcid_counter`/`sdls_counter` (int).
+            msg (pmt_pair): PDU with metadata dict and payload - db_client's
+                query response. The payload need not be a u8vector (e.g.
+                PMT_NIL, from `db_client(forward_body=False)`) as long as
+                a pending request exists to supply one instead - see
+                Publishes. Metadata must include everything send_db_call
+                requires, plus `auth_key`/`crypt_key` (symbol hex string
+                or PMT_NIL) and `vcid`/`vcid_counter`/`sdls_counter` (int).
 
         Publishes:
             "out" (pmt_pair): this PDU's metadata merged with the pending
@@ -386,22 +396,28 @@ class inject_db(gr.basic_block):
                 and payload unmodified.
 
         Drops when:
-            - msg is not a PDU pair, metadata is not a dict, or payload is not a u8vector (error - malformed input, not raw RF noise)
+            - msg is not a PDU pair, or metadata is not a dict (error - malformed input, not raw RF noise)
+            - payload is not a u8vector and no pending request exists to supply one instead (error - same)
             - the merged metadata is missing a required key or has the wrong type for one (error - same)
             - an internal failure occurs while merging, building, or publishing the result (error - same)
         """
         try:
-            extracted = self._extract_pdu(msg, source="message from database")
+            extracted = self._extract_pdu(msg, source="message from database", require_u8vector_payload=False)
             if extracted is None:
                 return
-            dict_msg, payload_u8vector = extracted
+            dict_msg, payload = extracted
 
             if self._pending_meta is not None:
                 dict_msg = self._merge_metadata(self._pending_meta, dict_msg)
                 if self._pending_payload is not None:
-                    payload_u8vector = self._pending_payload
+                    payload = self._pending_payload
                 self._pending_meta = None
                 self._pending_payload = None
+            elif not pmt.is_u8vector(payload):
+                # No pending request to fall back on, so the callback's
+                # own payload must be usable on its own.
+                self.logger.error(f"Received message from database with non-u8vector payload and no pending request: {msg}")
+                return
 
             if not self._check_keys(
                 dict_msg,
@@ -419,7 +435,7 @@ class inject_db(gr.basic_block):
             ):
                 return
 
-            out_msg = pmt.cons(dict_msg, payload_u8vector)
+            out_msg = pmt.cons(dict_msg, payload)
             self.message_port_pub(pmt.intern("out"), out_msg)
             self.logger.info("OK")
         except Exception as exc:

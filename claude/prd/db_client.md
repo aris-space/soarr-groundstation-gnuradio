@@ -37,7 +37,7 @@ Confirmed via `python/soarr/qa_layoutTest.py`'s `msg_connect` wiring
 | `type` | int | `0` | `0`=dummy (in-memory, configurable via the parameters below), `1`=local YAML file, `2`=remote DB (unimplemented stub — falls back to dummy, logged at `error`). An unrecognized value also falls back to dummy, logged at `error`. |
 | `ip`, `port` | str, int | `"127.0.0.1"`, `80` | Reserved for `type=2`'s remote DB mode; unused since that mode isn't implemented. |
 | `yaml_path` | str | `""` | Path to the YAML file for `type=1`. Missing file, missing PyYAML, a parse failure, a non-mapping root, or zero valid entries all fall back to dummy (logged at `error`). |
-| `forward_body` | bool | `True` | If `True` and the query's payload is a u8vector, echoes it back on `db_callback`; otherwise the response payload is `PMT_NIL` (see Known issues for what this does to `inject_db`). |
+| `forward_body` | bool | `True` | If `True` and the query's payload is a u8vector, echoes it back on `db_callback`; otherwise the response payload is `PMT_NIL`. Currently has no real effect on `inject_db`, the only consumer in this repo — it always uses its own independently-tracked pending payload instead (see Behavior). Kept for a future consumer that might not track its own pending payload. |
 | `auto_reset_counters` | bool | `False` | `type=0` only: if `True`, a counter at its max value resets to `0` after being served instead of refusing to increment further. |
 | `scid`, `spi`, `vcid`, `crypt_key`, `auth_key`, `sdls_counter`, `vcid_counter`, `key_state_enc`, `key_state_auth` | — | see code | The dummy (`type=0`) entry's fields, each independently configurable. |
 
@@ -80,13 +80,13 @@ value, so the query that pushes a counter to its max still gets a valid
 response — only the *next* query at that SCID/SPI is affected.
 
 **`forward_body=False` (or a non-u8vector query payload)**: the
-`db_callback` response's payload becomes `PMT_NIL`. Since
-`inject_db.send_msg_out` requires a u8vector payload unconditionally
-(see [inject_db.md](inject_db.md)), a `PMT_NIL` response payload gets the
-*entire* `db_callback` message rejected by `inject_db` — reproduced
-directly: `db_client(forward_body=False)`'s response, fed into a real
-`inject_db.send_msg_out`, is dropped with `"Received message from
-database with non-u8vector payload"`, publishing nothing.
+`db_callback` response's payload becomes `PMT_NIL`. This is harmless in
+the real pipeline: `inject_db.send_msg_out` (see
+[inject_db.md](inject_db.md)) always substitutes its own independently-
+stored pending payload whenever a `send_db_call` preceded the callback —
+the callback's own payload, echoed or not, is never actually used in
+that case. `send_msg_out` only requires the callback's own payload to be
+a u8vector when there's no pending request to fall back on.
 
 **Error handling** (compliant with
 [coding-standards.md](../coding-standards.md),
@@ -116,16 +116,6 @@ the handler method name are already snake_case.
 
 None — this block is pure key/counter lookup, not a CCSDS-defined layer.
 
-## Known issues / TODOs
-
-- **`forward_body=False` makes `db_client`'s response unusable by
-  `inject_db`.** Confirmed directly (see Behavior above) — the entire
-  `db_callback` message is silently dropped by `inject_db`, not just its
-  payload. Since the default is `True`, this only bites a flowgraph that
-  explicitly sets `forward_body=False`, but nothing in either block warns
-  that the combination is effectively broken. This is a cross-block
-  design interaction, not something fixable in `db_client.py` alone.
-
 ## Test coverage
 
 - `python/soarr/qa_db_client.py` — 20 test methods (`test_instance` +
@@ -138,8 +128,9 @@ None — this block is pure key/counter lookup, not a CCSDS-defined layer.
   configurable dummy keys, configurable dummy initial counters,
   configurable dummy key states, every dummy parameter combined in one
   test, `forward_body=True` preserving a u8vector payload,
-  `forward_body=False` producing a `PMT_NIL` payload (proving the
-  behavior, not `inject_db`'s reaction to it — see Known issues),
+  `forward_body=False` producing a `PMT_NIL` payload (this file only
+  proves that behavior, not `inject_db`'s reaction to it — see
+  [inject_db.md](inject_db.md) for that),
   `auto_reset_counters` on/off at the max counter value, a non-pair input
   dropped cleanly instead of crashing the handler (`test_015`), `scid`
   and `spi` resolved independently — a valid top-level `scid` surviving

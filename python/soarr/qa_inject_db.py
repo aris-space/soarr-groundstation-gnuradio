@@ -506,6 +506,64 @@ class qa_inject_db(gr_unittest.TestCase):
         finally:
             self._restore_pub(block, original_pub)
 
+    def test_017_db_callback_nil_payload_uses_pending_payload(self):
+        # Simulates db_client(forward_body=False): the db_callback's own
+        # payload is PMT_NIL, but a real send_db_call already stored the
+        # original payload as pending state, so the response should still
+        # be published using that pending payload, not dropped.
+        block = inject_db()
+        original_pub, published = self._capture_pub(block)
+        try:
+            in_meta = pmt.make_dict()
+            in_meta = pmt.dict_add(in_meta, pmt.intern("telecommand"), self._mk_nested_tc({
+                "scid": 0x155,
+                "bypass_flag": False,
+                "control_flag": True,
+            }))
+            in_meta = pmt.dict_add(in_meta, pmt.intern("sdls"), self._mk_nested_sdls({"spi": 1}))
+            in_msg = pmt.cons(in_meta, pmt.init_u8vector(3, [1, 2, 3]))
+            block.send_db_call(in_msg)
+
+            db_meta = self._mk_meta({
+                "auth_key": pmt.intern("FFEEDDCCBBAA99887766554433221100FFEEDDCCBBAA99887766554433221100"),
+                "crypt_key": pmt.intern("00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"),
+                "vcid": 0x12,
+                "vcid_counter": 7,
+                "sdls_counter": 9,
+            })
+            db_msg = pmt.cons(db_meta, pmt.PMT_NIL)
+            block.send_msg_out(db_msg)
+        finally:
+            self._restore_pub(block, original_pub)
+
+        self.assertEqual(len(published), 2)
+        out_port, out_msg = published[1]
+        self.assertTrue(pmt.eqv(out_port, pmt.intern("out")))
+        out_payload = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
+        self.assertEqual(out_payload, bytes([1, 2, 3]))
+
+    def test_018_db_callback_nil_payload_with_no_pending_request_emits_nothing(self):
+        # A db_callback with a non-u8vector payload and no preceding
+        # send_db_call has no pending payload to fall back on, so it must
+        # still be rejected rather than publishing a PDU with a PMT_NIL
+        # payload.
+        block = inject_db()
+        original_pub, published = self._capture_pub(block)
+        try:
+            db_meta = self._mk_meta({
+                "auth_key": pmt.intern("FFEEDDCCBBAA99887766554433221100FFEEDDCCBBAA99887766554433221100"),
+                "crypt_key": pmt.intern("00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"),
+                "vcid": 0x12,
+                "vcid_counter": 7,
+                "sdls_counter": 9,
+            })
+            db_msg = pmt.cons(db_meta, pmt.PMT_NIL)
+            block.send_msg_out(db_msg)
+        finally:
+            self._restore_pub(block, original_pub)
+
+        self.assertEqual(len(published), 0)
+
 
 if __name__ == '__main__':
     gr_unittest.run(qa_inject_db)
