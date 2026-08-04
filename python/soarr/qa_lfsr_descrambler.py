@@ -41,13 +41,11 @@ class qa_lfsr_descrambler(gr_unittest.TestCase):
             self.descrambler.message_port_pub = original_pub
 
     def test_001_default_parameters(self):
-        self.assertEqual(self.descrambler.mask, 0xA9)
         self.assertEqual(self.descrambler.seed, 0xFF)
         self.assertEqual(self.descrambler.register_length, 8)
 
     def test_002_custom_parameters(self):
-        custom = lfsr_descrambler(mask=0xA9, seed=0xAB, register_length=8)
-        self.assertEqual(custom.mask, 0xA9)
+        custom = lfsr_descrambler(seed=0xAB, register_length=8)
         self.assertEqual(custom.seed, 0xAB)
         self.assertEqual(custom.register_length, 8)
 

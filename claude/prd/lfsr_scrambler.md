@@ -35,8 +35,8 @@ Confirmed via `python/soarr/qa_layoutTest.py:103-104`'s `msg_connect` wiring.
 This block has no `mask`/polynomial parameter — `apply_scrambling`
 hardcodes the CCSDS generator polynomial directly, since CCSDS 231.0-B-3
 mandates one fixed polynomial for TX/RX interoperability and no caller in
-this repo ever varies it. The sibling `lfsr_descrambler` block still
-exposes an unused `mask` parameter of its own; out of scope here.
+this repo ever varies it. The sibling `lfsr_descrambler` block matches:
+neither exposes a configurable polynomial.
 
 ## Behavior / edge cases / current error handling
 

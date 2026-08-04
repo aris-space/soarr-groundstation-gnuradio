@@ -15,11 +15,9 @@ class lfsr_descrambler(gr.basic_block):
     XORing it against a running LFSR-generated sequence, the same fixed
     generator polynomial lfsr_scrambler applies on the TX side.
     """
-    def __init__(self, mask:int=169,seed:int=255,register_length:int=8):
+    def __init__(self, seed:int=255,register_length:int=8):
         """
         Args:
-            mask (int): Accepted and stored, but not currently read by
-                the descrambling algorithm.
             seed (int): Initial 8-bit LFSR register state. Only the low
                 register_length bits are used.
             register_length (int): LFSR register width in bits. Only 8
@@ -34,7 +32,6 @@ class lfsr_descrambler(gr.basic_block):
             in_sig=None,
             out_sig=None)
 
-        self.mask = mask
         self.seed = seed
         self.register_length = register_length
         self.register = seed

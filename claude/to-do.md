@@ -10,10 +10,6 @@ Each of these is a parameter or code path a block's own PRD documents as
 a genuine, deliberately-unresolved design question — see the linked
 PRD's "Known issues / TODOs" section for full detail:
 
-- [lfsr_descrambler](prd/lfsr_descrambler.md) (and
-  [lfsr_scrambler](prd/lfsr_scrambler.md), which defers the same question
-  to this PRD) — `mask` is accepted, unvalidated, and never used; same
-  placeholder-or-dead question.
 - [sdls_decryption](prd/sdls_decryption.md) — `_validate_and_extract_key`
   still uses the ambiguous `PMT_NIL`-comparison pattern to detect an
   absent `crypt_key`, matching `sdls_encryption._extract_secret`'s own

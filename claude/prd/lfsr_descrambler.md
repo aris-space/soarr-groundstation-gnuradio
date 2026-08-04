@@ -62,7 +62,6 @@ it only matters for the direct-call usage.
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `mask` | int | `0xA9` | Accepted and stored as `self.mask` — **not validated, and never read anywhere else in the class.** The descrambling recurrence (`_next_scramble_bit`) hardcodes its feedback taps directly (`_window[6]^_window[4]^_window[3]^_window[2]^_window[1]^_window[0]`), the same fixed CCSDS 231.0-B-3 polynomial `lfsr_scrambler.apply_scrambling` hardcodes on the TX side — `mask` plays no role in selecting or altering it. |
 | `seed` | int | `0xFF` | Initial 8-bit LFSR register state, matching `lfsr_scrambler`'s own default. Only the low `register_length` bits are used; not range-validated. |
 | `register_length` | int | `8` | Validated in `__init__` via `reset_sequence()` (raises `ValueError` if not `8`) — the CCSDS 231.0-B-3 randomizer is only defined for an 8-bit register, matching `lfsr_scrambler`'s identical constraint. `apply_descrambling` re-checks the same condition defensively; since nothing in this repo mutates `register_length` after construction, that second check is unreachable in practice. |
 
@@ -145,14 +144,6 @@ recovers the all-zero input, and
 `qa_lfsrScramberDescrambler.py`/`qa_lfsr_receive_chain.py` both round-trip
 live `lfsr_scrambler` output through this block instead of relying on a
 hand-derived vector alone.
-
-## Known issues / TODOs
-
-- **`mask` is accepted, unvalidated, and stored but never used.** See
-  Parameters above. `lfsr_scrambler.md` already flags this as "out of
-  scope there" and defers it to this block's own PRD; whether it's a
-  forward-looking placeholder or simply dead is a design question —
-  deliberately not resolved here.
 
 ## Test coverage
 
