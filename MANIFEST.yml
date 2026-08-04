@@ -12,7 +12,7 @@ author:
   - Yannick Kulli <yannick.kulli@aris-space.ch>
 copyright_owner:
   - Yannick Kulli
-license:
+license: GPL-3.0-or-later
 gr_supported_version:
   - 3.X
 repo: # Put the URL of the repository here
