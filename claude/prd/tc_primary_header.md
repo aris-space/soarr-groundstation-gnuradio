@@ -116,16 +116,10 @@ bytes. See [TFPH](../../CONTEXT.md) in the glossary.
   total-length expectation, not the TFPH `frame_length` field
   specifically (and couldn't, easily, since `tc_primary_header`'s real
   handler is shimmed out in that test).
-- **Duplicate `test_001` method names** in `qa_tc_primary_header.py`
-  (`test_001_crc_disabled_can_be_instantiated` and
-  `test_001_missing_vcid_counter_emits_no_output`) — both run correctly
-  (Python/unittest identify tests by full method name, not the numeric
-  prefix), purely a numbering inconsistency, not a functional issue.
-
 ## Test coverage
 
 - `python/soarr/qa_tc_primary_header.py` — 10 test methods (`test_instance`
-  + `test_001`×2 + `test_002`–`test_008`): construction with CRC disabled,
+  + `test_001`–`test_009`): construction with CRC disabled,
   rejection when `vcid_counter` is absent, constructor defaults used when
   `scid`/`vcid` are absent from metadata, PDU-provided fields taking
   priority over defaults (checked against every header field, including

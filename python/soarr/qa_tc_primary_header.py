@@ -65,7 +65,7 @@ class qa_tc_primary_header(gr_unittest.TestCase):
         instance = tc_primary_header(scid=0x155, vcid=0x12, is_crc_used=False)
         self.assertIsNotNone(instance)
 
-    def test_001_missing_vcid_counter_emits_no_output(self):
+    def test_002_missing_vcid_counter_emits_no_output(self):
         meta = pmt.make_dict()
         payload = pmt.init_u8vector(3, [1, 2, 3])
         msg = pmt.cons(meta, payload)
@@ -78,7 +78,7 @@ class qa_tc_primary_header(gr_unittest.TestCase):
 
         self.assertEqual(len(self.published), 0)
 
-    def test_002_defaults_used_when_scid_vcid_missing(self):
+    def test_003_defaults_used_when_scid_vcid_missing(self):
         # If PDU metadata has no SCID/VCID, constructor defaults must be used.
         payload_bytes = bytes([0x10, 0x20, 0x30, 0x40])
         meta = pmt.make_dict()
@@ -102,7 +102,7 @@ class qa_tc_primary_header(gr_unittest.TestCase):
         self.assertEqual(fields["vcid"], 0x12)
         self.assertEqual(fields["frame_sequence_number"], 0x2A)
 
-    def test_003_header_build_with_pdu_fields(self):
+    def test_004_header_build_with_pdu_fields(self):
         # Header build should prioritize PDU-provided SCID/VCID/flags/sequence.
         meta = pmt.make_dict()
         meta = pmt.dict_add(meta, pmt.intern("scid"), pmt.from_long(0x2AB))
@@ -137,7 +137,7 @@ class qa_tc_primary_header(gr_unittest.TestCase):
         self.assertEqual(fields["frame_sequence_number"], 0x7F)
         self.assertEqual(fields["frame_length"], len(payload_bytes) + 5 - 1 + self.CRC_BYTES)
 
-    def test_004_frame_length_without_crc_flag(self):
+    def test_005_frame_length_without_crc_flag(self):
         # When CRC is disabled, the frame length should not include the extra bytes.
         block = tc_primary_header(scid=0x155, vcid=0x12, is_crc_used=False)
         published = []
@@ -167,7 +167,7 @@ class qa_tc_primary_header(gr_unittest.TestCase):
     # asserts range, instead of being silently accepted and only failing
     # later when packed (or not caught at all, since scid/vcid were never
     # masked before packing).
-    def test_005_scid_vcid_out_of_range_raise_at_construction(self):
+    def test_006_scid_vcid_out_of_range_raise_at_construction(self):
         with self.assertRaises(ValueError):
             tc_primary_header(scid=0x400, vcid=0x12)
         with self.assertRaises(ValueError):
@@ -180,7 +180,7 @@ class qa_tc_primary_header(gr_unittest.TestCase):
     # Additional: a frame_length present in metadata but not convertible
     # to an integer is dropped cleanly (logged, no publish) instead of
     # leaving frame_length as None and crashing later on `None & mask`.
-    def test_006_unconvertible_frame_length_is_dropped_not_raised(self):
+    def test_007_unconvertible_frame_length_is_dropped_not_raised(self):
         meta = pmt.make_dict()
         meta = pmt.dict_add(meta, pmt.intern("vcid_counter"), pmt.from_long(1))
         meta = pmt.dict_add(meta, pmt.intern("frame_length"), pmt.intern("not-an-int"))
@@ -198,7 +198,7 @@ class qa_tc_primary_header(gr_unittest.TestCase):
     # Additional: an internal failure past field extraction (e.g. a
     # future encoding-library incompatibility) is caught, logged, and
     # dropped - not left to raise out of the real message handler.
-    def test_007_internal_build_failure_is_dropped_not_raised(self):
+    def test_008_internal_build_failure_is_dropped_not_raised(self):
         meta = pmt.make_dict()
         meta = pmt.dict_add(meta, pmt.intern("vcid_counter"), pmt.from_long(1))
         payload = pmt.init_u8vector(2, [1, 2])
@@ -219,7 +219,7 @@ class qa_tc_primary_header(gr_unittest.TestCase):
     # Additional: a computed frame_length that doesn't fit the 10-bit
     # field is rejected (dropped, logged) instead of silently wrapping
     # via bitmasking into a different, wrong value with no diagnostic.
-    def test_008_oversized_frame_length_is_dropped_not_wrapped(self):
+    def test_009_oversized_frame_length_is_dropped_not_wrapped(self):
         block = tc_primary_header(scid=0x155, vcid=0x12, is_crc_used=False)
         published = []
 

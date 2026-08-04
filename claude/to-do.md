@@ -110,6 +110,3 @@ log or a session snapshot (see git history for that).
 - [system_tester](prd/system_tester.md) — no test exercises
   `handle_transmitted`, `AUTOMATIC_MODE`, the `repetitions` cap, or
   `stats_path` actually writing a file.
-- [tc_primary_header](prd/tc_primary_header.md) — duplicate `test_001`
-  method names in `qa_tc_primary_header.py` (both run correctly; a
-  numbering inconsistency, not a functional issue).
