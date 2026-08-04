@@ -23,7 +23,6 @@ class qa_bch_decoder(gr_unittest.TestCase):
         self.assertIsNotNone(instance)
         self.assertEqual(instance.mode, 0)
         self.assertEqual(instance.generator_polynomial, 0xC5)
-        self.assertEqual(instance.primitive_polynomial, 0x43)
 
     def _run_and_capture(self, dut, pdu):
         captured = []
@@ -72,12 +71,6 @@ class qa_bch_decoder(gr_unittest.TestCase):
             bch_decoder(generator_polynomial=-1)
         with self.assertRaises(ValueError):
             bch_decoder(generator_polynomial=0x100)
-        
-        # Test invalid primitive polynomial values (must be between 0x00 and 0xFF)
-        with self.assertRaises(ValueError):
-            bch_decoder(primitive_polynomial=-1)
-        with self.assertRaises(ValueError):
-            bch_decoder(primitive_polynomial=0x100)
 
     def test_003_invalid_pdu_structure_no_pair(self):
         instance = bch_decoder()

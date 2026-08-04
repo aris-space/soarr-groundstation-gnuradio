@@ -22,7 +22,7 @@ class bch_decoder(gr.basic_block):
     recovering the 56-bit information field, or drops the message if the
     codeword can't be corrected within that bound.
     """
-    def __init__(self, mode:int = 0, generator_polynomial:int=0xC5, primitive_polynomial:int=0x43):
+    def __init__(self, mode:int = 0, generator_polynomial:int=0xC5):
         """
         Args:
             mode (int): Decode mode. Only 0 (brute-force search over all
@@ -30,12 +30,10 @@ class bch_decoder(gr.basic_block):
             generator_polynomial (int): BCH generator polynomial g(x), as
                 an 8-bit value. Default 0xC5 matches bch_encoder's own
                 default, CCSDS 231.0-B-4's g(x) = x^7 + x^6 + x^2 + 1.
-            primitive_polynomial (int): Accepted and range-validated, but
-                not currently read by the decode algorithm.
 
         Raises:
-            ValueError: mode is not 0, or generator_polynomial or
-                primitive_polynomial is outside 0x00-0xFF.
+            ValueError: mode is not 0, or generator_polynomial is
+                outside 0x00-0xFF.
         """
         gr.basic_block.__init__(self,
             name="bch_decoder",
@@ -44,7 +42,6 @@ class bch_decoder(gr.basic_block):
 
         self.mode = mode
         self.generator_polynomial = generator_polynomial
-        self.primitive_polynomial = primitive_polynomial
 
         # Validate parameters
         # Mode 0 is the only supported mode for now, but we can add more modes in the future if needed.
@@ -54,11 +51,6 @@ class bch_decoder(gr.basic_block):
         # Generator polynomial g(x) (encoder) in binary: e.g. 0xC5
         if generator_polynomial < 0x00 or generator_polynomial > 0xFF:
             raise ValueError(f"Invalid generator polynomial: 0x{generator_polynomial:02x}. Must be between 0x00 and 0xFF.")
-
-        # Primitive polynomial for the field (used for reduction). Default is 0x43 (x^6 + x + 1).
-        if primitive_polynomial < 0x00 or primitive_polynomial > 0xFF:
-            raise ValueError(f"Invalid primitive polynomial: 0x{primitive_polynomial:02x}. Must be between 0x00 and 0xFF.")
-
 
         # Message ports
         self.message_port_register_in(pmt.intern("in"))

@@ -4,7 +4,7 @@ category: '[soarr]/CLTU'
 
 templates:
   imports: from gnuradio import soarr
-  make: soarr.bch_decoder(0, int(${generator_polynomial}), int(${primitive_polynomial}))
+  make: soarr.bch_decoder(0, int(${generator_polynomial}))
 
 #  Make one 'parameters' list entry for every parameter you want settable from the GUI.
 #     Keys include:
@@ -17,11 +17,6 @@ parameters:
   label: Generator Polynomial
   dtype: int
   default: 0XC5
-
-- id: primitive_polynomial
-  label: Primitive Polynomial
-  dtype: int
-  default: 0X43
 #  dtype: ...
 
 #  Make one 'inputs' list entry per input and one 'outputs' list entry per output.

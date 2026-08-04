@@ -96,7 +96,7 @@ class ccsds_receiver(gr.basic_block):
 
         self.set_msg_handler(pmt.intern("in"), self.receiver)
 
-        self.bch_decoder = bch_decoder(mode=0, generator_polynomial=0xC5, primitive_polynomial=0x43)
+        self.bch_decoder = bch_decoder(mode=0, generator_polynomial=0xC5)
         self.lfsr_descrambler = lfsr_descrambler(169, 255, 8)
 
     def _checkmsg(self, msg) -> bool:

@@ -10,9 +10,6 @@ Each of these is a parameter or code path a block's own PRD documents as
 a genuine, deliberately-unresolved design question — see the linked
 PRD's "Known issues / TODOs" section for full detail:
 
-- [bch_decoder](prd/bch_decoder.md) — `primitive_polynomial` is accepted,
-  validated, and stored but never used; forward-looking placeholder or
-  dead code, undecided.
 - [ccsds_reader](prd/ccsds_reader.md) — `message_type` is accepted and
   GRC-exposed as a TC/TM choice but completely unused; same
   placeholder-or-dead question.

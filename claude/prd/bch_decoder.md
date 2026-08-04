@@ -20,7 +20,7 @@ either signal chain by any `.grc` flowgraph in this repo. Used two ways:
    through the message-port graph) by `ccsds_receiver`, the one canonical
    RX path (`ccsds_receiver.py:99,151`):
    ```python
-   self.bch_decoder = bch_decoder(mode=0, generator_polynomial=0xC5, primitive_polynomial=0x43)
+   self.bch_decoder = bch_decoder(mode=0, generator_polynomial=0xC5)
    ...
    msg = self.bch_decoder.error_correction_mode(msg)
    if msg is None:
@@ -56,7 +56,6 @@ it only matters for the direct-call usage.
 |---|---|---|---|
 | `mode` | int | `0` | Only `0` is implemented. Any other value raises `ValueError` in `__init__` (mode is not settable at message-handler time, so this is constructor-time validation, not the message-handler catch-log-drop policy). |
 | `generator_polynomial` | int | `0xC5` | BCH generator polynomial g(x), matching `bch_encoder`'s default. Validated in `__init__` (raises `ValueError` if outside `0x00`-`0xFF`). |
-| `primitive_polynomial` | int | `0x43` | Accepted, range-validated (`0x00`-`0xFF`) in `__init__`, and stored as `self.primitive_polynomial` — **never read anywhere else in the class**. The decode algorithm (see Behavior below) is a brute-force search that needs only the generator polynomial; it performs no Galois-field syndrome computation, which is the only kind of BCH decoding that would need a primitive polynomial. `bch_encoder` has no equivalent parameter at all. |
 
 ## Behavior / edge cases / current error handling
 
@@ -127,19 +126,12 @@ and `qa_lfsr_receive_chain.py` cross-check this block's parity computation
 against `bch_encoder`'s own, and round-trip encoder output back through
 this block, rather than relying on a hand-derived known-answer vector.
 
-## Known issues / TODOs
-
-- **`primitive_polynomial` is accepted, validated, and stored but never
-  used.** See Parameters above. Whether this is a forward-looking
-  placeholder for a future real (syndrome-based) decode mode, or simply
-  dead, is a design question — deliberately not resolved here.
-
 ## Test coverage
 
 - `python/soarr/qa_bch_decoder.py` — 14 test methods (`test_instance` +
   `test_001`-`test_004`, `test_006`-`test_014`): construction and its
-  default parameter values, invalid `generator_polynomial`/
-  `primitive_polynomial` raising at construction, the five malformed/
+  default parameter values, invalid `generator_polynomial` raising at
+  construction, the five malformed/
   wrong-length-input conditions (not a pair, payload not a u8vector,
   metadata not a dict, payload too short, payload too long) each dropped
   cleanly (`None`, no publish, no raise) through the handler, a valid
