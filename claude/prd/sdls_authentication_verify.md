@@ -37,22 +37,20 @@ independently confirm the wiring above; it matches
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `authentication_state` | bool | `True` | `False` makes the block a pure passthrough — input republished on `out` unchanged, no validation, no metadata mutation. Matches `sdls_authentication`'s own parameter name (same convention, not new). |
+| `authentication_state` | bool | `True` | `False` makes the block a pure passthrough after its shape checks — input republished on `out` unchanged, no key/counter validation, no metadata mutation. Matches `sdls_authentication`'s own parameter name (same convention, not new). |
 | `nonce` | bytes | `b"\x00" * 14` (all-zero) | Fixed for the block's lifetime, combined with the per-message `sdls_counter` to rebuild the same 16-byte counter block `sdls_authentication` prepended before computing its tag. Must match `sdls_authentication`'s own `nonce` value out-of-band, or every tag fails to verify (`qa_AuthenticateAuthVerify.py::test_005_nonce_mismatch_fails`). Validated in `__init__` (`TypeError`/`ValueError` if not exactly 14 bytes) — the error message hardcodes "14" rather than referencing `NONCE_LEN`, cosmetic only since the two currently agree. |
 
 ## Behavior / edge cases / current error handling
 
-**`authentication_state=False`**: `verify_message` still runs its three
-shape checks first, unconditionally, before ever looking at
-`authentication_state` — logged at `error` and dropped on failure
-exactly as it would for `authentication_state=True` (see Error handling
-below); only past those does it check the flag and, if `False`,
-republish the input PDU on `out` completely unchanged, with no
-key/counter extraction. **Still opposite order from the TX sibling**:
-`sdls_authentication.add_authentication` checks `authentication_state`
-*first*, before any shape validation — this block checks shape first,
-`authentication_state` second. Both blocks now wrap their passthrough
-publish in catch-log-drop.
+**Shape validation runs first, unconditionally**: `verify_message`
+rejects a non-PDU input, non-dict metadata, or non-u8vector payload
+without publishing, regardless of `authentication_state`. Only past
+those checks does it look at `authentication_state`.
+
+**`authentication_state=False`**: republishes the already-shape-validated
+input PDU on `out` completely unchanged — no key/counter extraction.
+**Same order as the TX sibling**: `sdls_authentication.add_authentication`
+also checks shape first, `authentication_state` second.
 
 **`auth_key`/`sdls_counter` lookup** (`_extract_secret`,
 `_extract_counter`): same shapes/rules as
@@ -60,16 +58,13 @@ publish in catch-log-drop.
 `_extract_secret`/`_extract_counter` — a PMT symbol hex string or
 u8vector for the key (rejected if not exactly 32 bytes), an integer PMT
 counter checked first at `dict_msg["sdls_counter"]` via
-`pmt.dict_has_key` (matching the TX sibling's own `_extract_counter`,
-not the ambiguous `pmt.eqv(..., pmt.PMT_NIL)` ordering this method used
-before), falling back to the nested
+`pmt.dict_has_key` (matching the TX sibling's own `_extract_counter`),
+falling back to the nested
 `dict_msg["sdls"]["security_header"]["sdls_counter"]` path only if the
-top-level key is genuinely absent. `_extract_secret` still uses the
-`pmt.dict_ref(..., default=pmt.PMT_NIL)`/`pmt.eqv(..., pmt.PMT_NIL)`
-pattern to detect an absent `auth_key` — matching
-`sdls_authentication._extract_secret`'s own current implementation,
-which has the identical pattern; not an asymmetry between the two
-blocks.
+top-level key is genuinely absent. `_extract_secret` detects an absent
+`auth_key` the same way, via `pmt.dict_has_key` checked before the value
+is ever fetched — matching `sdls_authentication._extract_secret`'s own
+current implementation.
 
 **Two distinct tag-input reconstructions**, selected by whether
 `dict_msg["sdls"]["security_trailer"]` is present:
@@ -107,16 +102,15 @@ consistent with pycryptodome's own `verify()` contract.
 
 **Error handling** (compliant with
 [coding-standards.md](../coding-standards.md),
-[ADR-0003](../adr/0003-message-handler-error-policy.md)): `verify_message`
-checks `pmt.is_pair(msg)`, `pmt.is_u8vector(payload_u8vector)`, and
-`pmt.is_dict(dict_msg)` as early-return guards, each logged at `error`;
-the full body past those three checks — the `authentication_state=False`
+[ADR-0003](../adr/0003-message-handler-error-policy.md)): `verify_message`'s
+full body — the `pmt.is_pair(msg)`/`pmt.is_u8vector(payload_u8vector)`/
+`pmt.is_dict(dict_msg)` shape checks, the `authentication_state=False`
 passthrough, key/counter extraction, tag reconstruction and
 verification, and the final publish — is wrapped in catch-log-drop
-(`except Exception`), also logged at `error`. Every log call this block
-makes reporting a drop condition is at `error`, matching that this block
-isn't on the raw-RF `warn` list; `sdls_authentication`'s own equivalent
-log calls are likewise all at `error`.
+(`except Exception`). Every log call this block makes reporting a drop
+condition is at `error`, matching that this block isn't on the raw-RF
+`warn` list; `sdls_authentication`'s own equivalent log calls are
+likewise all at `error`.
 
 **Docstrings** (compliant with
 [ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)): a real
@@ -143,13 +137,6 @@ no algorithm agility.
 
 ## Known issues / TODOs
 
-- **`_extract_secret` still uses the ambiguous `PMT_NIL`-comparison
-  pattern** to detect an absent `auth_key`, rather than
-  `_extract_counter`'s now-fixed `pmt.dict_has_key`-first check — see
-  Behavior above. Matches `sdls_authentication._extract_secret`'s own
-  current implementation, so this isn't an RX-specific gap; fixing it
-  would mean fixing the identical pattern in both blocks together, not
-  resolved here.
 - **The trailer-in-metadata tag-reconstruction path
   (`_build_encapsulation_header`) independently reimplements
   `ccsds_reader.encapsulation_header()`'s bit-packing logic** in a
@@ -157,10 +144,6 @@ no algorithm agility.
   convention, not by any shared code, and this path has never been
   exercised through the real ccsds_reader→sdls_authentication_verify
   pipeline in any test (see Behavior above).
-- **`verify_message` still checks shape before `authentication_state`**,
-  the opposite order from `sdls_authentication.add_authentication` (see
-  Behavior above) — a structural difference between the two blocks, not
-  resolved here.
 
 ## Test coverage
 

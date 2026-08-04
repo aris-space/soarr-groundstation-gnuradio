@@ -71,10 +71,11 @@ class sdls_authentication_verify(gr.basic_block):
             bytes | None: 32-byte AES-256 key, or None if `auth_key` is
                 absent, malformed, or the wrong length.
         """
-        key = pmt.dict_ref(dict_msg, pmt.intern("auth_key"), pmt.PMT_NIL)
-        if pmt.eqv(key, pmt.PMT_NIL):
-            self.logger.error(f"Received dict message with empty auth_key: {dict_msg}")
+        if not pmt.dict_has_key(dict_msg, pmt.intern("auth_key")):
+            self.logger.error(f"Received dict message with missing auth_key: {dict_msg}")
             return None
+
+        key = pmt.dict_ref(dict_msg, pmt.intern("auth_key"), pmt.PMT_NIL)
 
         if pmt.is_symbol(key):
             key_str = pmt.symbol_to_string(key).strip()
@@ -258,25 +259,25 @@ class sdls_authentication_verify(gr.basic_block):
             - the authentication tag fails to verify (error - same)
             - tag reconstruction, verification, or publishing fails, in either the verification or the authentication_state=False passthrough path (error - same)
         """
-        if not pmt.is_pair(msg):
-            self.logger.error(f"Received non-PDU message: {msg}")
-            return
-
-        dict_msg = pmt.car(msg)
-        payload_u8vector = pmt.cdr(msg)
-
-        if not pmt.is_u8vector(payload_u8vector):
-            self.logger.error(f"Received non-u8vector payload: {payload_u8vector}")
-            return
-
-        if not pmt.is_dict(dict_msg):
-            self.logger.error(f"Received non-dict metadata: {dict_msg}")
-            return
-
-        # Full body from here on wrapped in catch-log-drop, including the
-        # final publish - a raise anywhere in here must never escape this
+        # Full body wrapped in catch-log-drop, including the final
+        # publish - a raise anywhere in here must never escape this
         # handler.
         try:
+            if not pmt.is_pair(msg):
+                self.logger.error(f"Received non-PDU message: {msg}")
+                return
+
+            dict_msg = pmt.car(msg)
+            payload_u8vector = pmt.cdr(msg)
+
+            if not pmt.is_u8vector(payload_u8vector):
+                self.logger.error(f"Received non-u8vector payload: {payload_u8vector}")
+                return
+
+            if not pmt.is_dict(dict_msg):
+                self.logger.error(f"Received non-dict metadata: {dict_msg}")
+                return
+
             # If authentication state is False, pass through the message unmodified
             if not self.authentication_state:
                 self.message_port_pub(pmt.intern("out"), msg)

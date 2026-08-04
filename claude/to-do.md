@@ -46,18 +46,6 @@ log or a session snapshot (see git history for that).
   ties these together; a flowgraph setting `iv_length_bytes` to anything
   but 2 would produce a wire-transmitted IV width that doesn't match
   what TX/RX actually used for their AES-CTR/CMAC counter blocks.
-- [sdls_authentication_verify](prd/sdls_authentication_verify.md) —
-  `_extract_secret` still uses the ambiguous `pmt.eqv(key, PMT_NIL)`
-  pattern to detect an absent `auth_key`, the same bug class just fixed
-  for `crypt_key` in `sdls_encryption`/`sdls_decryption`, but not yet
-  applied here. Matches `sdls_authentication._extract_secret`'s own
-  current implementation, so fixing it means fixing both blocks
-  together.
-- [sdls_authentication_verify](prd/sdls_authentication_verify.md) —
-  `verify_message` checks shape before `authentication_state`, the same
-  ordering issue just fixed in `sdls_encryption`/`sdls_decryption`
-  (`add_encryption`/`decrypt_message`), but not yet applied to this pair.
-
 ## Deferred design questions
 
 - [acquisition_idle_sequencer](prd/acquisition_idle_sequencer.md) — the

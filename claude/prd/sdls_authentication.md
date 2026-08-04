@@ -32,21 +32,27 @@ It uses the same `authentication_state` parameter name as this block.
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `authentication_state` | bool | `True` | `False` makes the block a pure passthrough — input republished on `out` unchanged, no validation, no metadata mutation. Matches `sdls_authentication_verify`'s own `authentication_state` parameter name — not a new convention. |
+| `authentication_state` | bool | `True` | `False` makes the block a pure passthrough after its shape checks — input republished on `out` unchanged, no key/counter validation, no metadata mutation. Matches `sdls_authentication_verify`'s own `authentication_state` parameter name — not a new convention. |
 | `nonce` | bytes | `b"\x00" * 14` (all-zero) | Fixed for the block's lifetime, combined with the per-message `sdls_counter` into the 16-byte block prepended to the payload before CMAC (see Behavior). Never transmitted — RX's `sdls_authentication_verify` must be configured with the identical value out-of-band. **Independent of `sdls_encryption`'s `nonce`** — a separate parameter, separate key (`auth_key` vs. `crypt_key`), by design: using distinct key/nonce material for encryption vs. authentication is standard practice, not a bug, even though both currently default to the same all-zero value. Validated in `__init__` (`TypeError`/`ValueError` if not exactly 14 bytes). |
 
 ## Behavior / edge cases / current error handling
 
-**`authentication_state=False`**: republishes the input PDU on `out`
-completely unchanged — no shape validation, no key/counter extraction.
+**Shape validation runs first, unconditionally**: `add_authentication`
+rejects a non-PDU input, non-dict metadata, or non-u8vector payload
+without publishing, regardless of `authentication_state`. Only past
+those checks does it look at `authentication_state`.
 
-**Input validation** (`authentication_state=True`): rejects a non-PDU
-input, non-dict metadata, or non-u8vector payload without publishing.
+**`authentication_state=False`**: republishes the already-shape-validated
+input PDU on `out` completely unchanged — no key/counter extraction.
+**Same order as the RX sibling**: `sdls_authentication_verify.verify_message`
+also checks shape first, `authentication_state` second.
 
-**`auth_key` lookup** — identical rules to `sdls_encryption`'s
-`crypt_key`: a PMT symbol holding a hex string, or a u8vector; rejected
-if absent, malformed, or not exactly 32 bytes (AES-256 key size for the
-underlying AES-CMAC).
+**`auth_key` lookup** (`_extract_secret`) — identical rules to
+`sdls_encryption`'s `crypt_key`: a PMT symbol holding a hex string, or a
+u8vector. Detects an absent key via `pmt.dict_has_key`, checked before
+the value is ever fetched — the same pattern `sdls_authentication_verify.py`'s
+own `_extract_secret` uses too. Rejected if absent, malformed, or not
+exactly 32 bytes (AES-256 key size for the underlying AES-CMAC).
 
 **`sdls_counter` lookup** — same dual-path rule as `sdls_encryption`'s
 (see [its PRD](sdls_encryption.md) for the exact logic): checked at
@@ -54,10 +60,9 @@ underlying AES-CMAC).
 ambiguous `PMT_NIL` comparison), falling back to the nested
 `dict_msg["sdls"]["security_header"]["sdls_counter"]` path only if the
 top-level key is genuinely absent. Rejected if neither is present,
-non-integer, or outside `0–65535`. **Not symmetric with RX**:
-`sdls_authentication_verify._extract_counter` still uses an ambiguous
-`PMT_NIL`-comparison pattern that this block's own counter lookup avoids
-(via `pmt.dict_has_key`) — see Known Issues.
+non-integer, or outside `0–65535`. **Symmetric with RX**:
+`sdls_authentication_verify._extract_counter` uses the identical
+`pmt.dict_has_key`-first pattern.
 
 **Tag computation**: `data_to_authenticate = (nonce ‖ counter_2_bytes_big_endian) ‖ payload`, then `CMAC.new(auth_key, ciphermod=AES).update(data_to_authenticate).digest()`
 — a 16-byte AES-CMAC tag, appended to (not replacing) the payload.
@@ -68,9 +73,11 @@ other metadata key pass through unmodified.
 [coding-standards.md](../coding-standards.md),
 [ADR-0003](../adr/0003-message-handler-error-policy.md)): every rejection
 logs at `error` (this TX-side block isn't in the raw-RF `warn` list).
-Both publish paths — the `authentication_state=False` passthrough and the
-tag-computation-through-publish path — are individually wrapped in
-catch-log-drop.
+`add_authentication`'s full body — the shape checks, the
+`authentication_state=False` passthrough, key/counter extraction, tag
+computation, and the final publish — is wrapped in one catch-log-drop
+(`except Exception`), so an internal failure anywhere in either path is
+logged and dropped rather than escaping the handler.
 
 **Docstrings** (compliant with
 [ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)): full
@@ -107,11 +114,9 @@ support for SDLS's other permitted MAC schemes.
   that runs the real wired topology — shims this block's real handler
   out. The code path this block's `sdls_counter` handling actually takes
   in production has never been run by any test in this repo.
-- **`sdls_authentication_verify.py` (RX) has known issues of its own,
-  out of scope for this PRD** — it has the ambiguous `PMT_NIL`-comparison
-  counter lookup this block's own counter lookup avoids (see above), and
-  its `verify_message`
-  contains an entire alternate MAC-input construction path (triggered when
+- **`sdls_authentication_verify.py` (RX) has a known issue of its own,
+  out of scope for this PRD** — its `verify_message` contains an entire
+  alternate MAC-input construction path (triggered when
   `dict_msg["sdls"]["security_trailer"]` is present, optionally prefixing
   a reconstructed encapsulation header) that this block never produces —
   this block always appends the tag directly to the payload and never
@@ -123,8 +128,8 @@ support for SDLS's other permitted MAC schemes.
 
 ## Test coverage
 
-- `python/soarr/qa_sdls_authentication.py` — 13 test methods
-  (`test_instance` + `test_001`–`test_012`): `authentication_state=False`
+- `python/soarr/qa_sdls_authentication.py` — 14 test methods
+  (`test_instance` + `test_001`–`test_013`): `authentication_state=False`
   passthrough, tag correctness verified against an independently computed
   expected CMAC (confirming the payload itself is *not* modified, only a
   tag appended, and `auth_key` is removed from metadata), invalid key
@@ -134,10 +139,12 @@ support for SDLS's other permitted MAC schemes.
   receiver-side CMAC verification check (using the test's own independent
   `_verify_tag` helper, not the real `sdls_authentication_verify` block)
   proving both a valid tag verifies and a tampered payload fails
-  verification, and two mock-forced internal-failure tests proving both
+  verification, two mock-forced internal-failure tests proving both
   publish paths are caught and dropped rather than raised through the
   real handler (`test_011` for the tagging path, `test_012` for the
-  `authentication_state=False` passthrough path).
+  `authentication_state=False` passthrough path), and a non-PDU input
+  rejected even with `authentication_state=False`, proving shape
+  validation runs regardless of the flag (`test_013`).
 - `python/soarr/qa_AuthenticateAuthVerify.py` — 10 test methods pairing
   this block with the real `sdls_authentication_verify`, in file order:
   round trip, tag tamper detection, disabled-authenticate with

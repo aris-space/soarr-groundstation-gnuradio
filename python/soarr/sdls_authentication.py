@@ -33,8 +33,8 @@ class sdls_authentication(gr.basic_block):
         """
         Args:
             authentication_state (bool): if False, add_authentication
-                becomes a pure passthrough - no validation, no metadata
-                mutation.
+                becomes a pure passthrough after its shape checks - no
+                key/counter validation, no metadata mutation.
             nonce (bytes): fixed 14-byte value combined with the
                 per-message sdls_counter into the 16-byte block prepended
                 to the payload before computing the CMAC tag. Never
@@ -78,11 +78,11 @@ class sdls_authentication(gr.basic_block):
                 absent, malformed, or the wrong length.
         """
         # Extract and validate the authentication key from dict
-        key = pmt.dict_ref(dict_msg, pmt.intern("auth_key"), pmt.PMT_NIL)
-        if pmt.eqv(key, pmt.PMT_NIL):
-            self.logger.error(f"Received dict message with empty auth_key: {dict_msg}")
-            return None # Early exit if auth_key is empty
+        if not pmt.dict_has_key(dict_msg, pmt.intern("auth_key")):
+            self.logger.error(f"Received dict message with missing auth_key: {dict_msg}")
+            return None # Early exit if auth_key is absent
 
+        key = pmt.dict_ref(dict_msg, pmt.intern("auth_key"), pmt.PMT_NIL)
 
         # Parse the key as bytes.
         if pmt.is_symbol(key):
@@ -209,7 +209,7 @@ class sdls_authentication(gr.basic_block):
             "out" (pmt_pair): PDU with `auth_key` removed from metadata
                 and a 16-byte AES-CMAC tag appended to the payload. If
                 authentication_state is False, republishes the input
-                unchanged instead.
+                unchanged instead (after the same shape checks).
 
         Drops when:
             - msg is not a PDU pair (error - malformed input at the TX boundary, not raw RF noise)
@@ -217,17 +217,8 @@ class sdls_authentication(gr.basic_block):
             - payload is not a u8vector (error - same)
             - auth_key is absent, malformed, or not 32 bytes (error - same)
             - sdls_counter is absent, non-integer, or out of range (error - same)
-            - tag computation or publishing fails, in either the tagging or the authentication_state=False passthrough path (error - same)
+            - tag computation, passthrough, or publishing fails, in either the tagging or the authentication_state=False passthrough path (error - same)
         """
-        if self.authentication_state is False:
-            try:
-                self.logger.info(f"No authentication applied since authentication_state is False. Passing through message.")
-                self.message_port_pub(pmt.intern("out"), msg)
-            except Exception as exc:
-                self.logger.error(f"Failed to publish passthrough message: {exc}")
-            return # Early exit if authentication is disabled
-
-
         # Expecting a PDU with a dict containing 'auth_key' and 'sdls_counter', and a u8vector payload.
 
         # Full body wrapped in catch-log-drop, including the final
@@ -248,6 +239,11 @@ class sdls_authentication(gr.basic_block):
             if not pmt.is_u8vector(payload_u8vector):
                 self.logger.error(f"Received non-u8vector payload: {payload_u8vector}")
                 return # Early exit if payload is not a u8vector
+
+            if self.authentication_state is False:
+                self.logger.info(f"No authentication applied since authentication_state is False. Passing through message.")
+                self.message_port_pub(pmt.intern("out"), msg)
+                return # Early exit if authentication is disabled
 
             # Extract the secret key from the message dict, with validation.
             secret_bytes = self._extract_secret(dict_msg)
@@ -278,5 +274,5 @@ class sdls_authentication(gr.basic_block):
             self.message_port_pub(pmt.intern("out"), new_msg)
             self.logger.info("OK")
         except Exception as exc:
-            self.logger.error(f"Failed to compute tag or publish message: {exc}")
+            self.logger.error(f"Failed to compute tag, pass through, or publish message: {exc}")
             return

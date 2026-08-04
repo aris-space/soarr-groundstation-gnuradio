@@ -287,6 +287,20 @@ class qa_sdls_authentication(gr_unittest.TestCase):
         finally:
             self.block.message_port_pub = original_pub
 
+    def test_013_state_false_still_rejects_non_pdu(self):
+        # Shape validation must run regardless of authentication_state,
+        # so a malformed message is never blindly republished when
+        # disabled.
+        self.block.authentication_state = False
+
+        original_pub = self._capture_pub()
+        try:
+            self.block.add_authentication(pmt.PMT_NIL)
+        finally:
+            self._restore_pub(original_pub)
+
+        self.assertEqual(len(self.published), 0)
+
 
 if __name__ == '__main__':
     gr_unittest.run(qa_sdls_authentication)
