@@ -11,8 +11,7 @@ from construct import Bytes, Int16ub, Struct
 from gnuradio import gr
 import pmt
 
-IV_LENGTH_BYTES_MIN = 0
-IV_LENGTH_BYTES_MAX = 16
+REQUIRED_IV_LENGTH_BYTES = 2
 
 class sdls_header(gr.basic_block):
     """
@@ -22,18 +21,27 @@ class sdls_header(gr.basic_block):
     Reads `spi` and `sdls_counter` from the input PDU's metadata dict
     (checked at the top level first, falling back to the nested
     `sdls.security_header.<key>` path only if the top-level key is
-    absent), builds a `spi (2 bytes) || sdls_counter (iv_length_bytes)`
-    header, and prepends it to the payload. Removes `spi`/`sdls_counter`
-    from the outgoing metadata.
+    absent), builds a `spi (2 bytes) || sdls_counter (2 bytes)` header,
+    and prepends it to the payload. Removes `spi`/`sdls_counter` from the
+    outgoing metadata.
     """
-    def __init__(self, iv_length_bytes: int = 2):
+    def __init__(self, iv_length_bytes: int = REQUIRED_IV_LENGTH_BYTES):
         """
         Args:
             iv_length_bytes (int): fixed byte width sdls_counter is
-                padded/validated to when building the header.
+                padded/validated to when building the header. Must be 2:
+                sdls_encryption/sdls_authentication's AES-CTR/CMAC
+                counter block is always exactly 2 bytes wide (a 14-byte
+                nonce leaves 2 bytes of a 16-byte AES block for
+                sdls_encryption/sdls_decryption; sdls_authentication/
+                sdls_authentication_verify hardcode
+                counter.to_bytes(2, ...) directly) - any other value
+                here would make the wire-transmitted sdls_counter field
+                width disagree with what TX/RX actually used
+                cryptographically.
 
         Raises:
-            ValueError: iv_length_bytes is outside 0-16.
+            ValueError: iv_length_bytes is not 2.
         """
         gr.basic_block.__init__(self,
             name="SDLS Header",
@@ -45,9 +53,10 @@ class sdls_header(gr.basic_block):
         self.message_port_register_in(pmt.intern("in"))
         self.message_port_register_out(pmt.intern("out"))
 
-        if not (IV_LENGTH_BYTES_MIN <= iv_length_bytes <= IV_LENGTH_BYTES_MAX):
+        if iv_length_bytes != REQUIRED_IV_LENGTH_BYTES:
             raise ValueError(
-                f"iv_length_bytes must be in range {IV_LENGTH_BYTES_MIN}-{IV_LENGTH_BYTES_MAX}, got {iv_length_bytes}."
+                f"iv_length_bytes must be {REQUIRED_IV_LENGTH_BYTES} (the fixed counter width "
+                f"sdls_encryption/sdls_authentication use), got {iv_length_bytes}."
             )
         self.iv_length_bytes = iv_length_bytes
 

@@ -222,14 +222,18 @@ class qa_sdls_header(gr_unittest.TestCase):
         out_payload = bytes(pmt.u8vector_elements(pmt.cdr(self.published[0][1])))
         self.assertEqual(out_payload, b"\x00\x01\xAA\xBB\x10\x20")
 
-    # Additional: iv_length_bytes is rejected at construction time,
-    # matching the GRC block.yml's own asserts range (0-16), instead of
-    # being silently accepted and only failing later/differently.
-    def test_011_iv_length_bytes_out_of_range_raises_at_construction(self):
-        with self.assertRaises(ValueError):
-            sdls_header(iv_length_bytes=17)
-        with self.assertRaises(ValueError):
-            sdls_header(iv_length_bytes=-1)
+    # Additional: iv_length_bytes must be exactly 2, matching the fixed
+    # 2-byte counter width sdls_encryption/sdls_authentication actually
+    # use (a 14-byte nonce leaves exactly 2 bytes of a 16-byte AES block
+    # for the counter; sdls_authentication hardcodes counter.to_bytes(2,
+    # ...) directly) - any other value would make the wire-transmitted
+    # sdls_counter field width disagree with what TX/RX actually used
+    # cryptographically. Any value other than 2 is rejected, not just
+    # values outside the GRC yaml's old 0-16 range.
+    def test_011_iv_length_bytes_other_than_2_raises_at_construction(self):
+        for invalid_value in (0, 1, 3, 4, 16, -1, 17):
+            with self.assertRaises(ValueError):
+                sdls_header(iv_length_bytes=invalid_value)
 
     # Additional: an internal failure past spi/counter extraction (e.g. a
     # future encoding-library incompatibility) is caught, logged, and

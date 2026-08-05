@@ -4,22 +4,12 @@ category: '[soarr]/SDLS'
 
 templates:
   imports: from gnuradio import soarr
-  make: soarr.sdls_header(${iv_length_bytes})
+  make: soarr.sdls_header(2)
 
-#  Make one 'parameters' list entry for every parameter you want settable from the GUI.
-#     Keys include:
-#     * id (makes the value accessible as keyname, e.g. in the make entry)
-#     * label (label shown in the GUI)
-#     * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
-#     * default
-parameters:
-- id: iv_length_bytes
-  label: IV byte length
-  dtype: int
-  default: 2
-#- id: ...
-#  label: ...
-#  dtype: ...
+#  iv_length_bytes is fixed at 2 (matching sdls_encryption/
+#  sdls_authentication's hardcoded AES-CTR/CMAC counter width) and not
+#  GRC-exposed, since any other value raises ValueError at construction -
+#  same pattern as bch_decoder's fixed mode parameter.
 
 #  Make one 'inputs' list entry per input and one 'outputs' list entry per output.
 #  Keys include:
@@ -28,10 +18,6 @@ parameters:
 #      * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
 #      * vlen (optional - data stream vector length. Default is 1)
 #      * optional (optional - set to 1 for optional inputs. Default is 0)
-
-asserts:
-- ${ iv_length_bytes >= 0 and iv_length_bytes <= 16 }
-
 
 inputs:
 - label: in

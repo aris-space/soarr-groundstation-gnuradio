@@ -3,8 +3,8 @@
 ## Purpose
 
 Builds and prepends the CCSDS 355.0-B-1 SDLS Security Header
-(`spi (2 bytes) || sdls_counter (iv_length_bytes)`) to a PDU's payload.
-The last of the three SDLS-layer steps on TX, after encryption and
+(`spi (2 bytes) || sdls_counter (2 bytes)`) to a PDU's payload. The last
+of the three SDLS-layer steps on TX, after encryption and
 authentication — see [architecture.md](../architecture.md).
 
 ## Pipeline position
@@ -36,7 +36,7 @@ consume it but never remove it.
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `iv_length_bytes` | int | `2` | Fixed byte width `sdls_counter` is padded/validated to. Validated in `__init__` against the same `0–16` range the GRC yaml's `asserts` enforce at flowgraph-build time. |
+| `iv_length_bytes` | int | `2` | Fixed byte width `sdls_counter` is padded/validated to. Must be `2` — `sdls_encryption`/`sdls_decryption`'s AES-CTR counter width and `sdls_authentication`/`sdls_authentication_verify`'s CMAC counter width are both fixed at exactly 2 bytes, so any other value would desync the wire-transmitted field width from what TX/RX actually use cryptographically. Validated in `__init__` (raises `ValueError` if not `2`); not GRC-exposed (hardcoded to `2` in the `make` template, matching `bch_decoder`'s fixed `mode` parameter). |
 
 ## Behavior / edge cases / current error handling
 
@@ -90,19 +90,6 @@ wire-transmitted IV value described there.
 
 ## Known issues / TODOs
 
-- **`iv_length_bytes` is independently configurable (0–16) from
-  `sdls_encryption`/`sdls_authentication`'s internal counter
-  serialization, which is hardcoded to exactly 2 bytes**
-  (`counter.to_bytes(2, ...)`, not parameterized by anything). Nothing
-  ties these together. If a flowgraph ever sets `iv_length_bytes` to
-  something other than 2, the wire-transmitted IV width would no longer
-  match the byte width `sdls_encryption`/`sdls_authentication` assumed
-  when deriving their AES-CTR/CMAC counter blocks — a real
-  interoperability concern for an actual RF receiver parsing the
-  transmitted header. No in-repo test would catch this: every round-trip
-  test in this codebase passes `sdls_counter` between TX and RX via PDU
-  metadata directly, never by re-parsing this block's actual output
-  bytes back into a receiver.
 - **The nested `sdls.security_header.<key>` fallback lookup has zero test
   coverage, and it's not an edge case for either key — it's the only path
   both `spi` and `sdls_counter` take in the real pipeline.** `sdls_counter`
@@ -136,9 +123,9 @@ wire-transmitted IV value described there.
   each rejected with no publish, a missing `spi`, a non-u8vector payload,
   an invalid hex symbol, and a non-pair message all rejected, both the
   u8vector and integer forms of `spi`/`sdls_counter` producing correct
-  output, `iv_length_bytes` out-of-range rejected at construction time,
-  and a mock-forced internal build failure proven to be caught and
-  dropped rather than raised through the real handler.
+  output, any `iv_length_bytes` value other than `2` rejected at
+  construction time, and a mock-forced internal build failure proven to
+  be caught and dropped rather than raised through the real handler.
 - `python/soarr/qa_layoutTest.py::test_005_sdls_header_real_handler` —
   same pattern as the other TX blocks' "real handler" tests: builds a
   **fresh, standalone** instance and calls `add_header` directly, proving

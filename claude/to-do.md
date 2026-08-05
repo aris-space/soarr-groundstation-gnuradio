@@ -35,13 +35,6 @@ log or a session snapshot (see git history for that).
   an instance used with real key material, the counter wraps and
   repeats, and reusing a (nonce, counter) pair under AES-CTR with the
   same key breaks confidentiality for both messages involved.
-- [sdls_header](prd/sdls_header.md) — `iv_length_bytes` is independently
-  configurable (0-16) from `sdls_encryption`/`sdls_authentication`'s
-  internal counter serialization, hardcoded to exactly 2 bytes. Nothing
-  ties these together; a flowgraph setting `iv_length_bytes` to anything
-  but 2 would produce a wire-transmitted IV width that doesn't match
-  what TX/RX actually used for their AES-CTR/CMAC counter blocks.
-
 ## Deferred design questions
 
 - [acquisition_idle_sequencer](prd/acquisition_idle_sequencer.md) — the
@@ -69,6 +62,13 @@ log or a session snapshot (see git history for that).
   `ccsds_reader.encapsulation_header()`'s bit-packing logic in a
   different file, with no shared code and no test exercising it through
   the real `ccsds_reader` → `sdls_authentication_verify` pipeline.
+- The fixed 2-byte SDLS counter width is now hardcoded independently in
+  4 places with no shared source of truth: [sdls_header](prd/sdls_header.md)'s
+  `REQUIRED_IV_LENGTH_BYTES`, [sdls_encryption](prd/sdls_encryption.md)/
+  `sdls_decryption`'s `NONCE_LEN`-derived AES-CTR counter width, and
+  `sdls_authentication`/`sdls_authentication_verify`'s literal
+  `counter.to_bytes(2, ...)`. A future counter-width change would need
+  all 4 updated together, with no compiler or test to catch a missed one.
 
 ## Test-coverage gaps (no known bug, just untested)
 
