@@ -4,9 +4,9 @@
 
 Builds and prepends a CCSDS 133.1-B Encapsulation Packet header to an
 outgoing PDU's payload, selecting the header variant (length-of-length)
-from payload size per Table 4-2. See
-[Encapsulation Packet](../../CONTEXT.md) in the glossary for what this
-layer is and how it's positioned relative to the transfer frame.
+from payload size per Table 4-2. The Encapsulation Packet is the first
+layer applied on TX, before SDLS and the transfer frame — a distinct CCSDS
+layer from the transfer frame itself.
 
 ## Pipeline position
 

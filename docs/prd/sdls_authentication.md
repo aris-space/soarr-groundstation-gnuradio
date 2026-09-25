@@ -89,7 +89,7 @@ helpers.
 
 CCSDS 355.0-B-1 (Space Data Link Security Protocol) — this block
 implements the authentication-tag half of SDLS's Security Trailer
-construction. See [SDLS](../../CONTEXT.md) in the glossary.
+construction.
 
 **Simplified:** only AES-CMAC is supported — no algorithm agility, no
 support for SDLS's other permitted MAC schemes.

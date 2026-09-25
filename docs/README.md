@@ -2,24 +2,21 @@
 
 This folder holds gr-soarr's process/reference documentation: architecture,
 development setup, and the decision records and PRDs that back them.
-[CONTEXT.md](../CONTEXT.md), at the repo root, is the entry point (what
-this project is, domain vocabulary) — start there, not here.
 
 ## Docs, in onboarding order
 
-1. [../CONTEXT.md](../CONTEXT.md) — what gr-soarr is, domain vocabulary
-2. [architecture.md](architecture.md) — pipeline diagrams, block roles, open questions
-3. [development.md](development.md) — build/install/test setup, dev tooling
-4. [coding-standards.md](coding-standards.md) — naming, error handling,
+1. [architecture.md](architecture.md) — pipeline diagrams, block roles, open questions
+2. [development.md](development.md) — build/install/test setup, dev tooling
+3. [coding-standards.md](coding-standards.md) — naming, error handling,
    docstring/PMT-shape, and commit message rules for writing code here
-5. `adr/` — accepted decision records:
+4. `adr/` — accepted decision records:
    - [0001 — Block naming convention](adr/0001-block-naming-convention.md)
    - [0002 — Flatten repo structure](adr/0002-flatten-repo-structure.md)
    - [0003 — Message-handler error policy](adr/0003-message-handler-error-policy.md)
    - [0004 — Docstring and PMT shape convention](adr/0004-docstring-and-pmt-shape-convention.md)
    - [0005 — RX path canonical block](adr/0005-rx-path-canonical-block.md)
    - [0006 — Rename gr-sage to gr-soarr](adr/0006-rename-sage-to-soarr.md)
-6. `prd/` — one requirements doc per block (20 total, written in
+5. `prd/` — one requirements doc per block (20 total, written in
    signal-flow order):
    - [encapsulation_header](prd/encapsulation_header.md)
    - [sdls_encryption](prd/sdls_encryption.md)
@@ -41,7 +38,7 @@ this project is, domain vocabulary) — start there, not here.
    - [sdls_authentication_verify](prd/sdls_authentication_verify.md)
    - [sdls_decryption](prd/sdls_decryption.md)
    - [system_tester](prd/system_tester.md)
-7. [to-do.md](to-do.md) — outstanding, currently-postponed items
+6. [to-do.md](to-do.md) — outstanding, currently-postponed items
    (repo-level gaps, deferred per-block design questions)
 
 ## Folder map

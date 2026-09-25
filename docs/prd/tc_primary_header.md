@@ -91,7 +91,7 @@ docstring has real content, not `gr_modtool`'s unfilled placeholder.
 CCSDS 232.0-B-4 (TC Space Data Link Protocol) — this block builds the
 TFPH: `tfvn (2 bits) ‖ bypass (1) ‖ control (1) ‖ reserved (2) ‖ scid (10)
 ‖ vcid (6) ‖ frame_length (10) ‖ frame_sequence_number (8)` = 40 bits / 5
-bytes. See [TFPH](../../CONTEXT.md) in the glossary.
+bytes.
 
 ## Known issues / TODOs
 

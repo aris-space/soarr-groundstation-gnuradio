@@ -1,8 +1,7 @@
 # Architecture
 
 Pipeline diagrams and block roles for gr-soarr. Domain terms (TC, CLTU, BCH,
-SDLS, SPI, IV, etc.) are defined once in [CONTEXT.md](../CONTEXT.md) — not
-repeated here.
+SDLS, SPI, IV, etc.) follow their CCSDS definitions.
 
 **Naming note:** every block below uses its current snake_case name, per
 [coding-standards.md](coding-standards.md) ([ADR-0001](adr/0001-block-naming-convention.md)).

@@ -43,7 +43,7 @@ CLTU_TAIL_SEQUENCE = 0xC5C5C5C5C5C5C579
 # CCSDS 232.0-B-4's FECF: 16-bit CRC-CCITT (poly 0x1021, init 0xFFFF, no
 # reflection, no final XOR) - not the 32-bit CRC-32/Ethernet parameters
 # this previously used, which didn't match either the FECF's real 2-byte
-# width (CONTEXT.md) or tc_primary_header's own additional_crc_bytes=2
+# width or tc_primary_header's own additional_crc_bytes=2
 # assumption.
 CRC_APPEND_NUM_BITS = 16
 CRC_APPEND_POLYNOMIAL = 0x1021

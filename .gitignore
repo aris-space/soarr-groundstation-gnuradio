@@ -64,3 +64,6 @@ htmlcov/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Local domain glossary (kept at the repo root, not published)
+CONTEXT.md

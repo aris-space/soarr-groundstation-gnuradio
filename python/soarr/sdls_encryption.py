@@ -26,7 +26,7 @@ class sdls_encryption(gr.basic_block):
     `crypt_key` from the outgoing metadata. `sdls_counter` and every other
     metadata key pass through unchanged - `sdls_header`, downstream, needs
     `sdls_counter` to embed it on the wire as the SDLS Security Header's
-    IV field (see CONTEXT.md's IV entry).
+    IV field.
     """
     def __init__(self, encryption_state:bool=True, nonce:bytes=b"\x00" * NONCE_LEN):
         """

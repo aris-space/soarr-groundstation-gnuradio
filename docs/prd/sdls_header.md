@@ -84,9 +84,8 @@ signals every failure the same way (log + return `None`), including the
 CCSDS 355.0-B-1 (Space Data Link Security Protocol) — this block builds
 the Security Header half (SPI + IV) of SDLS's protection fields; the
 Security Trailer (MAC) was already appended upstream by
-`sdls_authentication`. See [SDLS](../../CONTEXT.md) and
-[IV](../../CONTEXT.md) in the glossary — `sdls_counter` is exactly the
-wire-transmitted IV value described there.
+`sdls_authentication`. `sdls_counter` is exactly the wire-transmitted IV
+value.
 
 ## Known issues / TODOs
 

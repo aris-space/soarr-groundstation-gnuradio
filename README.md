@@ -3,8 +3,7 @@
 GNU Radio out-of-tree module implementing the ground-station side of a
 CCSDS Telecommand (TC) uplink chain for ARIS's SOARR mission.
 
-See [CONTEXT.md](CONTEXT.md) for what this is,
-[docs/architecture.md](docs/architecture.md) for how it works, and
+See [docs/architecture.md](docs/architecture.md) for how it works, and
 [docs/development.md](docs/development.md) for build/install/test
 setup.
 

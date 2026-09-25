@@ -23,7 +23,7 @@ RX counterpart: [sdls_decryption](sdls_decryption.md).
 | Port | Direction | PMT shape | Example |
 |---|---|---|---|
 | `in` | input | PDU: `(metadata_dict . payload_u8vector)`. Metadata must include `crypt_key` (symbol hex string or u8vector, 32 bytes) and `sdls_counter` (integer, 0–65535) — see Behavior for the exact lookup rules. | `pmt.cons({crypt_key: "00112233...", sdls_counter: 0x1234}, u8vector(plaintext))` |
-| `out` | output | PDU: `(metadata_dict . ciphertext_u8vector)`. `crypt_key` is removed from the metadata; `sdls_counter` and everything else pass through unchanged (`sdls_header`, downstream, needs `sdls_counter` to embed it as the wire-level IV — see [IV](../../CONTEXT.md)). | `pmt.cons({sdls_counter: 0x1234}, u8vector(ciphertext))` |
+| `out` | output | PDU: `(metadata_dict . ciphertext_u8vector)`. `crypt_key` is removed from the metadata; `sdls_counter` and everything else pass through unchanged (`sdls_header`, downstream, needs `sdls_counter` to embed it as the wire-level IV). | `pmt.cons({sdls_counter: 0x1234}, u8vector(ciphertext))` |
 
 ## Parameters
 
@@ -92,9 +92,11 @@ helpers.
 
 CCSDS 355.0-B-1 (Space Data Link Security Protocol) — this block
 implements the encryption half of SDLS's Security Header/Trailer
-construction. See [SDLS](../../CONTEXT.md) and [IV](../../CONTEXT.md) in
-the glossary for the terms and how `nonce` vs. `sdls_counter` map to the
-spec's IV concept.
+construction. `sdls_counter` is the spec's IV — transmitted in the
+Security Header, distinct per frame. `nonce` is a fixed 14-byte value set
+once per block instance and never transmitted; RX must share it
+out-of-band. The two are combined (`nonce` ‖ `sdls_counter`) into the
+16-byte AES-CTR counter block.
 
 **Simplified:** only AES-256-CTR is supported — no algorithm agility, no
 support for SDLS's other permitted cipher suites.
