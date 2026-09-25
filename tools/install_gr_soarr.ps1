@@ -14,7 +14,7 @@
     ensure_gnuradio_soarr_dev.py --yes, since on Windows/conda a
     cmake --install alone leaves two problems unresolved: a shadowing
     site-packages copy, and python/gnuradio/soarr not existing as a link to
-    python/soarr (see claude/development.md).
+    python/soarr (see docs/development.md).
 
     Unlike install_gr_soarr.sh, this script does NOT delete build/
     afterward: regenerating a Visual Studio solution is expensive, and
@@ -125,7 +125,7 @@ if (-not (Test-Path $GnuradioDir)) {
     Exit-WithError (
         "GNU Radio CMake config not found under: $GnuradioDir`n" +
         "Is `$env:CONDA_PREFIX ($env:CONDA_PREFIX) really the env with GNU Radio installed? " +
-        "See claude/development.md's Prerequisites/CMake configuration sections."
+        "See docs/development.md's Prerequisites/CMake configuration sections."
     )
 }
 

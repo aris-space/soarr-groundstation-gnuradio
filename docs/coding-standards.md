@@ -9,7 +9,7 @@ blocks use the snake_case naming below. Message-handler error handling
 still uses each block's original mixed raise/log-and-drop style, and
 docstrings are still `gr_modtool`'s placeholders — those two rules are the
 target for each block's future cleanup pass (Step 4 of the parent plan,
-driven per-block by `claude/prd/<block>.md`).
+driven per-block by `docs/prd/<block>.md`).
 
 ## Block naming
 
@@ -174,7 +174,7 @@ Enforced by a `commit-msg` hook — see
   any particular planning document or session, so a message should be
   self-explanatory to a reader who has neither.
 - **footer** (optional) — `Refs: <path>` pointing at the relevant doc (e.g.
-  `Refs: claude/prd/tc_primary_header.md`), and/or `BREAKING CHANGE: <desc>`
+  `Refs: docs/prd/tc_primary_header.md`), and/or `BREAKING CHANGE: <desc>`
   for breaking changes (block-id rename, changed PDU shape).
 
 Example:
@@ -187,5 +187,5 @@ silently wrapped (e.g. 1024 -> 0) and still published. Replaced masking
 with an explicit range check, raising the same way the other three
 packed fields already do.
 
-Refs: claude/prd/tc_primary_header.md
+Refs: docs/prd/tc_primary_header.md
 ```

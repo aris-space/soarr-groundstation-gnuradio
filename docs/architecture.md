@@ -160,4 +160,4 @@ as confirmed-in-practice but not yet self-verifying from this repo alone.
   fields — a real pre-public-release blocker, noted here but not resolved
   as part of this documentation step.
 - Per-block detail (message port PDU shapes, parameters, edge cases) lives
-  in `claude/prd/<block>.md` — not yet written (Step 4 of the parent plan).
+  in `docs/prd/<block>.md` — not yet written (Step 4 of the parent plan).

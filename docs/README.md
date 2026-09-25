@@ -1,4 +1,4 @@
-# claude/ — documentation index
+# docs/ — documentation index
 
 This folder holds gr-soarr's process/reference documentation: architecture,
 development setup, and the decision records and PRDs that back them.
@@ -47,14 +47,17 @@ this project is, domain vocabulary) — start there, not here.
 ## Folder map
 
 ```
-claude/
+docs/
 ├── README.md            this file
 ├── architecture.md
 ├── development.md
 ├── coding-standards.md
 ├── to-do.md              outstanding/postponed items
 ├── adr/                 six accepted ADRs
-└── prd/                 one per block, 20 total
+├── prd/                 one per block, 20 total
+├── doxygen/             gr_modtool Doxygen setup (C++ API docs)
+├── CMakeLists.txt       builds doxygen/ when ENABLE_DOXYGEN is on
+└── README.soarr         gr_modtool-generated module readme
 ```
 
 ## Doc conventions

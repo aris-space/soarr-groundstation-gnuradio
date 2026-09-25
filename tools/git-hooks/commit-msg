@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Validate commit messages against gr-soarr's Conventional Commits rules.
 
-See claude/coding-standards.md's "Commit messages" section for the rules
+See docs/coding-standards.md's "Commit messages" section for the rules
 this enforces and why. Setup: git config core.hooksPath tools/git-hooks
 """
 
@@ -21,7 +21,7 @@ def fail(message):
         "  type   one of: " + ", ".join(TYPES) + "\n"
         "  scope  snake_case block name, or an area (docs/adr/prd/tools/grc)\n"
         "  subject imperative, lowercase after ': ', no trailing '.', <=72 chars\n"
-        "\nSee claude/coding-standards.md's Commit messages section.\n"
+        "\nSee docs/coding-standards.md's Commit messages section.\n"
     )
     sys.exit(1)
 
