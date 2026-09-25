@@ -16,15 +16,20 @@ The workspace uses these settings in
 
 | Setting | Value |
 |---|---|
-| `cmake.sourceDirectory` | `C:/ARIS/soarr-groundstation-gnuradio` |
-| `cmake.buildDirectory` | `C:/ARIS/soarr-groundstation-gnuradio/build` |
+| `cmake.sourceDirectory` | `${workspaceFolder}` |
+| `cmake.buildDirectory` | `${workspaceFolder}/build` |
 | `cmake.generator` | `Visual Studio 17 2022` |
 | `cmake.platform` | `x64` |
-| `CMAKE_PREFIX_PATH` | `C:/Users/yanni/anaconda3/envs/radioconda/Library` |
-| `Gnuradio_DIR` | `C:/Users/yanni/anaconda3/envs/radioconda/Library/lib/cmake/gnuradio` |
-| `MPIR_INCLUDE_DIR` | `C:/Users/yanni/anaconda3/envs/radioconda/Library/include` |
-| `MPIR_LIBRARY` | `C:/Users/yanni/anaconda3/envs/radioconda/Library/lib/mpir.lib` |
-| `MPIRXX_LIBRARY` | `C:/Users/yanni/anaconda3/envs/radioconda/Library/lib/mpirxx_static.lib` |
+| `CMAKE_PREFIX_PATH` | `${env:CONDA_PREFIX}/Library` |
+| `Gnuradio_DIR` | `${env:CONDA_PREFIX}/Library/lib/cmake/gnuradio` |
+| `MPIR_INCLUDE_DIR` | `${env:CONDA_PREFIX}/Library/include` |
+| `MPIR_LIBRARY` | `${env:CONDA_PREFIX}/Library/lib/mpir.lib` |
+| `MPIRXX_LIBRARY` | `${env:CONDA_PREFIX}/Library/lib/mpirxx_static.lib` |
+
+`CONDA_PREFIX` is read from the environment VS Code was started in, so
+launch it from the activated env (`conda activate radioconda`, then
+`code .`); otherwise the paths resolve empty and configure fails to find
+GNU Radio.
 
 If GNU Radio configure fails on Boost headers, install the matching
 development package in the same env:
