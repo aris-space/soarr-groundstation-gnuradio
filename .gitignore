@@ -58,8 +58,8 @@ htmlcov/
 .idea/
 *.code-workspace
 
-# Claude Code — settings.json is shared/tracked, settings.local.json is personal
-.claude/settings.local.json
+# Claude Code — per-developer tool settings, not part of the project
+.claude/
 
 # OS files
 .DS_Store
