@@ -9,6 +9,8 @@ tags:
   - sdls
   - cltu
   - bch
+  - bpsk
+  - plop
   - ARIS
   - SOARR
 author:
@@ -28,14 +30,17 @@ description: |-
   **TX chain:** CCSDS 133.1-B encapsulation packet, SDLS (CCSDS 355.0-B-1)
   AES-256-CTR encryption and AES-CMAC authentication, SDLS security header,
   TC transfer frame primary header, CCSDS 231.0-B pseudo-randomization,
-  BCH (63,56) encoding, CLTU framing, and acquisition/idle sequence
-  insertion for a continuous byte stream to the modulator.
+  BCH (63,56) encoding, CLTU framing, and a BPSK modulator for the SDR
+  that runs PLOP-1 (bursts) or PLOP-2 (continuous carrier), switchable at
+  runtime. Byte-level PLOP-1/PLOP-2 blocks are included for use with other
+  modulators.
 
   **RX chain:** CLTU detection, BCH error correction, de-randomization,
-  transfer-frame reassembly, frame parsing, SDLS tag verification, and
-  decryption.
+  transfer-frame reassembly, frame parsing, SDLS tag verification,
+  decryption, and encapsulation packet parsing.
 
   Key material and counters come from a pluggable lookup block
   (in-memory or YAML file), and a loopback tester reports bit error rate,
-  message error rate, and lost packets.
+  message error rate, and lost packets. Example flowgraphs cover software
+  loopbacks and USRP transmit, receive, and loopback.
 file_format: 1

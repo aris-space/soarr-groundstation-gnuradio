@@ -15,10 +15,16 @@ All 23 blocks are pure Python and appear in GNU Radio Companion under the
   coding and CLTU framing (CCSDS 231.0-B).
 - **SDLS security** (CCSDS 355.0-B-1) — AES-256-CTR encryption,
   AES-CMAC authentication, and the SDLS security header (SPI + IV).
+- **BPSK modulator with both CCSDS PLOPs** — PLOP-1 bursts (transmitter
+  off between CLTUs) or PLOP-2 continuous carrier, switchable while the
+  flowgraph runs.
 - **Key and counter management** — keys, SPIs, and per-frame counters come
   from a lookup block backed by an in-memory entry or a YAML file.
 - **Full RX path** — CLTU detection, BCH error correction, frame
-  reassembly, parsing, tag verification, and decryption.
+  reassembly, parsing, tag verification, decryption, and encapsulation
+  packet parsing.
+- **Ready-to-run examples** — software loopbacks and USRP transmitter,
+  receiver, and loopback flowgraphs.
 - **Loopback testing** — a payload generator and a tester reporting bit
   error rate, message error rate, and lost packets.
 
@@ -163,8 +169,10 @@ Afterwards, restart GNU Radio Companion; the blocks appear under
 The quickest start is the example flowgraphs in [examples/](examples/):
 open `tc_loopback_sim.grc` in GNU Radio Companion and run it — it sends
 TC frames through the whole TX and RX chain in software, no SDR needed.
-`tc_tx_usrp.grc`, `tc_rx_usrp.grc` and `tc_loopback_usrp.grc` do the same
-over a USRP; see [examples/README](examples/README).
+`tc_loopback_plop_sim.grc` adds the BPSK modulation, a noisy channel, and
+the demodulator, with a chooser to switch between PLOP-1 and PLOP-2.
+`tc_tx_usrp.grc`, `tc_rx_usrp.grc` and `tc_loopback_usrp.grc` run over a
+USRP; see [examples/README](examples/README).
 
 To build your own flowgraph, wire the blocks as shown in the chains above.
 From Python:
