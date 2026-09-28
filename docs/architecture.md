@@ -37,6 +37,7 @@ flowchart LR
     lfsrScrambler["lfsr_scrambler"]
     bchEncoder["bch_encoder"]
     cltuFramer["cltu_framer"]
+    plopModulator["plop_modulator (stream block)"]
     burstBuilder["cltu_burst_builder"]
     pduToStream["pdu_to_tagged_stream (stock block)"]
     aqusitionIdleSequencer["acquisition_idle_sequencer (stream block)"]
@@ -51,7 +52,8 @@ flowchart LR
     crcAppend --> lfsrScrambler
     lfsrScrambler --> bchEncoder
     bchEncoder --> cltuFramer
-    cltuFramer -- "burst mode (PLOP-1)" --> burstBuilder
+    cltuFramer -- "PLOP-1 / PLOP-2, switchable" --> plopModulator
+    cltuFramer -. "PLOP-1 with a stock modulator" .-> burstBuilder
     burstBuilder --> pduToStream
     cltuFramer -. "continuous carrier (PLOP-2)" .-> aqusitionIdleSequencer
 ```
@@ -63,8 +65,29 @@ flowchart LR
 Order is encrypt-then-authenticate (`sdls_encryption` before
 `sdls_authentication`) — confirmed, not open.
 
-Two ways lead from `cltu_framer` to the SDR/modulator, matching the
-CCSDS 231.0-B physical layer operations procedures:
+`plop_modulator` is the TX chain's end: it BPSK-modulates the CLTUs
+(differential encoding, root-raised-cosine pulse shaping) straight into
+the SDR's sample stream, in either CCSDS 231.0-B physical layer
+operations procedure, switchable while running:
+
+- **PLOP-1**: each CLTU becomes one burst — acquisition sequence, CLTU,
+  idle tail — between `tx_sob`/`tx_eob` tags; nothing is output between
+  bursts, so the USRP switches the transmitter off and the TX/RX port is
+  free for receiving.
+- **PLOP-2**: the carrier stays on with the idle sequence, and a CLTU is
+  inserted at the next byte boundary.
+
+Acquisition, idle, and CLTU bits pass through one continuous differential
+encoder and pulse filter, so inserting a CLTU or switching mode keeps the
+carrier phase-continuous. Idle symbols are generated only as the SDR
+consumes samples, so a CLTU waits behind at most one sample buffer
+(about 20 ms at 400 kS/s). Verified in `examples/tc_loopback_plop_sim.grc`
+through the receiver's DSP chain with noise and a frequency offset:
+every frame intact across PLOP-2 → PLOP-1 → PLOP-2 switches, about
+30–40 ms of delay beyond the frame's airtime.
+
+Two byte-level alternatives remain for use with GNU Radio's own
+modulators:
 
 - **Burst mode (PLOP-1)**: `cltu_burst_builder` prepends the acquisition
   sequence and appends a short idle tail to each CLTU; GNU Radio's

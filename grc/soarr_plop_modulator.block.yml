@@ -1,0 +1,83 @@
+id: soarr_plop_modulator
+label: PLOP Modulator
+category: '[soarr]/CLTU'
+
+templates:
+  imports: from gnuradio import soarr
+  make: soarr.plop_modulator(${mode}, ${samples_per_symbol}, ${excess_bw}, ${differential}, ${acquisition_length}, ${tail_length}, ${fill_byte}, ${amplitude})
+  callbacks:
+  - set_mode(${mode})
+
+parameters:
+- id: mode
+  label: PLOP Mode
+  dtype: int
+  default: 2
+- id: samples_per_symbol
+  label: Samples per Symbol
+  dtype: int
+  default: 40
+- id: excess_bw
+  label: Excess Bandwidth
+  dtype: float
+  default: 0.35
+- id: differential
+  label: Differential Encoding
+  dtype: enum
+  options: ['True', 'False']
+  option_labels: ['Yes', 'No']
+  default: 'True'
+- id: acquisition_length
+  label: Acquisition Length (bytes)
+  dtype: int
+  default: 16
+- id: tail_length
+  label: Idle Tail Length (bytes)
+  dtype: int
+  default: 4
+- id: fill_byte
+  label: Fill Byte
+  dtype: int
+  default: 0xAA
+- id: amplitude
+  label: Amplitude
+  dtype: float
+  default: 1.0
+
+asserts:
+- ${ mode in (1, 2) }
+- ${ samples_per_symbol >= 2 }
+- ${ excess_bw > 0 and excess_bw <= 1 }
+- ${ acquisition_length >= 0 and tail_length >= 0 }
+- ${ fill_byte >= 0 and fill_byte <= 0xFF }
+
+inputs:
+- label: in
+  domain: message
+  optional: 0
+- label: mode
+  domain: message
+  optional: 1
+
+outputs:
+- label: out
+  domain: stream
+  dtype: complex
+
+documentation: |-
+  BPSK-modulates CLTUs for the SDR with switchable CCSDS physical layer operations procedure (PLOP), at low latency.
+
+  PLOP Mode:
+  - 1 = PLOP-1: each CLTU is one burst (acquisition sequence + CLTU + idle tail) with tx_sob/tx_eob tags; nothing in between, so the USRP switches the transmitter off and the TX/RX port is free for receiving.
+  - 2 = PLOP-2: continuous carrier with the idle sequence; each CLTU is inserted at the next byte boundary.
+
+  The mode can be changed while the flowgraph runs: connect a QT GUI Chooser variable to PLOP Mode, or send 1/2 to the mode port. Switching is phase-continuous; PLOP-2 -> 1 ends the carrier after the idle tail, PLOP-1 -> 2 starts it with the acquisition sequence.
+
+  Ports:
+  - in: one CLTU per PDU, from cltu_framer.
+  - mode (optional): integer 1 or 2.
+  - out: complex baseband at Samples per Symbol x symbol rate, straight into a USRP sink (leave its Length Tag Name empty; the tx_sob/tx_eob tags control the bursts).
+
+  Idle is generated only as the SDR consumes samples, so a new CLTU waits behind at most one sample buffer (about 20 ms at 400 kS/s). Matches the receiver chain of the examples (differential BPSK, root-raised-cosine).
+
+file_format: 1

@@ -22,6 +22,7 @@ add_subdirectory(bindings)
 gr_python_install(FILES __init__.py
     cltu_framer.py
     cltu_burst_builder.py
+    plop_modulator.py
     cltu_deframer.py
     bch_encoder.py
     lfsr_scrambler.py
@@ -68,6 +69,7 @@ GR_ADD_TEST(qa_lfsr_receive_chain ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DI
 # CLTU tests
 GR_ADD_TEST(qa_cltu_framer ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_cltu_framer.py)
 GR_ADD_TEST(qa_cltu_burst_builder ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_cltu_burst_builder.py)
+GR_ADD_TEST(qa_plop_modulator ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_plop_modulator.py)
 GR_ADD_TEST(qa_cltu_deframer ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_cltu_deframer.py)
 
 # BCH tests

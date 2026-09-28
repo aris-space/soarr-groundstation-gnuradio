@@ -11,8 +11,13 @@ usrp = an Ettus USRP via gr-uhd).
     tc_loopback_sim.grc   Full TX -> RX chain in software, no SDR needed.
                           A frame is sent every second; each received,
                           verified payload is printed. Start here.
+    tc_loopback_plop_sim.grc
+                          The same at signal level: differential BPSK, a
+                          noisy channel with a frequency offset, and the
+                          USRP receiver's DSP chain - still no SDR. Switch
+                          between PLOP-1 and PLOP-2 while it runs.
     tc_tx_usrp.grc        Transmitter: builds TC frames and sends them as
-                          differential BPSK bursts.
+                          differential BPSK, PLOP-1 or PLOP-2.
     tc_rx_usrp.grc        Receiver: BPSK demodulation, CLTU detection,
                           frame reassembly, SDLS verification.
     tc_loopback_usrp.grc  TX and RX on one USRP (TX/RX -> RX2, e.g. over a
@@ -22,14 +27,21 @@ For the USRP flowgraphs, set the usrp_addr variable to your device (for
 example "addr=192.168.10.2"); left empty, UHD uses the first USRP it finds.
 They use the SOARR lab settings: SCID 341, S-band 2.185 GHz, 10 kbit/s.
 
-All transmitting flowgraphs send in burst mode (CCSDS PLOP-1): CLTU Burst
-Builder puts the acquisition sequence and a short idle tail around each
-CLTU, and PDU to Tagged Stream hands it to the USRP sink as one burst
-(length tag packet_len). The transmitter is off between bursts and a CLTU
-goes out as soon as it is built. Set the acquisition length in CLTU Burst
-Builder to what the on-board receiver needs to lock on. For a continuous
-carrier (PLOP-2), use Acquisition and Idle Sequencer plus a throttle
-instead - at the cost of seconds of latency.
+The USRP transmitters and tc_loopback_plop_sim.grc end in PLOP Modulator,
+switchable while running with the PLOP mode chooser:
+
+    PLOP-1  each CLTU is one burst (acquisition sequence, CLTU, idle tail);
+            the transmitter is off in between.
+    PLOP-2  continuous carrier with the idle sequence; CLTUs are inserted
+            as they come.
+
+A CLTU goes out right away in both modes. Set Acquisition Length in PLOP
+Modulator to what the on-board receiver needs to lock on. The USRP sink
+takes its bursts from PLOP Modulator's tx_sob/tx_eob tags, so its Length
+Tag Name stays empty.
+
+tc_loopback_sim.grc works on bytes instead of samples and uses CLTU Burst
+Builder with PDU to Tagged Stream for its PLOP-1 bursts.
 
 All flowgraphs use db_client's dummy entry with the same public test keys
 as db_client_example.yaml. tc_loopback_sim.grc runs full SDLS

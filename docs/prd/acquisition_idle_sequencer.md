@@ -13,9 +13,10 @@ burst, queued PDU bytes, and an idle-fill pattern. See
 This is the continuous-carrier mode (CCSDS 231.0-B PLOP-2). Because it
 streams idle bytes whenever no CLTU is queued, every stream buffer
 between it and the SDR fills with idle bytes and a new CLTU waits behind
-them — seconds at 10 kbit/s. For low latency and fast TX/RX switching,
-use burst mode (PLOP-1) with [cltu_burst_builder](cltu_burst_builder.md)
-instead.
+them — seconds at 10 kbit/s. [plop_modulator](plop_modulator.md)
+provides PLOP-2 (and PLOP-1, switchable) without that latency by
+generating idle at sample level; with a stock modulator,
+[cltu_burst_builder](cltu_burst_builder.md) provides low-latency PLOP-1.
 
 ## Pipeline position
 

@@ -5,7 +5,7 @@ CCSDS Telecommand (TC) uplink for ARIS's SOARR mission: encode, secure,
 frame, and transmit a telecommand on TX, and detect, correct, verify, and
 decrypt it again on RX.
 
-All 22 blocks are pure Python and appear in GNU Radio Companion under the
+All 23 blocks are pure Python and appear in GNU Radio Companion under the
 **[soarr]** category.
 
 ## Features
@@ -33,8 +33,7 @@ flowchart LR
     crypt --> auth["sdls_authentication"] --> sh["sdls_header"]
     sh --> tc["tc_primary_header"] --> crc["crc_append (GNU Radio)"]
     crc --> scr["lfsr_scrambler"] --> bch["bch_encoder"]
-    bch --> cltu["cltu_framer"] --> burst["cltu_burst_builder"]
-    burst --> p2s["PDU to Tagged Stream (GNU Radio)"] --> mod["modulator / SDR"]
+    bch --> cltu["cltu_framer"] --> plop["plop_modulator (PLOP-1 / PLOP-2)"] --> sdr["SDR"]
 ```
 
 ### RX
@@ -48,20 +47,28 @@ flowchart LR
     dec --> par["encapsulation_parser"]
 ```
 
-The TX chain ends in one of two transmission modes (CCSDS 231.0-B):
+The TX chain ends at `plop_modulator`, which BPSK-modulates the CLTUs for
+the SDR in either CCSDS 231.0-B physical layer operations procedure,
+switchable while the flowgraph runs:
 
-- **Burst mode (PLOP-1)** — `cltu_burst_builder` wraps each CLTU in an
-  acquisition sequence and a short idle tail, and GNU Radio's PDU to
-  Tagged Stream block sends it to the SDR as one burst. The transmitter is
-  off between bursts and a CLTU goes out as soon as it is built — about
-  12 ms from command to verified payload in the software loopback. The
-  examples use this mode.
-- **Continuous carrier (PLOP-2)** — `acquisition_idle_sequencer` streams
-  idle bytes between CLTUs. Every stream buffer between it and the SDR
-  fills with idle bytes, so a new CLTU waits behind them: seconds at
-  10 kbit/s.
+- **PLOP-1** — each CLTU is one burst (acquisition sequence, CLTU, idle
+  tail); the transmitter is off between bursts, which frees the TX/RX
+  port for receiving.
+- **PLOP-2** — continuous carrier with the idle sequence; each CLTU is
+  inserted at the next byte boundary.
 
-Every block except `acquisition_idle_sequencer` passes PDUs as messages.
+Either way a new CLTU waits behind at most one sample buffer (about 20 ms
+at 400 kS/s), not behind queued idle bytes: in the software loopback
+through the receiver chain, a frame arrives about 30–40 ms after its
+airtime, in both modes and across mode switches.
+
+For other modulators, `cltu_burst_builder` (PLOP-1 bursts through GNU
+Radio's PDU to Tagged Stream) and `acquisition_idle_sequencer` (continuous
+byte stream, with seconds of latency) provide the byte-level
+equivalents.
+
+Every block except `plop_modulator` and `acquisition_idle_sequencer`
+passes PDUs as messages.
 See [docs/architecture.md](docs/architecture.md) for the full pipeline
 description.
 
@@ -79,6 +86,7 @@ description.
 | `lfsr_scrambler` | LFSR | Applies the CCSDS TC pseudo-randomizer |
 | `bch_encoder` | CLTU | Splits the frame into BCH (63,56) codewords |
 | `cltu_framer` | CLTU | Wraps codewords in the CLTU start and tail sequences |
+| `plop_modulator` | CLTU | BPSK-modulates CLTUs for the SDR, PLOP-1 bursts or PLOP-2 continuous carrier, switchable at runtime |
 | `cltu_burst_builder` | CLTU | Wraps each CLTU in acquisition sequence + idle tail as one transmission burst (PLOP-1) |
 | `acquisition_idle_sequencer` | (root) | Adds acquisition/idle sequences and outputs a continuous byte stream (PLOP-2) |
 | `cltu_deframer` | CLTU | Finds CLTUs in the received stream |

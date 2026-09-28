@@ -12,8 +12,10 @@ station.
 
 TX chain: inject_db -> encapsulation_header -> sdls_encryption ->
 sdls_authentication -> sdls_header -> tc_primary_header ->
-(digital.crc_append) -> lfsr_scrambler -> bch_encoder -> cltu_framer -> cltu_burst_builder
-(bursts, PLOP-1) or acquisition_idle_sequencer (continuous carrier, PLOP-2).
+(digital.crc_append) -> lfsr_scrambler -> bch_encoder -> cltu_framer -> plop_modulator (BPSK to the
+SDR, PLOP-1 bursts or PLOP-2 continuous carrier, switchable at runtime).
+cltu_burst_builder and acquisition_idle_sequencer are byte-level
+alternatives for use with GNU Radio's own modulators.
 
 RX chain: cltu_deframer -> ccsds_receiver -> (digital.crc_check) ->
 ccsds_reader -> inject_db -> sdls_authentication_verify -> sdls_decryption ->
@@ -34,6 +36,7 @@ except ModuleNotFoundError:
 # import any pure python here
 from .cltu_framer import cltu_framer
 from .cltu_burst_builder import cltu_burst_builder
+from .plop_modulator import plop_modulator
 from .bch_encoder import bch_encoder
 from .lfsr_scrambler import lfsr_scrambler
 from .tc_primary_header import tc_primary_header

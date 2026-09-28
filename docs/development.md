@@ -170,7 +170,7 @@ driver handles it instead of the Windows network stack.
 
 ## GRC workflow
 
-The 22 blocks are exposed to GNU Radio Companion via
+The 23 blocks are exposed to GNU Radio Companion via
 `grc/soarr_*.block.yml`. Example flowgraphs for the full TX and RX chain —
 software only and over a USRP — are in [`examples/`](../examples/); see
 its README.

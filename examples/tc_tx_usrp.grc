@@ -6,7 +6,7 @@ options:
     cmake_opt: ''
     comment: ''
     copyright: ''
-    description: 'Builds SDLS-protected CCSDS TC frames and transmits them as BPSK via a USRP. Transmits in bursts (CCSDS PLOP-1): each CLTU goes out with its acquisition sequence right away, and the transmitter is off in between. Set usrp_addr to your device (e.g. "addr=192.168.10.2"); empty uses the first USRP found. Frequencies, SCID and keys are the SOARR lab values; the keys are public test patterns.'
+    description: Builds SDLS-protected CCSDS TC frames and transmits them as BPSK via a USRP. Switch between PLOP-1 (bursts, transmitter off between CLTUs) and PLOP-2 (continuous carrier) while it runs with the PLOP mode chooser. Set usrp_addr to your device (e.g. "addr=192.168.10.2"); empty uses the first USRP found. Frequencies, SCID and keys are the SOARR lab values; the keys are public test patterns.
     gen_cmake: 'On'
     gen_linking: dynamic
     generate_options: qt_gui
@@ -263,51 +263,6 @@ blocks:
     - 476.0
     rotation: 0
     state: disabled
-- name: blocks_tagged_stream_multiply_length_0
-  id: blocks_tagged_stream_multiply_length
-  parameters:
-    affinity: ''
-    alias: ''
-    c: 40* 8
-    comment: ''
-    lengthtagname: packet_len
-    maxoutbuf: '4096'
-    minoutbuf: '0'
-    type: complex
-    vlen: '1'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1752
-    - 1264.0
-    rotation: 0
-    state: enabled
-- name: digital_constellation_modulator_0
-  id: digital_constellation_modulator
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    constellation: CCSDS_BPSK
-    differential: 'True'
-    excess_bw: '0.35'
-    log: 'False'
-    maxoutbuf: '4096'
-    minoutbuf: '0'
-    samples_per_symbol: '40'
-    truncate: 'False'
-    verbose: 'False'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1528
-    - 1236.0
-    rotation: 0
-    state: enabled
 - name: digital_crc_append_0
   id: digital_crc_append
   parameters:
@@ -803,7 +758,7 @@ blocks:
     gain_type7: default
     gain_type8: default
     gain_type9: default
-    len_tag_name: '"packet_len"'
+    len_tag_name: '""'
     lo_export0: 'False'
     lo_export1: 'False'
     lo_export10: 'False'
@@ -1014,13 +969,41 @@ blocks:
     - 160
     rotation: 0
     state: enabled
-- name: soarr_cltu_burst_builder_0
-  id: soarr_cltu_burst_builder
+- name: plop_mode
+  id: variable_qtgui_chooser
   parameters:
+    comment: ''
+    label: PLOP mode
+    type: int
+    num_opts: '2'
+    option0: '1'
+    label0: PLOP-1 (bursts)
+    option1: '2'
+    label1: PLOP-2 (continuous carrier)
+    value: '1'
+    widget: radio_buttons
+    orient: Qt.QHBoxLayout
+    gui_hint: ''
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 8
+    - 240
+    rotation: 0
+    state: enabled
+- name: soarr_plop_modulator_0
+  id: soarr_plop_modulator
+  parameters:
+    mode: plop_mode
+    samples_per_symbol: int(samp_rate / data_rate)
+    excess_bw: '0.35'
+    differential: 'True'
     acquisition_length: '16'
     tail_length: '4'
     fill_byte: '0xAA'
-    diff_encoded: 'True'
+    amplitude: '1.0'
     alias: ''
     affinity: ''
     comment: ''
@@ -1031,27 +1014,8 @@ blocks:
     bus_source: false
     bus_structure: null
     coordinate:
-    - 1072
-    - 1220.0
-    rotation: 0
-    state: enabled
-- name: pdu_pdu_to_tagged_stream_0
-  id: pdu_pdu_to_tagged_stream
-  parameters:
-    type: byte
-    tag: packet_len
-    alias: ''
-    affinity: ''
-    comment: ''
-    maxoutbuf: '0'
-    minoutbuf: '0'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1322
-    - 1220.0
+    - 900
+    - 560
     rotation: 0
     state: enabled
 connections:
@@ -1059,18 +1023,6 @@ connections:
   - strobe
   - soarr_data_creator_0
   - ping
-- - blocks_tagged_stream_multiply_length_0
-  - '0'
-  - qtgui_sink_x_0_1
-  - '0'
-- - blocks_tagged_stream_multiply_length_0
-  - '0'
-  - uhd_usrp_sink_0
-  - '0'
-- - digital_constellation_modulator_0
-  - '0'
-  - blocks_tagged_stream_multiply_length_0
-  - '0'
 - - digital_crc_append_0
   - out
   - virtual_sink_0
@@ -1133,15 +1085,15 @@ connections:
   - in
 - - soarr_cltu_framer_0
   - out
-  - soarr_cltu_burst_builder_0
+  - soarr_plop_modulator_0
   - in
-- - soarr_cltu_burst_builder_0
-  - out
-  - pdu_pdu_to_tagged_stream_0
-  - pdus
-- - pdu_pdu_to_tagged_stream_0
+- - soarr_plop_modulator_0
   - '0'
-  - digital_constellation_modulator_0
+  - qtgui_sink_x_0_1
+  - '0'
+- - soarr_plop_modulator_0
+  - '0'
+  - uhd_usrp_sink_0
   - '0'
 metadata:
   file_format: 1

@@ -19,9 +19,10 @@ cltu_burst_builder.out → pdu_to_tagged_stream.pdus (stock, length tag packet_l
 pdu_to_tagged_stream → modulator → (tagged_stream_multiply_length) → USRP sink (Length Tag Name packet_len)
 ```
 
-Wired this way in `examples/tc_tx_usrp.grc`, `tc_loopback_usrp.grc`
-and `tc_loopback_sim.grc` (where the stream goes to the receiver
-directly instead of a modulator).
+Wired this way in `examples/tc_loopback_sim.grc`, where the stream goes
+to the receiver directly instead of a modulator. For a USRP,
+[plop_modulator](plop_modulator.md) replaces this block, PDU to Tagged
+Stream, and the modulator, and adds switchable PLOP-2.
 
 ## Message ports
 
