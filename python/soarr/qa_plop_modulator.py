@@ -16,6 +16,7 @@ from gnuradio.soarr import plop_modulator
 
 SPS = 8  # small for fast tests; the block works the same at 40
 CLTU = bytes.fromhex("eb90") + bytes(range(16)) + bytes.fromhex("c5c5c5c5c5c5c579")
+ACQ = 64  # default acquisition_length
 
 
 def pdu(data):
@@ -70,7 +71,7 @@ class qa_plop_modulator(gr_unittest.TestCase):
         sob, eob = self._tags(tags, "tx_sob"), self._tags(tags, "tx_eob")
         self.assertEqual(len(sob), 2)
         self.assertEqual(len(eob), 2)
-        burst_symbols = (16 + len(CLTU) + 4) * 8
+        burst_symbols = (ACQ + len(CLTU) + 4) * 8
         burst_len = burst_symbols * SPS + mod.flush_length
         # Two bursts back to back in the stream: no samples between them
         self.assertEqual(len(samples), 2 * burst_len)
@@ -82,7 +83,7 @@ class qa_plop_modulator(gr_unittest.TestCase):
         samples, _ = self._run(mod, [(0.05, self._post(mod, "in", pdu(CLTU)))])
         data = self._demod_bytes(mod, samples)
         fill = bytes([0xFF]) if mod.differential else bytes([0xAA])
-        self.assertEqual(data[:16 + len(CLTU) + 4], fill * 16 + CLTU + fill * 4)
+        self.assertEqual(data[:ACQ + len(CLTU) + 4], fill * ACQ + CLTU + fill * 4)
 
     def test_003_plop2_continuous_carrier_carries_cltu(self):
         mod = plop_modulator(mode=2, samples_per_symbol=SPS)
@@ -91,9 +92,9 @@ class qa_plop_modulator(gr_unittest.TestCase):
         self.assertEqual(self._tags(tags, "tx_eob"), [])
         data = self._demod_bytes(mod, samples)
         fill = bytes([0xFF]) if mod.differential else bytes([0xAA])
-        self.assertTrue(data.startswith(fill * 16))  # acquisition at carrier start
+        self.assertTrue(data.startswith(fill * ACQ))  # acquisition at carrier start
         start = data.find(CLTU)
-        self.assertGreater(start, 16)                 # CLTU inserted into the idle stream
+        self.assertGreater(start, ACQ)                # CLTU inserted into the idle stream
         self.assertEqual(data[start - 4:start], fill * 4)
         self.assertEqual(data[start + len(CLTU):start + len(CLTU) + 4], fill * 4)
 
@@ -111,7 +112,7 @@ class qa_plop_modulator(gr_unittest.TestCase):
         self.assertGreater(len(samples), 0)
         data = self._demod_bytes(mod, samples)
         fill = bytes([0xFF]) if mod.differential else bytes([0xAA])
-        self.assertTrue(data.startswith(fill * 16))
+        self.assertTrue(data.startswith(fill * ACQ))
 
     def test_006_set_mode_setter_matches_message_port(self):
         mod = plop_modulator(mode=1, samples_per_symbol=SPS)

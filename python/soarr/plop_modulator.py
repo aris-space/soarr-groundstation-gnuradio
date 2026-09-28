@@ -46,7 +46,7 @@ class plop_modulator(gr.sync_block):
     """
 
     def __init__(self, mode:int=PLOP2, samples_per_symbol:int=40, excess_bw:float=0.35,
-                 differential:bool=True, acquisition_length:int=16, tail_length:int=4,
+                 differential:bool=True, acquisition_length:int=64, tail_length:int=4,
                  fill_byte:int=0xAA, amplitude:float=1.0):
         """
         Args:

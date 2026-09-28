@@ -30,7 +30,7 @@ class cltu_burst_builder(gr.basic_block):
     (PLOP-2) stream.
     """
 
-    def __init__(self, acquisition_length:int=16, tail_length:int=4, fill_byte:int=0xAA, diff_encoded:bool=False):
+    def __init__(self, acquisition_length:int=64, tail_length:int=4, fill_byte:int=0xAA, diff_encoded:bool=False):
         """
         Args:
             acquisition_length (int): acquisition sequence length in bytes,

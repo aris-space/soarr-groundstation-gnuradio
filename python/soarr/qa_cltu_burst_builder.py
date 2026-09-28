@@ -14,6 +14,7 @@ import pmt
 from gnuradio.soarr import cltu_burst_builder
 
 CLTU = bytes.fromhex("eb90") + bytes(range(16)) + bytes.fromhex("c5c5c5c5c5c5c579")
+ACQ = 64  # default acquisition_length
 
 
 class qa_cltu_burst_builder(gr_unittest.TestCase):
@@ -43,8 +44,8 @@ class qa_cltu_burst_builder(gr_unittest.TestCase):
         self.assertEqual(len(published), 1)
         port, msg = published[0]
         self.assertTrue(pmt.eqv(port, pmt.intern("out")))
-        # Defaults: 16 acquisition bytes of alternating bits, 4 idle tail bytes
-        self.assertEqual(self._bytes(msg), bytes([0xAA] * 16) + CLTU + bytes([0xAA] * 4))
+        # Defaults: ACQ acquisition bytes of alternating bits, 4 idle tail bytes
+        self.assertEqual(self._bytes(msg), bytes([0xAA] * ACQ) + CLTU + bytes([0xAA] * 4))
 
     def test_002_lengths_are_configurable(self):
         block = cltu_burst_builder(acquisition_length=32, tail_length=0)
@@ -57,7 +58,7 @@ class qa_cltu_burst_builder(gr_unittest.TestCase):
     def test_003_diff_encoded_uses_all_ones(self):
         # A differential modulator turns 0xFF into alternating symbols
         (_, msg), = self._run(cltu_burst_builder(diff_encoded=True), self._pdu(CLTU))
-        self.assertEqual(self._bytes(msg), bytes([0xFF] * 16) + CLTU + bytes([0xFF] * 4))
+        self.assertEqual(self._bytes(msg), bytes([0xFF] * ACQ) + CLTU + bytes([0xFF] * 4))
 
     def test_004_metadata_passed_through(self):
         meta = pmt.dict_add(pmt.make_dict(), pmt.intern("frame_id"), pmt.from_long(3))
@@ -98,7 +99,7 @@ class qa_cltu_burst_builder(gr_unittest.TestCase):
         tb.start()
         for _ in range(3):
             builder.to_basic_block()._post(pmt.intern("in"), self._pdu(CLTU))
-        burst = bytes([0xAA] * 16) + CLTU + bytes([0xAA] * 4)
+        burst = bytes([0xAA] * ACQ) + CLTU + bytes([0xAA] * 4)
         deadline = time.time() + 5
         while len(sink.data()) < 3 * len(burst) and time.time() < deadline:
             time.sleep(0.01)

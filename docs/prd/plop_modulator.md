@@ -39,7 +39,7 @@ receiver's DSP chain instead.
 | `samples_per_symbol` | int | `40` | Samples per BPSK symbol (sample rate / symbol rate). Raises `ValueError` below `2`. |
 | `excess_bw` | float | `0.35` | Root-raised-cosine roll-off. Raises `ValueError` outside `(0, 1]`. |
 | `differential` | bool | `True` | Differential encoding (NRZ-M), matching a differential BPSK receiver. |
-| `acquisition_length` | int | `16` | Acquisition sequence bytes at every carrier start — size it to the on-board receiver's lock time. |
+| `acquisition_length` | int | `64` | Acquisition sequence bytes at every carrier start — size it to the on-board receiver's lock time. |
 | `tail_length` | int | `4` | Idle bytes before the carrier ends. |
 | `fill_byte` | int | `0xAA` | Acquisition/idle/tail byte; with `differential` it is `0xFF`, which becomes alternating symbols on the channel. |
 | `amplitude` | float | `1.0` | Output amplitude of a full-scale symbol. |

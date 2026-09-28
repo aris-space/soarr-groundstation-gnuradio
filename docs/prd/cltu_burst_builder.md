@@ -29,13 +29,13 @@ Stream, and the modulator, and adds switchable PLOP-2.
 | Port | Direction | PMT shape | Example |
 |---|---|---|---|
 | `in` | input | PDU: `(metadata_dict . cltu_u8vector)`, one CLTU. | `pmt.cons({}, u8vector(eb 90 ‖ codewords ‖ tail))` |
-| `out` | output | PDU with the same metadata and payload `acquisition sequence ‖ CLTU ‖ idle tail`. | `pmt.cons({}, u8vector(16 × 0xAA ‖ CLTU ‖ 4 × 0xAA))` |
+| `out` | output | PDU with the same metadata and payload `acquisition sequence ‖ CLTU ‖ idle tail`. | `pmt.cons({}, u8vector(64 × 0xAA ‖ CLTU ‖ 4 × 0xAA))` |
 
 ## Parameters
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `acquisition_length` | int | `16` | Acquisition sequence length in bytes, sent before every CLTU so the receiver can lock on; size it to the on-board receiver's acquisition time. `0` = none. Raises `ValueError` if negative. |
+| `acquisition_length` | int | `64` | Acquisition sequence length in bytes, sent before every CLTU so the receiver can lock on; size it to the on-board receiver's acquisition time. `0` = none. Raises `ValueError` if negative. |
 | `tail_length` | int | `4` | Idle bytes after the CLTU, so the modulator's pulse-shaping filter flushes the last symbols before the burst ends. `0` = none. Raises `ValueError` if negative. |
 | `fill_byte` | int | `0xAA` | Byte used for the acquisition sequence and the tail; `0xAA` is alternating bits. Raises `ValueError` outside `0`–`255`. |
 | `diff_encoded` | bool | `False` | If `True`, use `0xFF` instead of `fill_byte`: a differential modulator turns it into alternating symbols. Same convention as `acquisition_idle_sequencer`. |

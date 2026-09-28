@@ -10,7 +10,7 @@ parameters:
 - id: acquisition_length
   label: Acquisition Length (bytes)
   dtype: int
-  default: 16
+  default: 64
 - id: tail_length
   label: Idle Tail Length (bytes)
   dtype: int

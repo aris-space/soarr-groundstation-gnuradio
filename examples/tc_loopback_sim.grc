@@ -910,7 +910,7 @@ blocks:
 - name: soarr_cltu_burst_builder_0
   id: soarr_cltu_burst_builder
   parameters:
-    acquisition_length: '16'
+    acquisition_length: '64'
     tail_length: '4'
     fill_byte: '0xAA'
     diff_encoded: 'False'

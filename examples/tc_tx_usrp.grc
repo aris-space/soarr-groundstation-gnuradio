@@ -1001,7 +1001,7 @@ blocks:
     samples_per_symbol: int(samp_rate / data_rate)
     excess_bw: '0.35'
     differential: 'True'
-    acquisition_length: '16'
+    acquisition_length: '64'
     tail_length: '4'
     fill_byte: '0xAA'
     amplitude: '1.0'
