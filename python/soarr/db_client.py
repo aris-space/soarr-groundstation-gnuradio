@@ -489,7 +489,9 @@ class db_client(gr.basic_block):
             "db_callback" (pmt_pair): metadata with the query's
                 `scid`/`spi`/`bypass`/`control` echoed back, plus the
                 looked-up `vcid`/`crypt_key`/`auth_key`/`sdls_counter`/
-                `vcid_counter`. Payload is the query's own payload if
+                `vcid_counter`, and the query's `db_request_id` if it has
+                one (inject_db uses it to pair the response with its
+                request). Payload is the query's own payload if
                 `forward_body` is True and it's a u8vector, otherwise
                 `PMT_NIL`.
 
@@ -546,6 +548,11 @@ class db_client(gr.basic_block):
             response_meta = pmt.dict_add(response_meta, pmt.intern("auth_key"), pmt.intern(str(entry.get("auth_key", ""))))
             response_meta = pmt.dict_add(response_meta, pmt.intern("sdls_counter"), pmt.from_uint64(sdls_counter))
             response_meta = pmt.dict_add(response_meta, pmt.intern("vcid_counter"), pmt.from_long(vcid_counter))
+
+            # Echo inject_db's request id so it can pair this response with its request.
+            request_id = pmt.dict_ref(meta, pmt.intern("db_request_id"), pmt.PMT_NIL)
+            if not pmt.eqv(request_id, pmt.PMT_NIL):
+                response_meta = pmt.dict_add(response_meta, pmt.intern("db_request_id"), request_id)
 
             in_body = pmt.cdr(msg)
             body_to_forward = pmt.PMT_NIL

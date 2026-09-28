@@ -38,9 +38,9 @@ RX chain diagram only — not independently wired or tested in this repo.
 | Port | Direction | PMT shape | Example |
 |---|---|---|---|
 | `in` | input | PDU: `(metadata_dict . payload_u8vector)`. Metadata must include `scid`/`spi` (int) and `bypass`/`control` (bool) — each checked at the top level first, falling back to the nested `telecommand.tc_header`/`sdls.security_header` path (see Behavior). | `pmt.cons({scid: 0x155, ...}, u8vector(payload))` |
-| `db_call` | output | The same PDU received on `in`, unmodified, forwarded to `db_client` as a query. | same as `in` |
-| `db_callback` | input | PDU: `(metadata_dict . payload_or_PMT_NIL)` — `db_client`'s query response. The payload need not be a u8vector as long as a prior `in` message left pending state to supply one instead (see Behavior) — e.g. `db_client(forward_body=False)`'s `PMT_NIL` payload. Metadata must include everything `in` requires, plus `auth_key`/`crypt_key` (symbol hex string or `PMT_NIL`) and `vcid`/`vcid_counter`/`sdls_counter` (int). | `pmt.cons({auth_key: "...", ...}, u8vector(payload))` |
-| `out` | output | The `db_callback` PDU's metadata, merged with the original `in` PDU's metadata (`in`'s keys win — see Behavior), paired with the *original* `in` PDU's payload (not `db_callback`'s). | `pmt.cons({merged}, u8vector(original_payload))` |
+| `db_call` | output | The PDU received on `in`, with `db_request_id` (uint64, unique per request) added to its metadata, forwarded to `db_client` as a query. | `pmt.cons({scid: 0x155, ..., db_request_id: 7}, u8vector(payload))` |
+| `db_callback` | input | PDU: `(metadata_dict . payload_or_PMT_NIL)` — `db_client`'s query response, carrying the query's `db_request_id` back. The payload need not be a u8vector as long as a pending request supplies one instead (see Behavior) — e.g. `db_client(forward_body=False)`'s `PMT_NIL` payload. Metadata must include everything `in` requires, plus `auth_key`/`crypt_key` (symbol hex string or `PMT_NIL`) and `vcid`/`vcid_counter`/`sdls_counter` (int). | `pmt.cons({auth_key: "...", ...}, u8vector(payload))` |
+| `out` | output | The `db_callback` PDU's metadata, merged with the metadata of the `in` PDU it answers (`in`'s keys win — see Behavior), paired with that *original* `in` PDU's payload (not `db_callback`'s). `db_request_id` is removed. | `pmt.cons({merged}, u8vector(original_payload))` |
 
 ## Parameters
 
@@ -48,20 +48,37 @@ None.
 
 ## Behavior / edge cases / current error handling
 
-**Two-phase flow, correlated by single-slot instance state**: `send_db_call`
-(the `in` handler) validates the incoming PDU (requiring a u8vector
-payload), stores it as `self._pending_meta`/`self._pending_payload`, and
-forwards it unchanged on `db_call`. `send_msg_out` (the `db_callback`
-handler) validates the callback PDU's shape (metadata dict required, but
-its own payload need not be a u8vector), merges it with `_pending_meta`
-(see below), re-attaches the *original* pending payload — discarding the
-callback's own payload entirely, whatever it was — clears both pending
-fields, validates the merged result against a larger required-key set,
-and publishes on `out`. If `_pending_meta` is `None` (no `in` message
-preceded this callback), there's no pending payload to fall back on, so
-the callback's own payload must be a u8vector or the message is dropped;
-otherwise `send_msg_out` validates and forwards the callback PDU's own
-metadata and payload directly, with no merge.
+**Two-phase flow, correlated by request id**: `send_db_call` (the `in`
+handler) validates the incoming PDU (requiring a u8vector payload),
+assigns it the next request id, publishes it on `db_call` with that id
+added as `db_request_id`, and stores the unmodified metadata and payload
+in `self._pending` (an ordered id → request map). Any number of requests
+may be in flight at once. `send_msg_out` (the `db_callback` handler)
+validates the callback PDU's shape (metadata dict required, but its own
+payload need not be a u8vector), removes `db_request_id` from it, and
+takes the matching request out of `_pending`. A response without
+`db_request_id` (a database block that doesn't echo it) takes the
+*oldest* pending request instead. It then merges the response into that
+request's metadata (see below), re-attaches the request's *original*
+payload — discarding the callback's own payload entirely, whatever it
+was — validates the merged result against a larger required-key set,
+and publishes on `out`.
+
+A `db_request_id` that isn't an integer, or that matches no pending
+request (unknown, already answered, or discarded as too old), is
+dropped (logged at `error`). If no request is pending at all, there's no
+pending payload to fall back on, so the callback's own payload must be a
+u8vector or the message is dropped; otherwise `send_msg_out` validates
+and forwards the callback PDU's own metadata and payload directly, with
+no merge.
+
+**Unanswered requests**: `db_client` answers nothing for some queries
+(unknown SCID/SPI, invalid or exhausted counters). Because responses are
+matched by id, a missing answer never shifts later pairings; the
+unanswered request just stays pending. `_pending` holds at most
+`MAX_PENDING_REQUESTS` (256): a new request beyond that discards the
+oldest one (logged at `warn`), so unanswered requests can't accumulate
+forever.
 
 **Metadata merge** (`_merge_metadata`/`_should_merge_key`/
 `_merge_key_into_nested`/`_resolve_key`): for every key in the
@@ -117,40 +134,12 @@ None — this block is pure metadata plumbing, not a CCSDS-defined layer.
 
 ## Known issues / TODOs
 
-- **Single-slot pending state causes cross-request metadata corruption
-  under concurrent/pipelined `in` messages.** Reproduced directly:
-  calling `send_db_call` twice (request A, then request B) before either
-  one's `db_callback` response arrives silently overwrites
-  `_pending_meta`/`_pending_payload` with request B's data. When a
-  `db_callback` response conceptually meant for request A then arrives,
-  `send_msg_out` merges it with request B's pending metadata instead —
-  request A's payload and request B's metadata end up combined and
-  published as one message on `out`, with no error, no log, and no way
-  for a caller to detect the mismatch. `db_client` is a real,
-  asynchronous side-channel query — nothing in this repo's message-passing
-  model guarantees a `db_callback` response arrives before the next `in`
-  message. No test in this repo exercises more than one in-flight
-  request at a time. Fixing this means correlating each `db_call`/
-  `db_callback` pair (e.g. a request-id tag, or a queue of pending
-  requests instead of one slot) — a real behavioral/contract change, not
-  a small fix.
-Everything else found in this pass was fixed directly, including a real
-correctness bug beyond what round 1 review first caught:
-`secret_or_nil`-typed keys (`auth_key`/`crypt_key`) resolving to a
-genuine `PMT_NIL` value were being rejected as "missing" — the same
-class of bug as the deferred item above but with an unambiguous fix, not
-a design question. Compounding it, `_merge_metadata`'s now-removed
-`pmt.to_python`/`_python_to_pmt` round-trip path silently corrupted a
-merged `PMT_NIL` value into the PMT symbol `"None"` before it ever
-reached that check — a real, silent metadata-corruption bug affecting
-every `db_callback` response that legitimately merges a nil `auth_key`/
-`crypt_key` into pending metadata. See Behavior above for the current,
-correct state.
+None currently.
 
 ## Test coverage
 
-- `python/soarr/qa_inject_db.py` — 19 test methods (`test_instance` +
-  `test_001`–`test_018`): a valid `in` PDU (with nested `telecommand`/
+- `python/soarr/qa_inject_db.py` — 27 test methods (`test_instance` +
+  `test_001`–`test_026`): a valid `in` PDU (with nested `telecommand`/
   `sdls` metadata) emitting a `db_call`, a missing required key and a
   non-integer `scid` each emitting nothing, a `db_callback` with valid
   symbol-hex `auth_key`/`crypt_key` emitting `out`, a genuinely nil
@@ -172,6 +161,13 @@ correct state.
   `db_client(forward_body=False)`) still publishing successfully using
   the pending payload from a preceding `send_db_call` (`test_017`), and
   the same `PMT_NIL` payload rejected when no `send_db_call` preceded it,
-  since there's no pending payload to fall back on (`test_018`). No test
-  exercises more than one in-flight request at a time (see Known issues
-  above).
+  since there's no pending payload to fall back on (`test_018`). Request
+  correlation: every `db_call` carrying a distinct `db_request_id`
+  (`test_019`), two in-flight requests paired correctly with responses in
+  order (`test_020`) and in reverse order (`test_021`), an unanswered
+  request not shifting a later pairing (`test_022`), an unknown id
+  dropped without consuming the real pending request (`test_023`),
+  `db_request_id` never forwarded on `out` (`test_024`), the pending map
+  bounded at `MAX_PENDING_REQUESTS` with the oldest evicted (`test_025`),
+  and two in-flight requests against a real `db_client`, answered in
+  reverse order, each receiving its own entry's counter (`test_026`).

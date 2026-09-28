@@ -77,14 +77,6 @@ class qa_inject_db(gr_unittest.TestCase):
         u8 = pmt.init_u8vector(len(payload), payload)
         return pmt.cons(meta, u8)
 
-    def _get_nested_int(self, meta, path):
-        current = meta
-        for key in path:
-            current = pmt.dict_ref(current, pmt.intern(key), pmt.PMT_NIL)
-            if pmt.eqv(current, pmt.PMT_NIL) or not pmt.is_dict(current):
-                return None
-        return int(pmt.to_long(current))
-
     def _get_nested_value(self, meta, path):
         current = meta
         for key in path[:-1]:
@@ -116,7 +108,12 @@ class qa_inject_db(gr_unittest.TestCase):
         self.assertEqual(len(published), 1)
         out_port, out_msg = published[0]
         self.assertTrue(pmt.eqv(out_port, pmt.intern("db_call")))
-        self.assertTrue(pmt.equal(out_msg, msg))
+        # The query is the input PDU plus a db_request_id for correlating
+        # the response; every original key and the payload are unchanged.
+        out_meta = pmt.car(out_msg)
+        self.assertTrue(pmt.dict_has_key(out_meta, pmt.intern("db_request_id")))
+        self.assertTrue(pmt.equal(pmt.dict_delete(out_meta, pmt.intern("db_request_id")), meta))
+        self.assertTrue(pmt.equal(pmt.cdr(out_msg), pmt.cdr(msg)))
 
     def test_002_in_missing_required_key_emits_nothing(self):
         block = inject_db()
@@ -563,6 +560,201 @@ class qa_inject_db(gr_unittest.TestCase):
             self._restore_pub(block, original_pub)
 
         self.assertEqual(len(published), 0)
+
+    # --- Request/response correlation (db_request_id) ---
+
+    AUTH_KEY = "FFEEDDCCBBAA99887766554433221100FFEEDDCCBBAA99887766554433221100"
+    CRYPT_KEY = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
+
+    def _mk_request(self, spi, payload):
+        meta = pmt.make_dict()
+        meta = pmt.dict_add(meta, pmt.intern("telecommand"), self._mk_nested_tc({
+            "scid": 0x155,
+            "bypass_flag": False,
+            "control_flag": True,
+        }))
+        meta = pmt.dict_add(meta, pmt.intern("sdls"), self._mk_nested_sdls({"spi": spi}))
+        return pmt.cons(meta, pmt.init_u8vector(len(payload), payload))
+
+    def _request_id(self, db_call_msg):
+        return pmt.dict_ref(pmt.car(db_call_msg), pmt.intern("db_request_id"), pmt.PMT_NIL)
+
+    def _mk_response(self, request_id, sdls_counter):
+        meta = self._mk_meta({
+            "auth_key": pmt.intern(self.AUTH_KEY),
+            "crypt_key": pmt.intern(self.CRYPT_KEY),
+            "vcid": 0x12,
+            "vcid_counter": 1,
+            "sdls_counter": sdls_counter,
+        })
+        if request_id is not None:
+            meta = pmt.dict_add(meta, pmt.intern("db_request_id"), request_id)
+        return pmt.cons(meta, pmt.PMT_NIL)
+
+    def _outputs(self, published):
+        """(payload bytes, sdls_counter) for every PDU published on 'out'."""
+        result = []
+        for port, msg in published:
+            if pmt.eqv(port, pmt.intern("out")):
+                payload = bytes(pmt.u8vector_elements(pmt.cdr(msg)))
+                value = self._get_nested_value(pmt.car(msg), ["sdls", "security_header", "sdls_counter"])
+                counter = int(pmt.to_uint64(value)) if pmt.is_uint64(value) else int(pmt.to_long(value))
+                result.append((payload, counter))
+        return result
+
+    def _db_calls(self, published):
+        return [msg for port, msg in published if pmt.eqv(port, pmt.intern("db_call"))]
+
+    def test_019_each_request_gets_a_distinct_request_id(self):
+        block = inject_db()
+        original_pub, published = self._capture_pub(block)
+        try:
+            block.send_db_call(self._mk_request(1, [0xA]))
+            block.send_db_call(self._mk_request(1, [0xB]))
+        finally:
+            self._restore_pub(block, original_pub)
+
+        calls = self._db_calls(published)
+        self.assertEqual(len(calls), 2)
+        id_a, id_b = self._request_id(calls[0]), self._request_id(calls[1])
+        self.assertFalse(pmt.eqv(id_a, pmt.PMT_NIL))
+        self.assertFalse(pmt.eqv(id_a, id_b))
+
+    def test_020_two_in_flight_requests_answered_in_order(self):
+        block = inject_db()
+        original_pub, published = self._capture_pub(block)
+        try:
+            block.send_db_call(self._mk_request(1, [0xA]))
+            block.send_db_call(self._mk_request(1, [0xB]))
+            call_a, call_b = self._db_calls(published)
+            block.send_msg_out(self._mk_response(self._request_id(call_a), 100))
+            block.send_msg_out(self._mk_response(self._request_id(call_b), 200))
+        finally:
+            self._restore_pub(block, original_pub)
+
+        self.assertEqual(self._outputs(published), [(bytes([0xA]), 100), (bytes([0xB]), 200)])
+
+    def test_021_two_in_flight_requests_answered_in_reverse_order(self):
+        block = inject_db()
+        original_pub, published = self._capture_pub(block)
+        try:
+            block.send_db_call(self._mk_request(1, [0xA]))
+            block.send_db_call(self._mk_request(1, [0xB]))
+            call_a, call_b = self._db_calls(published)
+            block.send_msg_out(self._mk_response(self._request_id(call_b), 200))
+            block.send_msg_out(self._mk_response(self._request_id(call_a), 100))
+        finally:
+            self._restore_pub(block, original_pub)
+
+        self.assertEqual(self._outputs(published), [(bytes([0xB]), 200), (bytes([0xA]), 100)])
+
+    def test_022_unanswered_request_does_not_misalign_later_ones(self):
+        # db_client drops some queries without answering (unknown SCID/SPI,
+        # exhausted sdls_counter, ...). A later answer must still reach
+        # its own request, not the unanswered one.
+        block = inject_db()
+        original_pub, published = self._capture_pub(block)
+        try:
+            block.send_db_call(self._mk_request(1, [0xA]))  # never answered
+            block.send_db_call(self._mk_request(1, [0xB]))
+            _, call_b = self._db_calls(published)
+            block.send_msg_out(self._mk_response(self._request_id(call_b), 200))
+        finally:
+            self._restore_pub(block, original_pub)
+
+        self.assertEqual(self._outputs(published), [(bytes([0xB]), 200)])
+
+    def test_023_unknown_request_id_is_dropped(self):
+        block = inject_db()
+        original_pub, published = self._capture_pub(block)
+        try:
+            block.send_db_call(self._mk_request(1, [0xA]))
+            (call_a,) = self._db_calls(published)
+            block.send_msg_out(self._mk_response(pmt.from_uint64(999999), 100))
+            # The real answer still finds its pending request afterwards.
+            block.send_msg_out(self._mk_response(self._request_id(call_a), 100))
+        finally:
+            self._restore_pub(block, original_pub)
+
+        self.assertEqual(self._outputs(published), [(bytes([0xA]), 100)])
+
+    def test_024_request_id_is_not_forwarded_downstream(self):
+        block = inject_db()
+        original_pub, published = self._capture_pub(block)
+        try:
+            block.send_db_call(self._mk_request(1, [0xA]))
+            (call_a,) = self._db_calls(published)
+            block.send_msg_out(self._mk_response(self._request_id(call_a), 100))
+        finally:
+            self._restore_pub(block, original_pub)
+
+        outs = [msg for port, msg in published if pmt.eqv(port, pmt.intern("out"))]
+        self.assertEqual(len(outs), 1)
+        self.assertFalse(pmt.dict_has_key(pmt.car(outs[0]), pmt.intern("db_request_id")))
+
+    def test_025_pending_requests_are_bounded(self):
+        # Requests that are never answered must not accumulate forever:
+        # beyond MAX_PENDING_REQUESTS the oldest is evicted, so its late
+        # answer is dropped while the newest still pairs correctly.
+        block = inject_db()
+        limit = inject_db.MAX_PENDING_REQUESTS
+        original_pub, published = self._capture_pub(block)
+        try:
+            for i in range(limit + 1):
+                block.send_db_call(self._mk_request(1, [i & 0xFF]))
+            calls = self._db_calls(published)
+            block.send_msg_out(self._mk_response(self._request_id(calls[0]), 1))
+            block.send_msg_out(self._mk_response(self._request_id(calls[-1]), 2))
+        finally:
+            self._restore_pub(block, original_pub)
+
+        self.assertEqual(len(block._pending), limit - 1)
+        self.assertEqual(self._outputs(published), [(bytes([limit & 0xFF]), 2)])
+
+    def test_026_real_db_client_round_trip_with_two_in_flight_requests(self):
+        # End to end with a real db_client: two requests for different SPIs
+        # are both queried before either answer is processed, and the
+        # answers are processed in reverse order. Each frame must still get
+        # its own entry's counter.
+        import tempfile
+        from pathlib import Path
+        from gnuradio.soarr import db_client
+
+        yaml_content = f"""
+entries:
+  "a":
+    SCID: 341
+    SPI: 1
+    crypt_key: "{self.CRYPT_KEY}"
+    auth_key: "{self.AUTH_KEY}"
+    sdls_counter: 100
+  "b":
+    SCID: 341
+    SPI: 2
+    crypt_key: "{self.CRYPT_KEY}"
+    auth_key: "{self.AUTH_KEY}"
+    sdls_counter: 200
+"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            yaml_path = Path(tmp_dir) / "db.yaml"
+            yaml_path.write_text(yaml_content, encoding="utf-8")
+            client = db_client(type=1, yaml_path=str(yaml_path), forward_body=False)
+
+        block = inject_db()
+        original_pub, published = self._capture_pub(block)
+        original_client_pub, client_published = self._capture_pub(client)
+        try:
+            block.send_db_call(self._mk_request(1, [0xA]))
+            block.send_db_call(self._mk_request(2, [0xB]))
+            for call in self._db_calls(published):
+                client.make_db_call(call)
+            for _, response in reversed(client_published):
+                block.send_msg_out(response)
+        finally:
+            self._restore_pub(block, original_pub)
+            self._restore_pub(client, original_client_pub)
+
+        self.assertEqual(self._outputs(published), [(bytes([0xB]), 200), (bytes([0xA]), 100)])
 
 
 if __name__ == '__main__':

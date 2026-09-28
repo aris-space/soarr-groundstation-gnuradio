@@ -28,7 +28,7 @@ Confirmed via `python/soarr/qa_layoutTest.py`'s `msg_connect` wiring
 | Port | Direction | PMT shape | Example |
 |---|---|---|---|
 | `db_call` | input | PDU: `(metadata_dict . payload_u8vector_or_PMT_NIL)`. Metadata must include `scid`/`spi` (int), each checked at the top level first, falling back to `telecommand.tc_header.scid`/`sdls.security_header.spi` (see Behavior). | `pmt.cons({scid: 0x155, spi: 1}, u8vector(payload))` |
-| `db_callback` | output | PDU: `(metadata_dict . payload_or_PMT_NIL)`. Metadata carries the looked-up `scid`/`spi`/`bypass`/`control` (echoed from the query), plus `vcid`/`crypt_key`/`auth_key`/`sdls_counter`/`vcid_counter` (looked up). Payload is the query's own payload if `forward_body=True` and it's a u8vector; otherwise `PMT_NIL`. | `pmt.cons({vcid: 0x12, crypt_key: "...", ...}, u8vector(payload))` |
+| `db_callback` | output | PDU: `(metadata_dict . payload_or_PMT_NIL)`. Metadata carries the looked-up `scid`/`spi`/`bypass`/`control` (echoed from the query), plus `vcid`/`crypt_key`/`auth_key`/`sdls_counter`/`vcid_counter` (looked up), plus the query's `db_request_id` if it has one — `inject_db` uses it to pair the response with its request. Payload is the query's own payload if `forward_body=True` and it's a u8vector; otherwise `PMT_NIL`. | `pmt.cons({vcid: 0x12, crypt_key: "...", ...}, u8vector(payload))` |
 
 ## Parameters
 
@@ -126,8 +126,8 @@ None — this block is pure key/counter lookup, not a CCSDS-defined layer.
 
 ## Test coverage
 
-- `python/soarr/qa_db_client.py` — 22 test methods (`test_instance` +
-  `test_001`–`test_021`): a dummy-mode lookup returning every expected
+- `python/soarr/qa_db_client.py` — 23 test methods (`test_instance` +
+  `test_001`–`test_022`): a dummy-mode lookup returning every expected
   field and incrementing both counters across two calls, a missing
   `scid`/`spi` and an unknown `scid`/`spi` each emitting nothing, YAML
   mode loading a flat-layout entry and using it (`test_004`), a counter
@@ -149,5 +149,6 @@ None — this block is pure key/counter lookup, not a CCSDS-defined layer.
   inner entries (`test_018`), and a mock-forced publish failure proven to
   be caught and dropped rather than raised through the real handler
   (`test_019`), a stored `sdls_counter` above 16 bits refused
-  (`test_020`), and an exhausted entry refused while another entry keeps
-  being served (`test_021`).
+  (`test_020`), an exhausted entry refused while another entry keeps
+  being served (`test_021`), and `db_request_id` echoed back when the
+  query carries one and absent otherwise (`test_022`).

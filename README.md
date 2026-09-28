@@ -162,8 +162,6 @@ encrypt/decrypt, authenticate/verify round trips.
 
 - `cltu_framer` frames each BCH codeword as its own CLTU rather than one
   CLTU per transfer frame.
-- `inject_db` handles one request at a time; overlapping requests can mix
-  up metadata.
 
 The full list, with details, is in [docs/to-do.md](docs/to-do.md).
 

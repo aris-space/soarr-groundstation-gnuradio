@@ -17,14 +17,6 @@ log or a session snapshot (see git history for that).
   combined PDU — a real 1-in-1-out to N-in-1-out contract change. No
   test in the repo proves or disproves multi-codeword framing either
   way.
-- [inject_db](prd/inject_db.md) — single-slot pending state causes
-  cross-request metadata corruption under concurrent/pipelined `in`
-  messages, reproduced directly: a second `send_db_call` before the
-  first's `db_callback` arrives overwrites `_pending_meta`/
-  `_pending_payload`, silently combining one request's payload with
-  another's metadata. Fixing it means correlating each `db_call`/
-  `db_callback` pair (e.g. a request-id or a real queue) — a real
-  behavioral/contract change.
 - [sdls_encryption](prd/sdls_encryption.md) — no (nonce, counter) reuse
   protection. If `db_client`'s `auto_reset_counters=True` is ever set on
   an instance used with real key material, the counter wraps and

@@ -610,6 +610,26 @@ entries:
         self.assertEqual(self._meta_int(pmt.car(published[1][1]), "spi"), 2)
         self.assertEqual(self._meta_int(pmt.car(published[1][1]), "sdls_counter"), 7)
 
+    # inject_db tags each query with db_request_id to pair responses with
+    # requests; the response must carry the same value back.
+    def test_022_echoes_db_request_id(self):
+        block = db_client(type=0, scid=0x155, spi=1)
+        query = self._build_query(0x155, 1)
+        query = pmt.cons(
+            pmt.dict_add(pmt.car(query), pmt.intern("db_request_id"), pmt.from_uint64(42)),
+            pmt.cdr(query),
+        )
+        original_pub, published = self._capture_pub(block)
+        try:
+            block.make_db_call(query)
+            block.make_db_call(self._build_query(0x155, 1))  # no id: none echoed
+        finally:
+            self._restore_pub(block, original_pub)
+
+        self.assertEqual(len(published), 2)
+        self.assertEqual(self._meta_int(pmt.car(published[0][1]), "db_request_id"), 42)
+        self.assertFalse(pmt.dict_has_key(pmt.car(published[1][1]), pmt.intern("db_request_id")))
+
 
 if __name__ == '__main__':
     gr_unittest.run(qa_db_client)

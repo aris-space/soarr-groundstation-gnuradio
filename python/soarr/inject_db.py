@@ -7,10 +7,16 @@
 #
 
 
+from collections import OrderedDict
+
 from gnuradio import gr
 import pmt
 
 NULLABLE_TYPES = frozenset({"int_or_nil", "secret_or_nil"})
+
+# Metadata key carrying a query's id on db_call; the database echoes it on
+# db_callback so each response is paired with its own request.
+REQUEST_ID_KEY = "db_request_id"
 
 
 class inject_db(gr.basic_block):
@@ -21,13 +27,21 @@ class inject_db(gr.basic_block):
 
     Flow:
     - Receive a PDU on `in`, validate it has the fields needed to query
-      the database, store it as pending state, forward it unchanged on
-      `db_call`
-    - Receive the query response on `db_callback`, merge it with the
-      pending metadata (pending's own keys always win), validate the
+      the database, store it as a pending request under a new request id,
+      forward it on `db_call` with that id added as `db_request_id`
+    - Receive the query response on `db_callback`, look up the pending
+      request by the echoed `db_request_id` (a response without one is
+      paired with the oldest pending request), merge it with that
+      request's metadata (the request's own keys always win), validate the
       merged result has every field downstream blocks need, publish on
-      `out` paired with the original `in` PDU's payload
+      `out` paired with the request's original payload
+
+    Several requests may be in flight at once. Requests the database never
+    answers stay pending until MAX_PENDING_REQUESTS newer ones push them
+    out.
     """
+
+    MAX_PENDING_REQUESTS = 256
 
     def __init__(self):
         """
@@ -50,8 +64,9 @@ class inject_db(gr.basic_block):
         self.set_msg_handler(pmt.intern("in"), self.send_db_call)
         self.set_msg_handler(pmt.intern("db_callback"), self.send_msg_out)
 
-        self._pending_meta = None
-        self._pending_payload = None
+        # request id -> (metadata dict, payload), oldest first
+        self._pending = OrderedDict()
+        self._next_request_id = 0
 
     def _is_integer_pmt(self, value) -> bool:
         """
@@ -342,10 +357,12 @@ class inject_db(gr.basic_block):
                 real database lookup would need.
 
         Publishes:
-            "db_call" (pmt_pair): the input PDU, unmodified. Also stores
-                it as pending state (self._pending_meta/_pending_payload)
-                for send_msg_out to merge with the eventual db_callback
-                response.
+            "db_call" (pmt_pair): the input PDU with `db_request_id`
+                (uint64, unique per request) added to its metadata. Also
+                stores the unmodified input as a pending request under that
+                id (self._pending) for send_msg_out to merge with the
+                matching db_callback response. If MAX_PENDING_REQUESTS are
+                already pending, the oldest is discarded (logged at warn).
 
         Drops when:
             - msg is not a PDU pair, metadata is not a dict, or payload is not a u8vector (error - malformed input, not raw RF noise)
@@ -369,10 +386,20 @@ class inject_db(gr.basic_block):
             ):
                 return
 
-            out_msg = pmt.cons(dict_msg, payload_u8vector)
-            self._pending_meta = dict_msg
-            self._pending_payload = payload_u8vector
-            self.message_port_pub(pmt.intern("db_call"), out_msg)
+            request_id = self._next_request_id
+            self._next_request_id += 1
+            query_meta = pmt.dict_add(dict_msg, pmt.intern(REQUEST_ID_KEY), pmt.from_uint64(request_id))
+            self.message_port_pub(pmt.intern("db_call"), pmt.cons(query_meta, payload_u8vector))
+
+            # Stored after publishing: the response is handled on this
+            # block's own thread, so it can't arrive before this returns.
+            if len(self._pending) >= self.MAX_PENDING_REQUESTS:
+                dropped_id, _ = self._pending.popitem(last=False)
+                self.logger.warn(
+                    f"{self.MAX_PENDING_REQUESTS} database requests pending; discarding the oldest "
+                    f"(db_request_id {dropped_id}), which was never answered."
+                )
+            self._pending[request_id] = (dict_msg, payload_u8vector)
         except Exception as exc:
             self.logger.error(f"Failed to build or publish db_call: {exc}")
 
@@ -388,15 +415,18 @@ class inject_db(gr.basic_block):
                 or PMT_NIL) and `vcid`/`vcid_counter`/`sdls_counter` (int).
 
         Publishes:
-            "out" (pmt_pair): this PDU's metadata merged with the pending
-                metadata from the most recent send_db_call (pending's own
-                keys always win - see _merge_metadata), paired with that
-                same pending call's original payload. If no send_db_call
-                preceded this callback, publishes this PDU's own metadata
-                and payload unmodified.
+            "out" (pmt_pair): this PDU's metadata merged with the metadata
+                of the pending request it answers (the request's own keys
+                always win - see _merge_metadata), paired with that
+                request's original payload. The request is the one whose id
+                matches this PDU's `db_request_id`, or the oldest pending
+                one if `db_request_id` is absent. If no request is pending,
+                publishes this PDU's own metadata and payload. The
+                `db_request_id` key itself is never forwarded.
 
         Drops when:
             - msg is not a PDU pair, or metadata is not a dict (error - malformed input, not raw RF noise)
+            - `db_request_id` is not an integer, or matches no pending request (unknown, already answered, or discarded as too old) (error - same)
             - payload is not a u8vector and no pending request exists to supply one instead (error - same)
             - the merged metadata is missing a required key or has the wrong type for one (error - same)
             - an internal failure occurs while merging, building, or publishing the result (error - same)
@@ -407,12 +437,32 @@ class inject_db(gr.basic_block):
                 return
             dict_msg, payload = extracted
 
-            if self._pending_meta is not None:
-                dict_msg = self._merge_metadata(self._pending_meta, dict_msg)
-                if self._pending_payload is not None:
-                    payload = self._pending_payload
-                self._pending_meta = None
-                self._pending_payload = None
+            request_id_key = pmt.intern(REQUEST_ID_KEY)
+            if pmt.dict_has_key(dict_msg, request_id_key):
+                request_id_pmt = pmt.dict_ref(dict_msg, request_id_key, pmt.PMT_NIL)
+                dict_msg = pmt.dict_delete(dict_msg, request_id_key)
+                if not self._is_integer_pmt(request_id_pmt):
+                    self.logger.error(f"Received message from database with non-integer {REQUEST_ID_KEY}: {msg}")
+                    return
+                request_id = (
+                    int(pmt.to_uint64(request_id_pmt)) if pmt.is_uint64(request_id_pmt) else int(pmt.to_long(request_id_pmt))
+                )
+                pending = self._pending.pop(request_id, None)
+                if pending is None:
+                    self.logger.error(
+                        f"Received message from database for {REQUEST_ID_KEY} {request_id}, which matches no pending "
+                        "request (unknown, already answered, or discarded as too old)."
+                    )
+                    return
+            elif self._pending:
+                _, pending = self._pending.popitem(last=False)
+            else:
+                pending = None
+
+            if pending is not None:
+                pending_meta, pending_payload = pending
+                dict_msg = self._merge_metadata(pending_meta, dict_msg)
+                payload = pending_payload
             elif not pmt.is_u8vector(payload):
                 # No pending request to fall back on, so the callback's
                 # own payload must be usable on its own.
