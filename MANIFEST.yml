@@ -20,7 +20,7 @@ copyright_owner:
 license: GPL-3.0-or-later
 gr_supported_version:
   - 3.10
-repo:
+repo: https://github.com/aris-space/soarr-groundstation-gnuradio
 website:
 description: |-
   gr-soarr is a pure-Python GNU Radio out-of-tree module implementing the
