@@ -35,6 +35,15 @@ endif()
 
 # Make sure our local CMake Modules path comes first
 list(INSERT CMAKE_MODULE_PATH 0 ${PROJECT_SOURCE_DIR}/cmake/Modules)
+# GNU Radio 3.10's CMake files still use FindBoost and FindPythonInterp/
+# FindPythonLibs, which newer CMake removes; keep their old behaviour
+# explicitly instead of warning about it on every configure.
+foreach(policy CMP0148 CMP0167)
+    if(POLICY ${policy})
+        cmake_policy(SET ${policy} OLD)
+    endif()
+endforeach()
+
 # Find gnuradio to get access to the cmake modules
 find_package(Gnuradio "3.10" REQUIRED)
 
