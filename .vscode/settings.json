@@ -4,22 +4,8 @@
     "python.analysis.extraPaths": [
         "build/test_modules"
     ],
-    "cmake.sourceDirectory": "${workspaceFolder}",
-    "cmake.buildDirectory": "${workspaceFolder}/build",
-    "cmake.generator": "Visual Studio 17 2022",
-    "cmake.platform": "x64",
+    "cmake.useCMakePresets": "always",
     "cmake.ctest.testExplorerIntegrationEnabled": false,
-    "cmake.configureEnvironment": {
-        "CMAKE_PREFIX_PATH": "${env:CONDA_PREFIX}/Library"
-    },
-    "cmake.configureArgs": [
-        "-DGnuradio_DIR=${env:CONDA_PREFIX}/Library/lib/cmake/gnuradio",
-        "-DMPIR_INCLUDE_DIR=${env:CONDA_PREFIX}/Library/include",
-        "-DMPIR_LIBRARY=${env:CONDA_PREFIX}/Library/lib/mpir.lib",
-        "-DMPIRXX_LIBRARY=${env:CONDA_PREFIX}/Library/lib/mpirxx_static.lib",
-        "-DCMAKE_INSTALL_PREFIX=${env:CONDA_PREFIX}/Library",
-        "-DGR_PYTHON_DIR=${env:CONDA_PREFIX}/Lib/site-packages"
-    ],
     "python.testing.pytestArgs": [
         "python/soarr"
     ],

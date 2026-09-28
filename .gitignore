@@ -65,3 +65,6 @@ Thumbs.db
 
 # Local domain glossary (kept at the repo root, not published)
 CONTEXT.md
+
+# Per-developer CMake presets (local toolchain paths)
+CMakeUserPresets.json
