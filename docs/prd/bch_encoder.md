@@ -18,8 +18,7 @@ lfsr_scrambler.out → bch_encoder.message
 bch_encoder.codewords → cltu_framer.in
 ```
 
-Confirmed via `python/soarr/qa_tx_chain.py:104-105`'s `msg_connect`
-wiring.
+Confirmed via `python/soarr/qa_tx_chain.py`'s `msg_connect` wiring.
 
 ## Message ports
 

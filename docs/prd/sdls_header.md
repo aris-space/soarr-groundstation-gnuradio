@@ -16,12 +16,10 @@ sdls_authentication.out → sdls_header.in
 sdls_header.out → tc_primary_header.in
 ```
 
-`spi` originates from whichever TX payload source is in use — `db_client`'s
-key/SPI lookup response (via `inject_db`'s merge logic), the same source
-as `crypt_key`/`auth_key`, or `data_creator`'s own synthetic payloads
-(architecture.md's two alternatives — only one is used at a time). Both
-sources place `spi` under `sdls.security_header.spi`, never top-level
-(see Known Issues). `sdls_counter` passes through from `db_client` all
+`spi` originates from the TX payload source (`data_creator` in the
+examples), which places it under `sdls.security_header.spi`, never
+top-level (see Known Issues); `inject_db` uses it to look up
+`crypt_key`/`auth_key` in `db_client` and keeps it as is. `sdls_counter` passes through from `db_client` all
 the way from `sdls_encryption` and `sdls_authentication`, both of which
 consume it but never remove it.
 
@@ -93,12 +91,12 @@ value.
   coverage, and it's not an edge case for either key — it's the only path
   both `spi` and `sdls_counter` take in the real pipeline.** `sdls_counter`
   is assigned *by* the `db_client` response, never known beforehand, so
-  `inject_db.py`'s merge logic (`_merge_key_into_nested`,
-  `inject_db.py:190-196`) always nests it under
+  `inject_db.py`'s merge logic (`_merge_key_into_nested`) always nests
+  it under
   `sdls.security_header.sdls_counter` — confirmed directly in that file.
   `spi` is nested from the start too: `data_creator.py` (the one real
   message-generator in this repo) builds it directly under
-  `sdls.security_header.spi` (`data_creator.py:99-104`) — it never
+  `sdls.security_header.spi` (`generate_message`) — it never
   produces a top-level `spi` at all, so `inject_db`'s merge logic never
   even gets a chance to run on it; `qa_inject_db.py`'s own tests confirm
   the same (every one constructs `spi` nested, never top-level). No test

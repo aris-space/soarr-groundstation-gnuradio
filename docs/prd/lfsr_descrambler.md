@@ -18,11 +18,11 @@ either signal chain by any `.grc` flowgraph in this repo. Used two ways:
    output to it directly.
 2. **As a plain Python helper**, instantiated and called directly (not
    through the message-port graph) by `ccsds_receiver`, the one canonical
-   RX path (`ccsds_receiver.py:100`), which calls `descramble_msg` once per
+   RX path (instantiated in `ccsds_receiver.__init__`), which calls `descramble_msg` once per
    incoming PDU and `reset_sequence()` directly — bypassing
    `descramble_msg` entirely — at four separate points tied to frame
    boundaries, not PDU metadata (see Behavior below for all four). The
-   `descramble_msg` call itself (`ccsds_receiver.py:156-164`), inside a
+   `descramble_msg` call itself (in `ccsds_receiver._readInputMsg`), inside a
    `if DESCRAMBLING_ACTIVE:` guard (a module-level constant, currently
    always `True`):
    ```python
@@ -36,7 +36,7 @@ either signal chain by any `.grc` flowgraph in this repo. Used two ways:
    ```
    The `msg` passed here is always `bch_decoder.error_correction_mode`'s
    own return value from the line just above it in `ccsds_receiver`
-   (`ccsds_receiver.py:151`) — a real PDU only when BCH correction
+   (`_readInputMsg`) — a real PDU only when BCH correction
    succeeded, never a raw/malformed message — so in this call site,
    `descramble_msg` never receives a malformed PDU either.
 
@@ -96,12 +96,12 @@ entirely separate paths:
    in the one real caller, tied to frame boundaries rather than PDU
    metadata, at four call sites: before the first codeword of a new
    frame search, when not already accumulating one and not in fixed-
-   length mode (`ccsds_receiver.py:160`, inside the `DESCRAMBLING_ACTIVE`
+   length mode (`_readInputMsg`, inside the `DESCRAMBLING_ACTIVE`
    guard shown in Pipeline position above); after a fixed-length frame's
    buffer reaches `fixed_byte_length` and is published
-   (`ccsds_receiver.py:246`); after a frame-accumulation error aborts the
-   current frame (`ccsds_receiver.py:302`); and after a complete TC frame
-   is published (`ccsds_receiver.py:340`).
+   (`_handleMessageTypeFixed`); after a frame-accumulation error aborts
+   the current frame, and after a complete TC frame is published (both in
+   `receiver`).
 
 **Error handling** (compliant with
 [coding-standards.md](../coding-standards.md),

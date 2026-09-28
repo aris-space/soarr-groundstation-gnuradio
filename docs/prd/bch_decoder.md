@@ -18,7 +18,7 @@ either signal chain by any `.grc` flowgraph in this repo. Used two ways:
    output to it directly.
 2. **As a plain Python helper**, instantiated and called directly (not
    through the message-port graph) by `ccsds_receiver`, the one canonical
-   RX path (`ccsds_receiver.py:99,151`):
+   RX path (`ccsds_receiver.__init__` and `_readInputMsg`):
    ```python
    self.bch_decoder = bch_decoder(mode=0, generator_polynomial=0xC5)
    ...

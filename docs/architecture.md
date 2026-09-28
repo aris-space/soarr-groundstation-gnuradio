@@ -19,13 +19,14 @@ SDLS, SPI, IV, etc.) follow their CCSDS definitions. Per-block detail
 
 ## TX chain
 
-Confirmed via `python/soarr/qa_tx_chain.py`'s `msg_connect` wiring
-(lines 89–101), and end to end by the example flowgraphs in
+Confirmed via `python/soarr/qa_tx_chain.py`'s `msg_connect` wiring,
+and end to end by the example flowgraphs in
 [`examples/`](../examples/) (`tc_loopback_sim.grc` runs TX → RX in
 software):
 
 ```mermaid
 flowchart LR
+    dataCreator["data_creator"]
     dbClient["db_client"]
     Injectdb["inject_db"]
     encapsulationHeader["encapsulation_header"]
@@ -42,6 +43,7 @@ flowchart LR
     pduToStream["pdu_to_tagged_stream (stock block)"]
     aqusitionIdleSequencer["acquisition_idle_sequencer (stream block)"]
 
+    dataCreator -- "test payload" --> Injectdb
     Injectdb -. "db_call / db_callback (key/SPI lookup)" .-> dbClient
     Injectdb -- out --> encapsulationHeader
     encapsulationHeader --> sdlsEncryption
@@ -197,9 +199,9 @@ decryption. Both paths are covered end to end by
   received payloads out-of-band, at the end of the pipeline; it does not
   sit inline in either chain and has no per-block error-signal port to
   depend on.
-- **`data_creator`** — synthetic payload generator, an alternative to the
-  `inject_db`/`db_client` DB-backed path for generating TX payloads. Only
-  one of the two is needed at a time, not both.
+- **`data_creator`** — synthetic payload generator at the start of the
+  TX chain: it feeds `inject_db`, which adds the keys and counters from
+  `db_client`.
 
 ## Known gaps
 

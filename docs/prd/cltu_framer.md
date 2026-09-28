@@ -17,7 +17,7 @@ bch_encoder.codewords → cltu_framer.in
 cltu_framer.out → acquisition_idle_sequencer.in
 ```
 
-The input side is confirmed via `python/soarr/qa_tx_chain.py:105`'s
+The input side is confirmed via `python/soarr/qa_tx_chain.py`'s
 `msg_connect` wiring. The output side is documented in
 [architecture.md](../architecture.md) but not independently wired or
 tested anywhere in this repo — `qa_tx_chain.py` captures `cltu_framer`'s

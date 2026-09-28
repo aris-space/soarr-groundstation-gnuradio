@@ -14,7 +14,7 @@ been collected, and publishes the reassembled frame. See
 The one canonical, documented RX path
 ([ADR-0005](../adr/0005-rx-path-canonical-block.md)): imports
 `bch_decoder` and `lfsr_descrambler` directly as Python helpers
-(`ccsds_receiver.py:14,99-100`) and calls them per incoming codeword —
+(imported at module level, instantiated in `__init__`) and calls them per incoming codeword —
 see [bch_decoder.md](bch_decoder.md) and
 [lfsr_descrambler.md](lfsr_descrambler.md) for exactly how each is
 invoked and pre-validated from here (`_checkmsg`, `DESCRAMBLING_ACTIVE`,
@@ -170,8 +170,7 @@ total-frame-byte-count-minus-one (this block adds `+1` to recover the
 real byte count). Stated per the code's own pre-existing field layout
 and comments; not independently verified against the standard from this
 repo alone.
-`frame_length`'s own field description
-(`ccsds_receiver.py:185`) states it includes "the Frame Error Control
+`frame_length`'s own field description (in `tc_header`) states it includes "the Frame Error Control
 Field," but this block performs no FECF validation or stripping — a
 published frame is exactly whatever bytes were accumulated, with no CRC
 check against the field this codebase's TX side adds via the stock

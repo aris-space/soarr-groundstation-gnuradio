@@ -10,8 +10,8 @@ layer from the transfer frame itself.
 
 ## Pipeline position
 
-TX chain, immediately after payload sourcing/key-lookup
-(`inject_db`/`db_client`/`data_creator`) and before `sdls_encryption` — see
+TX chain, immediately after payload sourcing and key lookup
+(`data_creator` → `inject_db`, with `db_client`) and before `sdls_encryption` — see
 [architecture.md](../architecture.md)'s TX chain diagram for the full
 picture. This block is TX-only; it has no RX-side role. However, its wire
 format *is* consumed on RX — see Known Issues below.

@@ -3,24 +3,24 @@
 ## Purpose
 
 Generates a synthetic TX PDU (metadata + payload) on demand, triggered
-by any message on `ping` — ground-tooling, an alternative to
-`inject_db`/`db_client`'s DB-backed payload source (only one of the two
-is used at a time in a given flowgraph). See
+by any message on `ping` — the test payload source at the start of the TX
+chain. It supplies the frame fields (SCID, SPI, bypass/control flags,
+VCID); `inject_db` then adds the keys and counters from `db_client`. See
 [architecture.md](../architecture.md).
 
 ## Pipeline position
 
-TX chain, an alternative entry point to `inject_db`:
+TX chain source, feeding `inject_db`:
 
 ```
 (any trigger) → data_creator.ping
-data_creator.out → encapsulation_header.in
+data_creator.out → inject_db.in
 ```
 
-Not wired in `python/soarr/qa_tx_chain.py`'s flowgraph at all — that
-test uses `inject_db`/`db_client` instead. No test or `.grc` flowgraph in
-this repo exercises `data_creator` feeding `encapsulation_header`; its
-only test coverage is standalone, via its own qa file.
+Every example flowgraph in [examples/](../../examples/) wires it this way,
+triggered by a message strobe or a push button. Not wired in
+`python/soarr/qa_tx_chain.py`, which posts its PDU to `inject_db`
+directly; its unit tests are standalone, via its own qa file.
 
 ## Message ports
 

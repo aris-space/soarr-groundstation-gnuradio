@@ -16,7 +16,7 @@ Used as two separate instances, one per chain — `role="tx"` and
 `role="rx"` respectively (see Parameters):
 
 ```
-TX: (caller: inject_db/data_creator's PDU source) → inject_db.in
+TX: data_creator.out (or another PDU source) → inject_db.in
     inject_db.db_call ⇄ db_client.db_call/db_callback (side-channel)
     inject_db.out → encapsulation_header.in
 
@@ -29,8 +29,8 @@ The TX instance's `db_call`/`db_callback` wiring to `db_client` and its
 `out → encapsulation_header.in` connection are confirmed via
 `python/soarr/qa_tx_chain.py`'s `msg_connect` wiring; its `in` port is
 fed by posting a PDU directly to the block in that test, not via
-`msg_connect`, so the real upstream source (`inject_db`/`data_creator`)
-is inferred from architecture.md, not independently wired here. The RX
+`msg_connect`; the example flowgraphs wire `data_creator.out →
+inject_db.in`. The RX
 instance's wiring is documented in [architecture.md](../architecture.md)'s
 RX chain diagram only — not independently wired or tested in this repo.
 

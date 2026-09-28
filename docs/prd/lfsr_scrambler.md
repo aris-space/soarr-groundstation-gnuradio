@@ -16,7 +16,7 @@ digital.crc_append.out (stock block) → lfsr_scrambler.in
 lfsr_scrambler.out → bch_encoder.message
 ```
 
-Confirmed via `python/soarr/qa_tx_chain.py:103-104`'s `msg_connect` wiring.
+Confirmed via `python/soarr/qa_tx_chain.py`'s `msg_connect` wiring.
 
 ## Message ports
 

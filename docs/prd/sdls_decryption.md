@@ -67,7 +67,7 @@ top-level key is genuinely absent. In the real RX pipeline, this key
 always arrives at the nested path: `ccsds_reader`
 populates `sdls.security_header.sdls_counter` directly from the parsed
 SDLS Security Header's `initialization_vector` field
-(`ccsds_reader.py:368`), itself a fixed-width 16-bit wire field — so
+(`ccsds_reader.decode_ccsds`), itself a fixed-width 16-bit wire field — so
 this block's inbound counter is inherently bounded to 16 bits by the
 wire format it was parsed from.
 

@@ -120,7 +120,7 @@ support for SDLS's other permitted cipher suites.
   and it has zero test coverage.** Verified directly in `inject_db.py`:
   `sdls_counter` is assigned *by* the `db_client` response, not known
   before the DB call, so `inject_db`'s merge logic
-  (`_merge_key_into_nested`, `inject_db.py:190-196`) always nests it
+  (`_merge_key_into_nested`) always nests it
   under `sdls.security_header.sdls_counter` — never top-level. Every test
   in `qa_sdls_encryption.py` constructs `sdls_counter` at the top level
   directly, bypassing `inject_db` entirely, and
