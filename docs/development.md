@@ -148,13 +148,13 @@ python tools\ensure_gnuradio_soarr_dev.py --yes   # or --dry-run to preview
 `tools/install_gr_soarr.sh` is the WSL/Linux counterpart to
 `install_gr_soarr.ps1` above (a separate script, not a shared one, since
 MSVC's Visual Studio generator needs native PowerShell rather than
-bash-over-WSL): it wipes `build/` (and any stale in-source CMake
+bash-over-WSL): it wipes `build-linux/` (and any stale in-source CMake
 artifacts) before configuring, runs configure/build/install, verifies the
-resulting import origin, then cleans `build/` again (unlike the Windows
-script — regenerating a Makefile/Ninja build here is cheap, so there's no
-reason to keep it around). Use it instead of the manual CMake sequence
-above when you want a guaranteed-clean rebuild rather than reusing a
-possibly-stale `build/` directory.
+resulting import origin, then cleans `build-linux/` again (unlike the
+Windows script — regenerating a Makefile/Ninja build here is cheap, so
+there's no reason to keep it around). It uses `build-linux/` rather than
+`build/` so running it on the same checkout as the Windows build never
+deletes the Visual Studio build.
 
 It defaults `MODULE_DIR` (the repo location) to its own repo root, resolved
 from the script's own location — works with no arguments for a normal
@@ -169,6 +169,32 @@ different checkout. Other options: `--prefix <path>` (default
 `$CONDA_PREFIX` or `/usr/local`), `--python <exe>` (default `python3`),
 `--config <name>` (default `Release`), `--sudo-install`, `--pip-install`
 (also runs `pip install -r requirements.txt`, off by default).
+
+### Installing from WSL into a Windows checkout
+
+WSL can't use the Windows radioconda. Install GNU Radio inside WSL
+instead, together with the Python dependencies (Ubuntu 24.04 blocks
+`pip install` into the system Python, so take them from `apt` too):
+
+```bash
+sudo apt install gnuradio gnuradio-dev cmake g++ \
+    python3-construct python3-yaml python3-pycryptodome python3-pytest
+```
+
+With no conda env active, the script
+installs into `/usr/local`, which the system `python3` and GNU Radio
+Companion already search. Add `--sudo-install` unless you run as root.
+
+Run the script straight from the Windows checkout rather than copying it —
+it finds the repo from its own location, so WSL always installs the code
+you're editing. A shell alias in `~/.bashrc` makes this one command:
+
+```bash
+alias gr-soarr-install='/mnt/c/<path-to-repo>/tools/install_gr_soarr.sh'
+```
+
+[`.gitattributes`](../.gitattributes) keeps `*.sh` checked out with LF
+line endings even on Windows, so bash can run the script from `/mnt/c`.
 
 ## GRC workflow
 

@@ -1,5 +1,6 @@
 # Build outputs
 build/
+build-linux/
 build_test/
 build_vs/
 out/

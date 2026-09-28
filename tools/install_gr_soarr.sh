@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# WSL/Linux install helper. The module root is now the repo root itself
-# (no more nested gr-soarr subfolder), so source dir == repo dir.
+# WSL/Linux install helper. The module root is the repo root itself, so
+# source dir == repo dir.
 #
 # Build directory is always:
-#   <repo>/build
+#   <repo>/build-linux
+# (separate from <repo>/build, which the Windows/Visual Studio build uses,
+# since this script deletes its build directory before and after building)
 
 # Default MODULE_DIR to this script's own repo root (tools/.. ), mirroring
 # ensure_gnuradio_soarr_dev.py's _repo_root() — works out of the box for any
@@ -23,7 +25,7 @@ PREFIX="${CONDA_PREFIX:-/usr/local}"
 resolve_paths() {
     SRC_DIR="${MODULE_DIR}"
     REPO_DIR="${MODULE_DIR}"
-    BUILD_DIR="${REPO_DIR}/build"
+    BUILD_DIR="${REPO_DIR}/build-linux"
 }
 
 resolve_paths

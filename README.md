@@ -101,12 +101,13 @@ pip install -r requirements.txt
 .\tools\install_gr_soarr.ps1
 ```
 
-**Linux / WSL:**
+**Linux / WSL** (Ubuntu shown; with a conda env, activate it and use
+`pip install -r requirements.txt` instead of `apt`):
 
 ```bash
-conda activate radioconda
-pip install -r requirements.txt
-./tools/install_gr_soarr.sh
+sudo apt install gnuradio gnuradio-dev cmake g++ \
+    python3-construct python3-yaml python3-pycryptodome python3-pytest
+./tools/install_gr_soarr.sh --sudo-install
 ```
 
 Both scripts configure, build, and install the module into the active
