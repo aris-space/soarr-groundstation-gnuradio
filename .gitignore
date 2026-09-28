@@ -57,6 +57,7 @@ htmlcov/
 .vscode/*.db
 .idea/
 *.code-workspace
+*~
 
 # Claude Code — per-developer tool settings, not part of the project
 .claude/
