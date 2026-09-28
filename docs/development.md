@@ -196,6 +196,27 @@ From [`requirements.txt`](../requirements.txt):
 GNU Radio itself is not installed via this file — install it through
 `radioconda`/conda instead.
 
+## Branches
+
+```
+feature/<topic> ──PR──▶ dev ──PR──▶ testing ──PR──▶ main ──tag──▶ vX.Y.Z
+```
+
+| Branch | Holds | Changes arrive |
+|---|---|---|
+| `dev` (default) | Day-to-day integration | Direct commits for small changes, or a pull request from a `feature/<topic>` branch |
+| `testing` | The state being validated in the lab (USRP, both PLOP modes) before a release | Pull request from `dev` only |
+| `main` | Released states only; every merge is tagged `vX.Y.Z` and gets a GitHub release | Pull request from `testing` only |
+
+`main` and `testing` are protected: no direct or force pushes, no
+deletion, for admins too. Pull requests need no approving review, but
+open review conversations must be resolved before merging. A problem found
+on `testing` is fixed on `dev` and promoted again, so fixes never exist
+only on `testing` or `main`.
+
+Open bugs, design questions, and test gaps are tracked as
+[GitHub issues](https://github.com/aris-space/soarr-groundstation-gnuradio/issues).
+
 ## Commit message hook
 
 Commit messages follow the Conventional Commits structure documented in

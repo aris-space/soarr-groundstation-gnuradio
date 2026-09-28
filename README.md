@@ -219,7 +219,7 @@ Open bugs, design questions, and test-coverage gaps are tracked as
 | Document | Contents |
 |---|---|
 | [docs/architecture.md](docs/architecture.md) | TX/RX pipeline and block roles |
-| [docs/development.md](docs/development.md) | Build, install, test, and tooling setup |
+| [docs/development.md](docs/development.md) | Build, install, test, tooling setup, and branch workflow |
 | [docs/coding-standards.md](docs/coding-standards.md) | Naming, error handling, docstring, and commit rules |
 | [docs/adr/](docs/adr/) | Architecture decision records |
 | [docs/prd/](docs/prd/) | One requirements document per block |
