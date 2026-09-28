@@ -12,6 +12,7 @@ import pmt
 from Crypto.Hash import CMAC
 from Crypto.Cipher import AES
 
+from . import encapsulation_packet
 from .sdls_authentication import COUNTER_MAX, COUNTER_MIN, NONCE_LEN
 
 
@@ -197,32 +198,15 @@ class sdls_authentication_verify(gr.basic_block):
         length_of_length = self._pmt_dict_get_int(encap_meta, "length_of_length", None)
         if length_of_length is None:
             return None
-
-        first_octet = self._pmt_dict_get_int(encap_meta, "first_octet", None)
-        if first_octet is None:
-            packet_version = self._pmt_dict_get_int(encap_meta, "packet_version", 0)
-            protocol_id = self._pmt_dict_get_int(encap_meta, "protocol_id", 0)
-            first_octet = ((packet_version & 0x7) << 5) | ((protocol_id & 0x7) << 2) | (length_of_length & 0x3)
-
-        header = bytearray([first_octet & 0xFF])
-
-        if length_of_length >= 0b10:
-            user_defined_field = self._pmt_dict_get_int(encap_meta, "user_defined_field", 0)
-            protocol_id_extension = self._pmt_dict_get_int(encap_meta, "protocol_id_extension", 0)
-            header.append(((user_defined_field & 0xF) << 4) | (protocol_id_extension & 0xF))
-
-        if length_of_length >= 0b11:
-            ccsds_defined_field = self._pmt_dict_get_int(encap_meta, "ccsds_defined_field", 0)
-            header.extend(int(ccsds_defined_field).to_bytes(2, byteorder="big", signed=False))
-
-        if length_of_length != 0b00:
-            packet_length = self._pmt_dict_get_int(encap_meta, "packet_length", None)
-            if packet_length is None:
-                return None
-            length_bytes = {0b01: 1, 0b10: 2, 0b11: 4}.get(length_of_length, 0)
-            header.extend(int(packet_length).to_bytes(length_bytes, byteorder="big", signed=False))
-
-        return bytes(header)
+        fields = {"length_of_length": length_of_length}
+        for key in ("first_octet", "packet_version", "protocol_id", "user_defined_field",
+                    "protocol_id_extension", "ccsds_defined_field", "packet_length"):
+            value = self._pmt_dict_get_int(encap_meta, key, None)
+            if value is not None:
+                fields[key] = value
+        if length_of_length != 0b00 and "packet_length" not in fields:
+            return None
+        return encapsulation_packet.build_header(fields)
 
     def _verify_tag(self, secret: bytes, counter: int, payload_bytes: bytes, tag: bytes) -> bool:
         counter_bytes = self._build_ctr_counter_block(counter)

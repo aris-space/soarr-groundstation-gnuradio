@@ -74,18 +74,19 @@ VCA/Bitstream encapsulation, is unimplemented).
 
 ## Known issues / TODOs
 
-- **The wire format built here is independently re-implemented, not
-  shared, in two other places**: `ccsds_reader.py`'s own
-  `encapsulation_header()` method (RX-side parsing) and
-  `sdls_authentication_verify.py`'s `_build_encapsulation_header` (RX-side
-  rebuild, needed to reconstruct the authenticated bytes for CMAC
-  verification). Confirmed field-for-field consistent with this block,
-  but all three must be kept in manual sync if this format ever changes —
-  there's no shared source of truth. (Out of scope to fix here — would
-  mean changing two other blocks' files.)
+None currently. The header's wire format is defined once, in
+`python/soarr/encapsulation_packet.py` (`build_header`, `parse_header`,
+`HEADER_STRUCT`, `LENGTH_OF_LENGTH_TABLE`), and shared with
+`ccsds_reader` and `sdls_authentication_verify`; this block's
+`LENGTH_OF_LENGTH_TABLE` and `_determine_length_of_length` refer to it.
 
 ## Test coverage
 
+- `python/soarr/qa_encapsulation_packet.py` — the shared header format:
+  known-answer headers for all four length-of-length variants,
+  variant boundaries, build → parse round trips, header lengths,
+  truncated-header rejection, and `HEADER_STRUCT` agreeing with
+  `parse_header`.
 - `python/soarr/qa_encapsulation_header.py` — 21 test methods
   (`test_instance` + `test_001`–`test_020`): PDU-shape rejection (3 cases),
   empty-payload/idle framing, each LOL variant (01/10/11), boundary-size

@@ -79,10 +79,9 @@ current implementation.
    there instead, and `_build_encapsulation_header` reconstructs the
    encapsulation header's raw bytes from `dict_msg["encapsulation_header"]`
    metadata (`ccsds_reader` parses this into fields but doesn't keep the
-   original bytes) — an **independent reimplementation of the same
-   bit-packing logic `ccsds_reader.encapsulation_header()` already
-   defines**, in a different file, that must stay byte-for-byte
-   consistent with it or CMAC verification silently breaks. If the
+   original bytes), via `encapsulation_packet.build_header` — the same
+   shared definition `ccsds_reader` parses with, so the two can't drift
+   apart. If the
    payload already starts with those reconstructed bytes (`has_encap`),
    they're stripped from `out_payload_bytes`; otherwise they're
    prepended only for `mac_payload` (the CMAC input), matching the bytes
@@ -137,13 +136,9 @@ no algorithm agility.
 
 ## Known issues / TODOs
 
-- **The trailer-in-metadata tag-reconstruction path
-  (`_build_encapsulation_header`) independently reimplements
-  `ccsds_reader.encapsulation_header()`'s bit-packing logic** in a
-  different file — the two must stay byte-for-byte consistent by
-  convention, not by any shared code, and this path has never been
-  exercised through the real ccsds_reader→sdls_authentication_verify
-  pipeline in any test (see Behavior above).
+- The trailer-in-metadata path has not been unit-tested through the
+  real `ccsds_reader` → `sdls_authentication_verify` pipeline (see
+  Behavior above).
 
 ## Test coverage
 

@@ -6,9 +6,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-from construct import BitsInteger, Computed, If, Rebuild, this, Switch, Struct, BitStruct, BitsInteger as Bits, Int8ub, Int16ub, Int32ub, Int64ub, Padding, Bytes
+from construct import If, Struct, BitStruct, BitsInteger as Bits, Int16ub, Bytes
 from gnuradio import gr
 import pmt
+
+from . import encapsulation_packet
 
 class ccsds_reader(gr.basic_block):
     """
@@ -70,35 +72,10 @@ class ccsds_reader(gr.basic_block):
 
     def encapsulation_header(self):
         """
-        Encapsulation Packet Protocol Header
-        Total: 1-8 bytes (variable length based on Length of Length field)
+        Encapsulation Packet Protocol Header (CCSDS 133.1-B), 1-8 bytes
+        depending on its Length of Length field - see encapsulation_packet.
         """
-        return Struct(
-            "first_octet" / Int8ub,
-            "packet_version" / Computed(lambda ctx: (ctx.first_octet >> 5) & 0b111),
-            "protocol_id" / Computed(lambda ctx: (ctx.first_octet >> 2) & 0b111),
-            "length_of_length" / Computed(lambda ctx: ctx.first_octet & 0b11),
-            "_user_defined_field_raw" / If(this.length_of_length >= 0b10, Int8ub),
-            "user_defined_field" / Computed(
-                lambda ctx: (ctx._user_defined_field_raw >> 4) & 0b1111
-                if ctx._user_defined_field_raw is not None
-                else None
-            ),
-            "protocol_id_extension" / Computed(
-                lambda ctx: ctx._user_defined_field_raw & 0b1111
-                if ctx._user_defined_field_raw is not None
-                else None
-            ),
-            "ccsds_defined_field" / If(this.length_of_length >= 0b11, Int16ub),
-            "packet_length" / If(
-                this.length_of_length != 0b00,
-                Switch(this.length_of_length, {
-                    0b01: Int8ub,
-                    0b10: Int16ub,
-                    0b11: Int32ub,
-                }),
-            ),
-        )
+        return encapsulation_packet.HEADER_STRUCT
 
     def sdls_security_header(self):
         """
@@ -120,19 +97,9 @@ class ccsds_reader(gr.basic_block):
     def _encapsulation_header_length(self, encap_header) -> int:
         if encap_header is None:
             return 0
-
         if isinstance(encap_header, dict):
-            length_of_length = int(encap_header.get("length_of_length", 0))
-        else:
-            length_of_length = int(encap_header.length_of_length)
-        length_bytes = {0b01: 1, 0b10: 2, 0b11: 4}.get(length_of_length, 0)
-        header_bytes = 1  # First octet
-        if length_of_length >= 0b10:
-            header_bytes += 1  # user_defined_field + protocol_id_extension
-        if length_of_length >= 0b11:
-            header_bytes += 2  # ccsds_defined_field
-        header_bytes += length_bytes
-        return header_bytes
+            return encapsulation_packet.header_length(int(encap_header.get("length_of_length", 0)))
+        return encapsulation_packet.header_length(int(encap_header.length_of_length))
 
     def _sdls_header_length(self) -> int:
         return 4  # SPI (2 bytes) + IV (2 bytes)

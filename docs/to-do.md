@@ -37,16 +37,6 @@ log or a session snapshot (see git history for that).
 
 ## Cross-block architectural debt
 
-- [encapsulation_header](prd/encapsulation_header.md) — its wire format
-  is independently reimplemented (not shared) in `ccsds_reader.py`'s
-  `encapsulation_header()` and `sdls_authentication_verify.py`'s
-  `_build_encapsulation_header` — field-for-field consistent today, but
-  all three must be kept in manual sync with no shared source of truth.
-- [sdls_authentication_verify](prd/sdls_authentication_verify.md) — its
-  trailer-in-metadata tag-reconstruction path independently reimplements
-  `ccsds_reader.encapsulation_header()`'s bit-packing logic in a
-  different file, with no shared code and no test exercising it through
-  the real `ccsds_reader` → `sdls_authentication_verify` pipeline.
 - The fixed 2-byte SDLS counter width is now hardcoded independently in
   4 places with no shared source of truth: [sdls_header](prd/sdls_header.md)'s
   `REQUIRED_IV_LENGTH_BYTES`, [sdls_encryption](prd/sdls_encryption.md)/
@@ -57,6 +47,10 @@ log or a session snapshot (see git history for that).
 
 ## Test-coverage gaps (no known bug, just untested)
 
+- [sdls_authentication_verify](prd/sdls_authentication_verify.md) — its
+  trailer-in-metadata path (tag from `sdls.security_trailer`, encapsulation
+  header rebuilt from metadata) is not unit-tested through the real
+  `ccsds_reader` → `sdls_authentication_verify` pipeline.
 - [sdls_authentication](prd/sdls_authentication.md) and
   [sdls_encryption](prd/sdls_encryption.md) — the nested
   `sdls.security_header.sdls_counter` fallback path is the *only* path

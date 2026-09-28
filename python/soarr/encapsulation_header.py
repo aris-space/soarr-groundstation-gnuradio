@@ -6,22 +6,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-from collections import namedtuple
-
-from construct import BitStruct, BitsInteger, GreedyBytes, If, Rebuild, this, Switch, Struct
 from gnuradio import gr
 import pmt
 
-
-PACKET_VERSION_NUMBER = 0b111
-PROTOCOL_ID_IDLE = 0b000
-PROTOCOL_ID_DATA = 0b111
-PROTOCOL_ID_EXTENSION = 0b0000
-CCSDS_DEFINED_FIELD = 0b0000_0000_0000_0000
-
-_LengthOfLengthInfo = namedtuple(
-    "_LengthOfLengthInfo", ["max_length", "header_length", "packet_length_width"]
-)
+from . import encapsulation_packet
 
 
 class encapsulation_header(gr.basic_block):
@@ -46,41 +34,8 @@ class encapsulation_header(gr.basic_block):
     # width - previously duplicated across three separate places in this
     # module. A class attribute (not module-level) so it's reachable via
     # the imported class name, same as _determine_length_of_length.
-    LENGTH_OF_LENGTH_TABLE = {
-        0b00: _LengthOfLengthInfo(max_length=0, header_length=1, packet_length_width=None),
-        0b01: _LengthOfLengthInfo(max_length=2**8 - 3, header_length=2, packet_length_width=8),
-        0b10: _LengthOfLengthInfo(max_length=2**16 - 5, header_length=4, packet_length_width=16),
-        0b11: _LengthOfLengthInfo(max_length=2**32 - 9, header_length=8, packet_length_width=32),
-    }
-
-    # Built once at class-definition time, not per message: this Struct is
-    # a stateless schema (construct.Struct.build() takes a fresh context
-    # per call), so rebuilding it on every add_header() call was pure waste.
-    _PACKET_FORMAT = Struct(
-        "header" / BitStruct(
-            # First octet: version (3), protocol id (3), and length-of-length (2)
-            "packet_version_number" / BitsInteger(3),
-            "protocol_id" / BitsInteger(3),
-            "length_of_length" / Rebuild(
-                BitsInteger(2),
-                lambda ctx: encapsulation_header._determine_length_of_length(ctx._.payload),
-            ),
-            # Optional fields present only for longer header variants.
-            "user_defined_field" / If(this.length_of_length >= 0b10, BitsInteger(4)),
-            "protocol_id_extension" / If(this.length_of_length >= 0b10, BitsInteger(4)),
-            "ccsds_defined_field" / If(this.length_of_length >= 0b11, BitsInteger(16)),
-            # Packet length field width depends on length_of_length code.
-            "packet_length" / If(
-                this.length_of_length != 0b00,
-                Switch(this.length_of_length, {
-                    lol: BitsInteger(info.packet_length_width)
-                    for lol, info in LENGTH_OF_LENGTH_TABLE.items()
-                    if info.packet_length_width is not None
-                }),
-            ),
-        ),
-        "payload" / GreedyBytes,
-    )
+    # Header format lives in encapsulation_packet; kept here for callers of the block.
+    LENGTH_OF_LENGTH_TABLE = encapsulation_packet.LENGTH_OF_LENGTH_TABLE
 
     def __init__(self, user_defined_field:int = 0b0000):
         """
@@ -118,23 +73,18 @@ class encapsulation_header(gr.basic_block):
     @staticmethod
     def _determine_length_of_length(obj) -> int:
         """
-        Determine the 2-bit LENGTH_OF_LENGTH code from encapsulated data length.
+        Args:
+            obj: the encapsulated data (anything with a length in bytes).
 
-        Thresholds use maximum encapsulated-data-field sizes from Table 4-2:
-        - 00: no length field (empty encapsulated data field)
-        - 01: 1-byte packet length field
-        - 10: 2-byte packet length field
-        - 11: 4-byte packet length field
+        Returns:
+            int: the 2-bit LENGTH_OF_LENGTH code for that data length
+                (CCSDS 133.1-B Table 4-2), see
+                encapsulation_packet.length_of_length_for.
 
         Raises:
             ValueError: length exceeds every LOL variant's maximum.
         """
-        length = len(obj)  # in bytes
-        for lol, info in encapsulation_header.LENGTH_OF_LENGTH_TABLE.items():
-            if length <= info.max_length:
-                return lol
-
-        raise ValueError("Object too large to encode with SDLS header.")
+        return encapsulation_packet.length_of_length_for(len(obj))
 
     def add_header(self, msg):
         """
@@ -174,28 +124,20 @@ class encapsulation_header(gr.basic_block):
 
             payload_bytes = bytes(pmt.u8vector_elements(payload))
 
-            protocol_id = PROTOCOL_ID_IDLE if payload_bytes == b'' else PROTOCOL_ID_DATA
-            if protocol_id == PROTOCOL_ID_IDLE:
+            if payload_bytes == b"":
                 self.logger.info("Received empty payload; packing encapsulation header as idle packet")
 
-            # packet_length encodes total packet length (header + encapsulated data field).
             length_of_length = encapsulation_header._determine_length_of_length(payload_bytes)
-            info = encapsulation_header.LENGTH_OF_LENGTH_TABLE[length_of_length]
-            packet_length_value = None if length_of_length == 0b00 else len(payload_bytes) + info.header_length
-
-            msg_out = encapsulation_header._PACKET_FORMAT.build({
-                "header": {
-                    "packet_version_number": PACKET_VERSION_NUMBER,
-                    "protocol_id": protocol_id,
-                    # length_of_length is computed by Rebuild from the payload.
-                    "user_defined_field": self.user_defined_field,
-                    "protocol_id_extension": PROTOCOL_ID_EXTENSION,
-                    "ccsds_defined_field": CCSDS_DEFINED_FIELD,
-                    "packet_length": packet_length_value,
-                },
-                "payload": payload_bytes
+            header = encapsulation_packet.build_header({
+                "length_of_length": length_of_length,
+                "protocol_id": (encapsulation_packet.PROTOCOL_ID_IDLE if payload_bytes == b""
+                                else encapsulation_packet.PROTOCOL_ID_DATA),
+                "user_defined_field": self.user_defined_field,
+                "protocol_id_extension": encapsulation_packet.PROTOCOL_ID_EXTENSION,
+                "ccsds_defined_field": encapsulation_packet.CCSDS_DEFINED_FIELD,
+                "packet_length": encapsulation_packet.header_length(length_of_length) + len(payload_bytes),
             })
-
+            msg_out = header + payload_bytes
             out_msg = pmt.cons(dict_msg, pmt.init_u8vector(len(msg_out), list(msg_out)))
             self.message_port_pub(pmt.intern("out"), out_msg)
             self.logger.info("OK")
