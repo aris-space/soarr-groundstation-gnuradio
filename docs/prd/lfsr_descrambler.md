@@ -143,7 +143,7 @@ against `lfsr_scrambler.md`'s independent-source known-answer vector:
 `lfsr_scrambler`'s own published-standard output
 (`0xFF 0x39 0x9E 0x5A 0x68`) back through this block and checks it
 recovers the all-zero input, and
-`qa_lfsrScramberDescrambler.py`/`qa_lfsr_receive_chain.py` both round-trip
+`qa_lfsr_round_trip.py`/`qa_lfsr_receive_chain.py` both round-trip
 live `lfsr_scrambler` output through this block instead of relying on a
 hand-derived vector alone.
 
@@ -158,7 +158,7 @@ hand-derived vector alone.
   publish failure proven to be caught and dropped rather than raised
   through the real handler, and `scramble_reset=True` restarting the
   sequence while `False` keeps it running (`test_010`).
-- `python/soarr/qa_lfsrScramberDescrambler.py` — 3 test methods
+- `python/soarr/qa_lfsr_round_trip.py` — 3 test methods
   (`test_instance` + `test_001`-`test_002`): `lfsr_scrambler` →
   `lfsr_descrambler` round trip recovers the original payload and
   preserves metadata, using a live scrambler instance rather than a fixed

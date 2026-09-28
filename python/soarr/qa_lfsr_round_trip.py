@@ -12,7 +12,7 @@ from gnuradio.soarr import lfsr_scrambler, lfsr_descrambler
 import pmt
 
 
-class qa_lfsrScramberDescrambler(gr_unittest.TestCase):
+class qa_lfsr_round_trip(gr_unittest.TestCase):
 
     def setUp(self):
         self.scrambler = lfsr_scrambler()
@@ -84,4 +84,4 @@ class qa_lfsrScramberDescrambler(gr_unittest.TestCase):
 
 
 if __name__ == '__main__':
-    gr_unittest.run(qa_lfsrScramberDescrambler)
+    gr_unittest.run(qa_lfsr_round_trip)

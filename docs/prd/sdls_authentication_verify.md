@@ -38,7 +38,7 @@ independently confirm the wiring above; it matches
 | Name | Type | Default | Notes |
 |---|---|---|---|
 | `authentication_state` | bool | `True` | `False` makes the block a pure passthrough after its shape checks — input republished on `out` unchanged, no key/counter validation, no metadata mutation. Matches `sdls_authentication`'s own parameter name (same convention, not new). |
-| `nonce` | bytes | `b"\x00" * 14` (all-zero) | Fixed for the block's lifetime, combined with the per-message `sdls_counter` to rebuild the same 16-byte counter block `sdls_authentication` prepended before computing its tag. Must match `sdls_authentication`'s own `nonce` value out-of-band, or every tag fails to verify (`qa_AuthenticateAuthVerify.py::test_005_nonce_mismatch_fails`). Validated in `__init__` (`TypeError`/`ValueError` if not exactly 14 bytes) — the error message hardcodes "14" rather than referencing `NONCE_LEN`, cosmetic only since the two currently agree. |
+| `nonce` | bytes | `b"\x00" * 14` (all-zero) | Fixed for the block's lifetime, combined with the per-message `sdls_counter` to rebuild the same 16-byte counter block `sdls_authentication` prepended before computing its tag. Must match `sdls_authentication`'s own `nonce` value out-of-band, or every tag fails to verify (`qa_sdls_authentication_round_trip.py::test_005_nonce_mismatch_fails`). Validated in `__init__` (`TypeError`/`ValueError` if not exactly 14 bytes) — the error message hardcodes "14" rather than referencing `NONCE_LEN`, cosmetic only since the two currently agree. |
 
 ## Behavior / edge cases / current error handling
 
@@ -167,7 +167,7 @@ no algorithm agility.
   `PMT_NIL` (present, not absent) correctly rejected rather than
   silently falling back to a nested counter that would otherwise verify
   successfully (`test_016`).
-- `python/soarr/qa_AuthenticateAuthVerify.py` — 10 test methods
+- `python/soarr/qa_sdls_authentication_round_trip.py` — 10 test methods
   (`test_instance` + `test_001`-`test_009`), pairing this block with the
   real `sdls_authentication`: a full authenticate-then-verify round trip,
   tag-tamper and payload-tamper detection, `authentication_state`

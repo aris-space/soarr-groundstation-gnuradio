@@ -21,7 +21,7 @@ cltu_framer.out → acquisition_idle_sequencer.in
 `out` is a continuous byte stream, not a PDU port — it feeds an
 SDR/modulator downstream, outside this repo's scope. No `.grc` flowgraph
 or test in this repo wires this block's `in` port to `cltu_framer`'s
-`out` port directly (`qa_layoutTest.py` doesn't instantiate this block at
+`out` port directly (`qa_tx_chain.py` doesn't instantiate this block at
 all); the pipeline position above is documented in `architecture.md`, not
 independently exercised here.
 

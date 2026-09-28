@@ -59,7 +59,7 @@ add_custom_target(
 # LFSR tests
 GR_ADD_TEST(qa_lfsr_scrambler ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_lfsr_scrambler.py)
 GR_ADD_TEST(qa_lfsr_descrambler ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_lfsr_descrambler.py)
-GR_ADD_TEST(qa_lfsrScramberDescrambler ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_lfsrScramberDescrambler.py)
+GR_ADD_TEST(qa_lfsr_round_trip ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_lfsr_round_trip.py)
 GR_ADD_TEST(qa_lfsr_receive_chain ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_lfsr_receive_chain.py)
 
 # CLTU tests
@@ -69,7 +69,7 @@ GR_ADD_TEST(qa_cltu_deframer ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa
 # BCH tests
 GR_ADD_TEST(qa_bch_encoder ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_bch_encoder.py)
 GR_ADD_TEST(qa_bch_decoder ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_bch_decoder.py)
-GR_ADD_TEST(qa_bchEncoderDecoder ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_bchEncoderDecoder.py)
+GR_ADD_TEST(qa_bch_round_trip ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_bch_round_trip.py)
 
 # Test the integration of the LFSR scrambler, CLTU framer, and BCH encoder in a chain
 GR_ADD_TEST(qa_lfsr_cltu_bch_chain ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_lfsr_cltu_bch_chain.py)
@@ -80,7 +80,7 @@ GR_ADD_TEST(qa_inject_db ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_inj
 
 # Test the primary header block and its integration with the db_client
 GR_ADD_TEST(qa_tc_primary_header ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tc_primary_header.py)
-GR_ADD_TEST(qa_tcPrimaryHeader_dbClient_integration ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tcPrimaryHeader_dbClient_integration.py)
+GR_ADD_TEST(qa_tc_primary_header_db_client_integration ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tc_primary_header_db_client_integration.py)
 
 # SDLS tests
 GR_ADD_TEST(qa_sdls_encryption ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_sdls_encryption.py)
@@ -91,16 +91,16 @@ GR_ADD_TEST(qa_sdls_header ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_s
 GR_ADD_TEST(qa_encapsulation_header ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_encapsulation_header.py)
 
 # System layout tests
-GR_ADD_TEST(qa_layoutTest ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_layoutTest.py)
+GR_ADD_TEST(qa_tx_chain ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tx_chain.py)
 
 # Testing blocks
 GR_ADD_TEST(qa_ccsds_reader ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_ccsds_reader.py)
 GR_ADD_TEST(qa_data_creator ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_data_creator.py)
 GR_ADD_TEST(qa_ccsds_receiver ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_ccsds_receiver.py)
 GR_ADD_TEST(qa_sdls_decryption ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_sdls_decryption.py)
-GR_ADD_TEST(qa_EncryptDecrypt ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_EncryptDecrypt.py)
+GR_ADD_TEST(qa_sdls_encryption_round_trip ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_sdls_encryption_round_trip.py)
 
 GR_ADD_TEST(qa_sdls_authentication_verify ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_sdls_authentication_verify.py)
-GR_ADD_TEST(qa_AuthenticateAuthVerify ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_AuthenticateAuthVerify.py)
+GR_ADD_TEST(qa_sdls_authentication_round_trip ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_sdls_authentication_round_trip.py)
 GR_ADD_TEST(qa_acquisition_idle_sequencer ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_acquisition_idle_sequencer.py)
 GR_ADD_TEST(qa_system_tester ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_system_tester.py)

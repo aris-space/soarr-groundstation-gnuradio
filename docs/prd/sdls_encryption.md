@@ -124,7 +124,7 @@ support for SDLS's other permitted cipher suites.
   under `sdls.security_header.sdls_counter` — never top-level. Every test
   in `qa_sdls_encryption.py` constructs `sdls_counter` at the top level
   directly, bypassing `inject_db` entirely, and
-  `qa_layoutTest.py::test_002_end_to_end_message_routing` — the one test
+  `qa_tx_chain.py::test_002_end_to_end_message_routing` — the one test
   that *does* run the real wired topology — shims this block's real
   handler out. The code path this block's `sdls_counter` handling
   actually takes in production has never been run by any test in this
@@ -148,12 +148,12 @@ support for SDLS's other permitted cipher suites.
   path specifically), and a non-PDU input rejected even with
   `encryption_state=False`, proving shape validation runs regardless of
   the flag (`test_015`).
-- `python/soarr/qa_EncryptDecrypt.py` — 8 test methods pairing this block
+- `python/soarr/qa_sdls_encryption_round_trip.py` — 8 test methods pairing this block
   with its RX counterpart `sdls_decryption`: round trip, wrong key, wrong
   counter, and nonce-mismatch all changing the recovered plaintext as
   expected; missing key preventing decryption; multiple sequential
   messages; both blocks disabled as a combined passthrough.
-- `python/soarr/qa_layoutTest.py::test_006_sdls_encryption_real_handler` —
+- `python/soarr/qa_tx_chain.py::test_006_sdls_encryption_real_handler` —
   same pattern as `encapsulation_header`'s `test_008`: builds a **fresh,
   standalone** instance and calls `add_encryption` directly, proving real
   encryption logic and metadata handling (`crypt_key` removed,

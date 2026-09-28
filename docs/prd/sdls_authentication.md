@@ -105,8 +105,8 @@ support for SDLS's other permitted MAC schemes.
   assigned *by* the `db_client` response, so `inject_db`'s merge logic
   always nests it under `sdls.security_header.sdls_counter`, never
   top-level). No test in `qa_sdls_authentication.py` or
-  `qa_AuthenticateAuthVerify.py` constructs that shape, and
-  `qa_layoutTest.py::test_002_end_to_end_message_routing` — the one test
+  `qa_sdls_authentication_round_trip.py` constructs that shape, and
+  `qa_tx_chain.py::test_002_end_to_end_message_routing` — the one test
   that runs the real wired topology — shims this block's real handler
   out. The code path this block's `sdls_counter` handling actually takes
   in production has never been run by any test in this repo.
@@ -141,13 +141,13 @@ support for SDLS's other permitted MAC schemes.
   `authentication_state=False` passthrough path), and a non-PDU input
   rejected even with `authentication_state=False`, proving shape
   validation runs regardless of the flag (`test_013`).
-- `python/soarr/qa_AuthenticateAuthVerify.py` — 10 test methods pairing
+- `python/soarr/qa_sdls_authentication_round_trip.py` — 10 test methods pairing
   this block with the real `sdls_authentication_verify`, in file order:
   round trip, tag tamper detection, disabled-authenticate with
   enabled-verify (fails), disabled-verify passthrough, nonce mismatch
   (fails), counter mismatch (fails), payload tamper detection, an
   empty-payload round trip, and multiple sequential messages.
-- `python/soarr/qa_layoutTest.py::test_007_sdls_authentication_real_handler`
+- `python/soarr/qa_tx_chain.py::test_007_sdls_authentication_real_handler`
   — same pattern as the other TX blocks' "real handler" tests: builds a
   **fresh, standalone** instance and calls `add_authentication` directly,
   proving real tag-computation logic and metadata handling but not the

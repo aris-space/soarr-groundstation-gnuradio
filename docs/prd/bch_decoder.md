@@ -121,7 +121,7 @@ code: generator polynomial `g(x) = x^7 + x^6 + x^2 + 1` (`0xC5`), matching
 `bch_encoder`'s own default and citation. Stated per the code's own
 pre-existing parity-computation logic (identical to `bch_encoder`'s); not
 independently verified against the standard from this repo alone (same
-caveat as `bch_encoder.md`'s CCSDS reference). `qa_bchEncoderDecoder.py`
+caveat as `bch_encoder.md`'s CCSDS reference). `qa_bch_round_trip.py`
 and `qa_lfsr_receive_chain.py` cross-check this block's parity computation
 against `bch_encoder`'s own, and round-trip encoder output back through
 this block, rather than relying on a hand-derived known-answer vector.
@@ -138,7 +138,7 @@ this block, rather than relying on a hand-derived known-answer vector.
   8-byte length not raising, and — using `bch_encoder` to produce real
   codewords — no-error passthrough (all-`0xFF`, all-zero), 1-bit-error
   correction, and metadata preservation.
-- `python/soarr/qa_bchEncoderDecoder.py` — 6 test methods (`test_instance`
+- `python/soarr/qa_bch_round_trip.py` — 6 test methods (`test_instance`
   + `test_001`-`test_005`): encoder→decoder round trip for a valid
   codeword, 1-bit and 2-bit corrected errors, metadata preservation, and
   a regression case pinned to a specific observed flowgraph vector.

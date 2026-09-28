@@ -12,7 +12,7 @@ import pmt
 from gnuradio.soarr import sdls_decryption, sdls_encryption
 
 
-class qa_EncryptDecrypt(gr_unittest.TestCase):
+class qa_sdls_encryption_round_trip(gr_unittest.TestCase):
 
 	def setUp(self):
 		self.tb = gr.top_block()
@@ -195,4 +195,4 @@ class qa_EncryptDecrypt(gr_unittest.TestCase):
 
 
 if __name__ == '__main__':
-	gr_unittest.run(qa_EncryptDecrypt)
+	gr_unittest.run(qa_sdls_encryption_round_trip)

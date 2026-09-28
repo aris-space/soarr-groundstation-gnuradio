@@ -108,7 +108,7 @@ class layout(gr.top_block):
         self.msg_connect((self.lfsr_scrambler, "out"), (self.bch_encoder, "message"))
         self.msg_connect((self.bch_encoder, "codewords"), (self.cltu_framer, "in"))
 
-class qa_layoutTest(gr_unittest.TestCase):
+class qa_tx_chain(gr_unittest.TestCase):
 
     def setUp(self):
         """Create a fresh flowgraph for each test case."""
@@ -684,4 +684,4 @@ class qa_layoutTest(gr_unittest.TestCase):
         self.assertEqual(stats["lost_packets"], 0)
 
 if __name__ == '__main__':
-    gr_unittest.run(qa_layoutTest)
+    gr_unittest.run(qa_tx_chain)

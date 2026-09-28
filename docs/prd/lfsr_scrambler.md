@@ -16,7 +16,7 @@ digital.crc_append.out (stock block) → lfsr_scrambler.in
 lfsr_scrambler.out → bch_encoder.message
 ```
 
-Confirmed via `python/soarr/qa_layoutTest.py:103-104`'s `msg_connect` wiring.
+Confirmed via `python/soarr/qa_tx_chain.py:103-104`'s `msg_connect` wiring.
 
 ## Message ports
 
@@ -96,7 +96,7 @@ implementation.
   instead of crashing the handler, and a mock-forced publish failure
   proven to be caught and dropped rather than raised through the real
   handler.
-- `python/soarr/qa_layoutTest.py::test_009_lfsr_scrambler_real_handler` —
+- `python/soarr/qa_tx_chain.py::test_009_lfsr_scrambler_real_handler` —
   same pattern as the other TX blocks' "real handler" tests: builds a
   fresh, standalone instance and calls `handle_msg` directly, confirming
   real XOR-against-the-CCSDS-sequence behavior and metadata pass-through,

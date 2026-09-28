@@ -17,7 +17,7 @@ TX chain, an alternative entry point to `inject_db`:
 data_creator.out → encapsulation_header.in
 ```
 
-Not wired in `python/soarr/qa_layoutTest.py`'s flowgraph at all — that
+Not wired in `python/soarr/qa_tx_chain.py`'s flowgraph at all — that
 test uses `inject_db`/`db_client` instead. No test or `.grc` flowgraph in
 this repo exercises `data_creator` feeding `encapsulation_header`; its
 only test coverage is standalone, via its own qa file.

@@ -17,10 +17,10 @@ bch_encoder.codewords → cltu_framer.in
 cltu_framer.out → acquisition_idle_sequencer.in
 ```
 
-The input side is confirmed via `python/soarr/qa_layoutTest.py:105`'s
+The input side is confirmed via `python/soarr/qa_tx_chain.py:105`'s
 `msg_connect` wiring. The output side is documented in
 [architecture.md](../architecture.md) but not independently wired or
-tested anywhere in this repo — `qa_layoutTest.py` captures `cltu_framer`'s
+tested anywhere in this repo — `qa_tx_chain.py` captures `cltu_framer`'s
 `out` port directly instead of connecting it onward.
 
 ## Message ports
@@ -136,7 +136,7 @@ None currently.
   `lfsr_scrambler → bch_encoder → cltu_framer` chain producing exactly
   one CLTU per input frame for 1, 2, and 3 codewords, byte-identical to
   a stagewise reference built per CCSDS 231.0-B-4 Figure 5-1.
-- `python/soarr/qa_layoutTest.py::test_011_cltu_framer_real_handler` —
+- `python/soarr/qa_tx_chain.py::test_011_cltu_framer_real_handler` —
   same pattern as the other TX blocks' "real handler" tests: builds a
   fresh, standalone instance and calls `add_sequences` directly, not the
   `msg_connect` wiring itself (shimmed out in

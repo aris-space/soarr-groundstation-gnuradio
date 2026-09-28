@@ -103,12 +103,12 @@ bytes.
   beforehand), so `inject_db.py`'s merge logic always nests it under
   `telecommand.tc_header.vcid_counter`, never top-level. Every test in
   `qa_tc_primary_header.py` sets `vcid_counter` at the top level directly,
-  and `qa_layoutTest.py::test_002_end_to_end_message_routing` shims this
+  and `qa_tx_chain.py::test_002_end_to_end_message_routing` shims this
   block's real handler out. The code path this block's `vcid_counter`
   handling actually takes in production has never been run by any test
   in this repo.
 - **No test decodes/checks the `frame_length` *field value* itself
-  against a wired, real `digital.crc_append`.** `qa_layoutTest.py`'s real
+  against a wired, real `digital.crc_append`.** `qa_tx_chain.py`'s real
   `digital.crc_append` is configured for CCSDS 232.0-B-4's actual 2-byte
   FECF (CRC-16/CCITT, poly `0x1021`, init `0xFFFF`, no reflection, no
   final XOR), matching this block's `additional_crc_bytes=2` assumption
@@ -131,7 +131,7 @@ bytes.
   raised through the real handler, and an oversized computed
   `frame_length` (past the 10-bit field's range) proven to be dropped
   rather than silently wrapped via bitmasking into a wrong value.
-- `python/soarr/qa_layoutTest.py::test_004_tc_primary_header_real_handler`
+- `python/soarr/qa_tx_chain.py::test_004_tc_primary_header_real_handler`
   — same pattern as the other TX blocks' "real handler" tests: builds a
   **fresh, standalone** instance and calls `build_header` directly,
   proving real header-building logic but not the `msg_connect` wiring

@@ -18,7 +18,7 @@ lfsr_scrambler.out → bch_encoder.message
 bch_encoder.codewords → cltu_framer.in
 ```
 
-Confirmed via `python/soarr/qa_layoutTest.py:104-105`'s `msg_connect`
+Confirmed via `python/soarr/qa_tx_chain.py:104-105`'s `msg_connect`
 wiring.
 
 ## Message ports
@@ -85,7 +85,7 @@ complemented parity bits per §3.3.1, one filler bit (`0`) appended after
 the 7 parity bits to complete each 64-bit/8-byte codeword. Stated per the
 code's own pre-existing docstring citation; not independently verified
 against the standard from this repo alone (same caveat as
-`lfsr_scrambler.md`'s CCSDS reference). `qa_layoutTest.py::test_010_bch_encoder_real_handler`
+`lfsr_scrambler.md`'s CCSDS reference). `qa_tx_chain.py::test_010_bch_encoder_real_handler`
 checks a hand-derivable known-answer case (an all-zero 7-byte payload
 produces parity byte `0xFE` — all 7 parity bits set, filler bit `0`,
 matching the algorithm's zero-dividend case), not just self-consistency.
@@ -117,7 +117,7 @@ block.
   set correctly with and without fill bits (`test_030`). Every
   multi-codeword test checks the encoder's real output directly — one
   PDU of N × 8 bytes.
-- `python/soarr/qa_layoutTest.py::test_010_bch_encoder_real_handler` —
+- `python/soarr/qa_tx_chain.py::test_010_bch_encoder_real_handler` —
   same pattern as the other TX blocks' "real handler" tests: builds a
   fresh, standalone instance and calls `encode_bch` directly, checking the
   hand-derivable known-answer parity byte described in CCSDS reference

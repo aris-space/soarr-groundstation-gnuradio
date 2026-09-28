@@ -13,7 +13,7 @@ from gnuradio import gr_unittest
 from gnuradio.soarr import tc_primary_header
 
 
-class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
+class qa_tc_primary_header_db_client_integration(gr_unittest.TestCase):
     """Test tc_primary_header integration when metadata is pre-populated upstream."""
 
     CRC_BYTES = 2
@@ -283,4 +283,4 @@ class qa_tcPrimaryHeader_dbClient_integration(gr_unittest.TestCase):
         self.assertEqual(out_bytes[5:], payload)
 
 if __name__ == '__main__':
-    gr_unittest.run(qa_tcPrimaryHeader_dbClient_integration)
+    gr_unittest.run(qa_tc_primary_header_db_client_integration)

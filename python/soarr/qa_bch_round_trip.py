@@ -11,7 +11,7 @@ import pmt
 from gnuradio.soarr import bch_encoder, bch_decoder
 
 
-class qa_bchEncoderDecoder(gr_unittest.TestCase):
+class qa_bch_round_trip(gr_unittest.TestCase):
 
     def setUp(self):
         self.tb = gr.top_block()
@@ -128,4 +128,4 @@ class qa_bchEncoderDecoder(gr_unittest.TestCase):
 
 
 if __name__ == '__main__':
-    gr_unittest.run(qa_bchEncoderDecoder)
+    gr_unittest.run(qa_bch_round_trip)

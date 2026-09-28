@@ -26,7 +26,7 @@ RX: ccsds_reader.debug → inject_db.in
 
 The TX instance's `db_call`/`db_callback` wiring to `db_client` and its
 `out → encapsulation_header.in` connection are confirmed via
-`python/soarr/qa_layoutTest.py`'s `msg_connect` wiring; its `in` port is
+`python/soarr/qa_tx_chain.py`'s `msg_connect` wiring; its `in` port is
 fed by posting a PDU directly to the block in that test, not via
 `msg_connect`, so the real upstream source (`inject_db`/`data_creator`)
 is inferred from architecture.md, not independently wired here. The RX

@@ -19,7 +19,7 @@ inject_db.db_call → db_client.db_call
 db_client.db_callback → inject_db.db_callback
 ```
 
-Confirmed via `python/soarr/qa_layoutTest.py`'s `msg_connect` wiring
+Confirmed via `python/soarr/qa_tx_chain.py`'s `msg_connect` wiring
 (TX instance); the RX instance's wiring is documented in
 [architecture.md](../architecture.md) only.
 

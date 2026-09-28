@@ -15,7 +15,7 @@ Ground-tooling, not signal chain
 original vs. received payloads out-of-band, at the end of the pipeline;
 it does not sit inline in either chain and has no per-block error-signal
 port to depend on." No `.grc` flowgraph file exists anywhere in this
-repo. `python/soarr/qa_layoutTest.py`'s `layout` fixture instantiates it
+repo. `python/soarr/qa_tx_chain.py`'s `layout` fixture instantiates it
 alongside the real TX chain, but not `msg_connect`-wired into that
 chain's topology — `test_012_system_tester_tracks_real_tx_chain_output`
 feeds it directly: `handle_original` with the raw pre-chain payload,
@@ -152,7 +152,7 @@ tracking key.
   and `message_port_pub` raising `RuntimeError` during `handle_start`
   confirmed not to propagate past the handler
   (`test_005_trigger_publish_failure_does_not_crash_handle_start`).
-- `python/soarr/qa_layoutTest.py::test_012_system_tester_tracks_real_tx_chain_output`
+- `python/soarr/qa_tx_chain.py::test_012_system_tester_tracks_real_tx_chain_output`
   — `handle_original`/`handle_received` called directly against the real
   TX chain's own output (not passthrough shims), confirming a packet
   reaches `received_packets` with `lost_packets` staying `0` (see

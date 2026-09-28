@@ -105,7 +105,7 @@ value.
   anywhere exercises the nested shape: every unit test in
   `qa_sdls_header.py` (and the sibling blocks') constructs both keys at
   the top level directly, bypassing `inject_db`/`data_creator` entirely,
-  and `qa_layoutTest.py::test_002_end_to_end_message_routing` — the one
+  and `qa_tx_chain.py::test_002_end_to_end_message_routing` — the one
   test that *does* run the real wired topology — shims every block's
   real handler out, including `inject_db`'s own two handlers and
   `db_client`'s, so it never exercises real merge or extraction logic
@@ -125,7 +125,7 @@ value.
   output, any `iv_length_bytes` value other than `2` rejected at
   construction time, and a mock-forced internal build failure proven to
   be caught and dropped rather than raised through the real handler.
-- `python/soarr/qa_layoutTest.py::test_005_sdls_header_real_handler` —
+- `python/soarr/qa_tx_chain.py::test_005_sdls_header_real_handler` —
   same pattern as the other TX blocks' "real handler" tests: builds a
   **fresh, standalone** instance and calls `add_header` directly, proving
   real header-building logic and metadata handling but not the

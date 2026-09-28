@@ -19,7 +19,7 @@ SDLS, SPI, IV, etc.) follow their CCSDS definitions. Per-block detail
 
 ## TX chain
 
-Confirmed via `python/soarr/qa_layoutTest.py`'s `msg_connect` wiring
+Confirmed via `python/soarr/qa_tx_chain.py`'s `msg_connect` wiring
 (lines 89–101), and independently confirmed end-to-end by a working
 external flowgraph (`CCSDS_Full.grc` — see Known Gaps):
 

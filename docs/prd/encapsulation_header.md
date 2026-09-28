@@ -101,12 +101,12 @@ VCA/Bitstream encapsulation, is unimplemented).
   the real handler (`test_020` — a real oversized payload would need
   ~4GB to construct, so the failure is forced via
   `unittest.mock.patch.object` instead).
-- `python/soarr/qa_layoutTest.py::test_008_encapsulation_header_real_handler`
+- `python/soarr/qa_tx_chain.py::test_008_encapsulation_header_real_handler`
   — builds a **fresh, standalone** `encapsulation_header` instance (not
   the one wired into the test flowgraph) and calls `add_header` directly;
   proves the real header-building logic produces correct bytes, but not
   that the `msg_connect` wiring works.
-- `python/soarr/qa_layoutTest.py::test_002_end_to_end_message_routing` —
+- `python/soarr/qa_tx_chain.py::test_002_end_to_end_message_routing` —
   proves the opposite: that the full TX chain's `msg_connect` topology
   correctly routes a message end-to-end, but with every block's real
   handler (including this one's `add_header`) replaced by a pass-through

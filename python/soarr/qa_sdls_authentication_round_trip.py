@@ -12,7 +12,7 @@ import pmt
 from gnuradio.soarr import sdls_authentication, sdls_authentication_verify
 
 
-class qa_AuthenticateAuthVerify(gr_unittest.TestCase):
+class qa_sdls_authentication_round_trip(gr_unittest.TestCase):
 
 	def setUp(self):
 		self.tb = gr.top_block()
@@ -242,4 +242,4 @@ class qa_AuthenticateAuthVerify(gr_unittest.TestCase):
 
 
 if __name__ == '__main__':
-	gr_unittest.run(qa_AuthenticateAuthVerify)
+	gr_unittest.run(qa_sdls_authentication_round_trip)

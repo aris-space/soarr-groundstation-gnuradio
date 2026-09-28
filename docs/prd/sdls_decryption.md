@@ -36,7 +36,7 @@ confirmed-in-practice, not self-verifying from this repo alone. No
 | Name | Type | Default | Notes |
 |---|---|---|---|
 | `decryption_state` | bool | `True` | `False` makes the block a pure passthrough after its shape checks — input republished on `out` unchanged, no key/counter validation, no metadata mutation. Named to mirror `sdls_encryption`'s `encryption_state`. |
-| `nonce` | bytes | `b"\x00" * 14` (all-zero) | Fixed for the block's lifetime, combined with the per-message `sdls_counter` into the same 16-byte AES-CTR counter block `sdls_encryption` used to encrypt. Must match `sdls_encryption`'s own `nonce` out-of-band, or the recovered plaintext is garbage rather than the original data (`qa_EncryptDecrypt.py::test_005_nonce_mismatch_changes_plaintext`). Validated in `__init__` (`TypeError`/`ValueError` if not exactly 14 bytes). |
+| `nonce` | bytes | `b"\x00" * 14` (all-zero) | Fixed for the block's lifetime, combined with the per-message `sdls_counter` into the same 16-byte AES-CTR counter block `sdls_encryption` used to encrypt. Must match `sdls_encryption`'s own `nonce` out-of-band, or the recovered plaintext is garbage rather than the original data (`qa_sdls_encryption_round_trip.py::test_005_nonce_mismatch_changes_plaintext`). Validated in `__init__` (`TypeError`/`ValueError` if not exactly 14 bytes). |
 
 ## Behavior / edge cases / current error handling
 
@@ -130,7 +130,7 @@ sibling — no algorithm agility.
   `PMT_NIL` (present, not absent) correctly rejected rather than
   silently falling back to a nested counter that would otherwise decrypt
   successfully (`test_012`).
-- `python/soarr/qa_EncryptDecrypt.py` — 8 test methods (`test_instance`
+- `python/soarr/qa_sdls_encryption_round_trip.py` — 8 test methods (`test_instance`
   + `test_001`-`test_007`), pairing this block with the real
   `sdls_encryption`: a full encrypt-then-decrypt round trip, a wrong key
   and a wrong counter each changing the recovered plaintext (proving

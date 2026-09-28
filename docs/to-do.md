@@ -60,7 +60,7 @@ log or a session snapshot (see git history for that).
   required field.
 - [tc_primary_header](prd/tc_primary_header.md) — no test checks the
   `frame_length` field's actual value against a real, wired
-  `digital.crc_append`; `qa_layoutTest.py::test_002` only checks total
+  `digital.crc_append`; `qa_tx_chain.py::test_002` only checks total
   length, and the real handler is shimmed out there anyway.
 - [system_tester](prd/system_tester.md) — no test exercises
   `handle_transmitted`, `AUTOMATIC_MODE`, the `repetitions` cap, or
