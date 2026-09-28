@@ -1,21 +1,20 @@
-# Example local database for soarr.db_client (type=1)
+# Example local database for soarr.db_client (type=1).
 #
-# Usage in GRC:
-# - Set db_client.type to 1
-# - Set db_client.yaml_path to this file path
+# Usage in GRC: set db_client.type to 1 and db_client.yaml_path to this
+# file's path. See examples/README for every field and the alternative
+# nested-by-SCID layout.
 #
-# Layout accepted by db_client:
-# - Root map can be either:
-#   1) entries: { <vcid>: {...} }
-#   2) directly: { <vcid>: {...} }
+# Entries are looked up by SCID + SPI; the entry names ("18", "5") are
+# labels only. Keys are AES-256 (32 bytes = 64 hex characters) and are
+# well-known test patterns: never use them with a real spacecraft.
 
 entries:
   "18":
     SCID: 341
     SPI: 1
     VCID: 18
-    encryption_key: "00112233445566778899AABBCCDDEEFF"
-    authentication_key: "FFEEDDCCBBAA99887766554433221100"
+    encryption_key: "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
+    authentication_key: "FFEEDDCCBBAA99887766554433221100FFEEDDCCBBAA99887766554433221100"
     sdls_counter: 0
     vcid_counter: 0
     key_state:
@@ -26,8 +25,8 @@ entries:
     SCID: 341
     SPI: 2
     VCID: 5
-    encryption_key: "11223344556677889900AABBCCDDEEFF"
-    authentication_key: "00FFEEDDCCBBAA998877665544332211"
+    encryption_key: "11223344556677889900AABBCCDDEEFF11223344556677889900AABBCCDDEEFF"
+    authentication_key: "00FFEEDDCCBBAA99887766554433221100FFEEDDCCBBAA998877665544332211"
     sdls_counter: 120
     vcid_counter: 44
     key_state:
