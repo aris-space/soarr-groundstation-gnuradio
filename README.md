@@ -44,6 +44,7 @@ flowchart LR
     crc --> rd["ccsds_reader"] --> inj["inject_db"]
     db["db_client"] -. keys / counters .- inj
     inj --> ver["sdls_authentication_verify"] --> dec["sdls_decryption"]
+    dec --> par["encapsulation_parser"]
 ```
 
 `acquisition_idle_sequencer` is the only stream block; it turns the framed
@@ -175,11 +176,6 @@ encrypt/decrypt, authenticate/verify round trips.
 
 ## Known issues
 
-- SDLS encryption together with an encapsulation header does not round-trip
-  yet: TX encrypts the encapsulation header along with the payload, but on
-  RX `ccsds_reader` removes the header before `sdls_decryption` runs, so
-  the decrypted payload is wrong. Authentication alone works; the examples
-  run with encryption off.
 - `db_client`'s `auto_reset_counters` option (in-memory test mode) wraps
   the SDLS counter back to 0, which reuses AES-CTR counters under the
   same key. Never enable it with real key material.

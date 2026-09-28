@@ -46,7 +46,7 @@ by anything in this repo.
 | Name | Type | Default | Notes |
 |---|---|---|---|
 | `sdls_type` | int | `3` | `0`=No SDLS, `1`=Encryption only, `2`=Authentication only, `3`=Both. Validated in `__init__` (raises `ValueError` if outside `0`-`3`). |
-| `encapsulation_used` | bool | `True` | Whether the parser expects an Encapsulation Packet Protocol header. Not validated (any truthy/falsy value is accepted as-is) — a bool has no invalid range to check. |
+| `encapsulation_used` | bool | `True` | Whether frames carry an Encapsulation Packet Protocol header. It is parsed here only without SDLS encryption (`sdls_type` 0 or 2); see Behavior. Not validated (any truthy/falsy value is accepted as-is) — a bool has no invalid range to check. |
 | `data_type` | int | `0` | `0`=Raw, `1`=CSP (adds a `csp_header` field). Validated in `__init__` (raises `ValueError` if outside `0`-`1`). Genuinely controls `ccsds_message()`'s structure (see Behavior). |
 
 ## Behavior / edge cases / current error handling
@@ -58,12 +58,22 @@ explicit `if`/`elif` chain covering every combination — always
 `tc_header` (5 bytes) + optional `csp_header` (6 bytes, if
 `data_type=1`) + optional `sdls_security_header` (4 bytes, if
 `sdls_type != 0`) + optional `encapsulation_header` (variable,
-1-8 bytes) + `data` (computed length) + optional
+1-8 bytes; only if `encapsulation_used` and `sdls_type` is `0` or `2`)
++ `data` (computed length) + optional
 `sdls_security_trailer` (16 bytes, only if `sdls_type` is `2` or `3` —
 authentication-bearing) + `frame_error_control_field` (2 bytes, always).
 The `data` field's length is computed from the TFPH's own `frame_length`
 value minus every other section's byte width (`_data_length`, `max(...,
 0)`-clamped against underflow).
+
+**Encapsulation header and encryption**: with SDLS encryption
+(`sdls_type` `1` or `3`) the encapsulation header is part of the
+ciphertext — TX adds it before `sdls_encryption` — so this block does not
+parse it even if `encapsulation_used` is set: the header stays at the
+start of the published data, no `encapsulation_header` metadata is
+added, and [encapsulation_parser](encapsulation_parser.md) strips it after
+`sdls_decryption`. `__init__` logs this once at `info`. Without
+encryption the header is plaintext and parsed here as before.
 
 **Encapsulation header's variable width**: `length_of_length` (2 bits of
 the header's first octet) selects between four sub-shapes (0-8 bytes
@@ -157,7 +167,7 @@ widely-used-in-practice convention layered on top, included here because
 
 ## Test coverage
 
-- `python/soarr/qa_ccsds_reader.py` — 21 test methods: construction with
+- `python/soarr/qa_ccsds_reader.py` — 22 test methods: construction with
   default and several custom parameter combinations
   (`test_instance_default`, `test_instance_custom_tc_no_security`,
   `test_instance_csp_encryption`, `test_instance_authentication_only`),
@@ -183,3 +193,9 @@ widely-used-in-practice convention layered on top, included here because
   `test_decode_non_u8vector_body_dropped_cleanly`), and a mock-forced
   publish failure proven to be caught and dropped rather than raised
   through the real handler (`test_decode_publish_failure_dropped_cleanly`).
+- `qa_ccsds_reader.py::test_encryption_keeps_encapsulation_header_in_data` —
+  with `sdls_type` 1 and 3 the struct has no encapsulation header and
+  the published data keeps it, with no `encapsulation_header` metadata.
+- `python/soarr/qa_sdls_rx_chain.py` — real TX blocks → frame → this
+  block → verification → decryption (→ `encapsulation_parser`), payload
+  byte-identical with encryption and with authentication only.

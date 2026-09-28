@@ -136,9 +136,10 @@ no algorithm agility.
 
 ## Known issues / TODOs
 
-- The trailer-in-metadata path has not been unit-tested through the
-  real `ccsds_reader` → `sdls_authentication_verify` pipeline (see
-  Behavior above).
+None currently. Both paths run through the real `ccsds_reader` in
+`python/soarr/qa_sdls_rx_chain.py`: with encryption the encapsulation
+header is part of the payload, without it the header is rebuilt from
+metadata.
 
 ## Test coverage
 

@@ -76,6 +76,7 @@ flowchart LR
     dbClientRx["db_client (RX instance)"]
     sdlsAuthenticationVerify["sdls_authentication_verify"]
     sdlsDecryption["sdls_decryption"]
+    encapsulationParser["encapsulation_parser"]
 
     bchDecoder["bch_decoder"]
     lfsrDescrambler["lfsr_descrambler"]
@@ -87,6 +88,7 @@ flowchart LR
     InjectdbRx -. "db_call / db_callback (key/SPI lookup)" .-> dbClientRx
     InjectdbRx --> sdlsAuthenticationVerify
     sdlsAuthenticationVerify --> sdlsDecryption
+    sdlsDecryption --> encapsulationParser
 
     cltuDeframer -.-> bchDecoder
     bchDecoder -.-> lfsrDescrambler
@@ -132,7 +134,17 @@ bytes. Decrypting first would break tag verification for any real payload.
 The example flowgraphs wire it this way
 (`sdls_authentication_verify.out → sdls_decryption.in`), and
 `tc_loopback_sim.grc` delivers every payload byte-identical with
-authentication on.
+SDLS encryption and authentication on.
+
+### Encapsulation header removed after decryption
+
+TX adds the encapsulation header before `sdls_encryption`, so with
+encryption on the header is ciphertext until `sdls_decryption` has run.
+`ccsds_reader` therefore parses and strips it only when encryption is
+off (`sdls_type` 0 or 2); with encryption (`sdls_type` 1 or 3) it leaves
+the header in the data, and `encapsulation_parser` strips it after
+decryption. Both paths are covered end to end by
+`python/soarr/qa_sdls_rx_chain.py`.
 
 ## Ground-tooling (not signal chain)
 
@@ -146,14 +158,4 @@ authentication on.
 
 ## Known gaps
 
-- **Encryption and encapsulation are undone in the wrong order on RX.**
-  TX adds the encapsulation header first and then encrypts header and
-  payload together (`encapsulation_header → sdls_encryption`). On RX,
-  `ccsds_reader` parses and strips the encapsulation header *before*
-  `sdls_decryption` runs, so it reads ciphertext as a header, strips a
-  wrong number of bytes, and decryption then runs on a shifted slice.
-  `sdls_authentication_verify` still passes, because the CMAC covers the
-  ciphertext it rebuilds. With encryption off the chain round-trips
-  byte-identical; with it on, no payload is recovered correctly. Fixing
-  it means removing the encapsulation header only after decryption — see
-  [to-do.md](to-do.md).
+None currently; see [to-do.md](to-do.md) for open items.

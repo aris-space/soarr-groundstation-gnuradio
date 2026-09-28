@@ -37,6 +37,6 @@ documentation: |-
 
   Ports:
   - in: verified ciphertext with crypt_key and sdls_counter in the metadata, from sdls_authentication_verify.
-  - out: the plaintext. crypt_key is removed from the metadata.
+  - out: the plaintext, for encapsulation_parser. crypt_key is removed from the metadata.
 
 file_format: 1

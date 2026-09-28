@@ -6,16 +6,6 @@ log or a session snapshot (see git history for that).
 
 ## Known bugs
 
-- [ccsds_reader](prd/ccsds_reader.md) / [sdls_decryption](prd/sdls_decryption.md)
-  — SDLS encryption with an encapsulation header doesn't round-trip: TX
-  encrypts the encapsulation header together with the payload, but RX's
-  `ccsds_reader` strips the header before `sdls_decryption` runs, reading
-  ciphertext as a header. Reproduced with `examples/tc_loopback_sim.grc`
-  and both SDLS encryption blocks on: every payload is wrong (252 instead
-  of 256 bytes), while authentication still passes. Fixing it means
-  removing the encapsulation header only after decryption (see
-  [architecture.md](architecture.md)'s Known gaps) — a contract change
-  for `ccsds_reader`.
 - [sdls_encryption](prd/sdls_encryption.md) — no (nonce, counter) reuse
   protection. If `db_client`'s `auto_reset_counters=True` is ever set on
   an instance used with real key material, the counter wraps and
@@ -47,10 +37,6 @@ log or a session snapshot (see git history for that).
 
 ## Test-coverage gaps (no known bug, just untested)
 
-- [sdls_authentication_verify](prd/sdls_authentication_verify.md) — its
-  trailer-in-metadata path (tag from `sdls.security_trailer`, encapsulation
-  header rebuilt from metadata) is not unit-tested through the real
-  `ccsds_reader` → `sdls_authentication_verify` pipeline.
 - [sdls_authentication](prd/sdls_authentication.md) and
   [sdls_encryption](prd/sdls_encryption.md) — the nested
   `sdls.security_header.sdls_counter` fallback path is the *only* path

@@ -13,16 +13,18 @@ RX chain, after `sdls_authentication_verify`:
 
 ```
 sdls_authentication_verify.out → sdls_decryption.in
+sdls_decryption.out → encapsulation_parser.in
 ```
 
 [architecture.md](../architecture.md) confirms this order is required by
 the crypto construction, not just how the flowgraph happens to be
 wired: `sdls_authentication_verify`'s CMAC tag is computed over the
 still-encrypted bytes, so decrypting first would break tag verification
-for any real payload. That external flowgraph isn't in this repo, so
-there's no in-repo `.grc` example or test proving the order — treated as
-confirmed-in-practice, not self-verifying from this repo alone. No
-`.grc` flowgraph file exists anywhere in this repo at all.
+for any real payload. `examples/tc_loopback_sim.grc` and
+`python/soarr/qa_sdls_rx_chain.py` run this order end to end. With
+encryption on, the decrypted data still starts with the encapsulation
+header (`ccsds_reader` leaves it in place), which
+[encapsulation_parser](encapsulation_parser.md) strips next.
 
 ## Message ports
 

@@ -157,8 +157,8 @@ class qa_ccsds_reader(gr_unittest.TestCase):
         self.assertIn("frame_error_control_field", field_names)
 
     def test_ccsds_message_structure_full(self):
-        """Test CCSDS message structure with all headers (CSP, Encapsulation, SDLS)"""
-        instance = ccsds_reader(sdls_type=3, encapsulation_used=True, data_type=1)
+        """Test CCSDS message structure with all headers (CSP, Encapsulation, SDLS authentication)"""
+        instance = ccsds_reader(sdls_type=2, encapsulation_used=True, data_type=1)
         struct = instance.ccsds_message()
         field_names = self._field_names(struct)
         self.assertIn("tc_header", field_names)
@@ -168,6 +168,37 @@ class qa_ccsds_reader(gr_unittest.TestCase):
         self.assertIn("data", field_names)
         self.assertIn("sdls_security_trailer", field_names)
         self.assertIn("frame_error_control_field", field_names)
+
+    def test_encryption_keeps_encapsulation_header_in_data(self):
+        """With SDLS encryption (sdls_type 1 or 3) the encapsulation header is
+        ciphertext inside the data field: the reader must not parse it."""
+        for sdls_type in (1, 3):
+            with self.subTest(sdls_type=sdls_type):
+                instance = ccsds_reader(sdls_type=sdls_type, encapsulation_used=True, data_type=0)
+                self.assertNotIn("encapsulation_header", self._field_names(instance.ccsds_message()))
+
+                encrypted = bytes([0x9C, 0x41, 0x07, 0xE3]) + bytes(range(20))  # encrypted header + data
+                trailer = bytes(16) if sdls_type == 3 else None  # sdls_type 1: no MAC trailer
+                frame_length = 5 + 4 + len(encrypted) + (16 if trailer else 0) + 2 - 1
+                packet = instance.ccsds_message().build(dict(
+                    tc_header=dict(tfvn=0, bypass_flag=0, control_flag=0, reserve=0,
+                                   scid=0x155, vcid=0, frame_length=frame_length, fsn=0),
+                    sdls_security_header=dict(security_param_index=1, initialization_vector=5),
+                    data=encrypted,
+                    sdls_security_trailer=trailer,
+                    frame_error_control_field=0,
+                ))
+
+                captured = []
+                original_pub = self._capture_specific_port(instance, "debug", captured)
+                try:
+                    instance.decode_ccsds(pmt.cons(pmt.make_dict(), pmt.init_u8vector(len(packet), list(packet))))
+                finally:
+                    self._restore_port(instance, original_pub)
+
+                self.assertEqual(len(captured), 1)
+                self.assertEqual(bytes(pmt.u8vector_elements(pmt.cdr(captured[0]))), encrypted)
+                self.assertFalse(pmt.dict_has_key(pmt.car(captured[0]), pmt.intern("encapsulation_header")))
 
     def test_sdls_encryption_only(self):
         """Test SDLS encryption only includes security headers"""
@@ -207,7 +238,8 @@ class qa_ccsds_reader(gr_unittest.TestCase):
         total_length = 5 + 6 + 4 + 4 + len(payload_bytes) + 16 + 2
         frame_length = total_length - 1
 
-        instance = ccsds_reader(sdls_type=3, encapsulation_used=True, data_type=1)
+        # Authentication only: the encapsulation header is plaintext and parsed here
+        instance = ccsds_reader(sdls_type=2, encapsulation_used=True, data_type=1)
 
         packet_bytes = instance.ccsds_message().build(
             dict(

@@ -23,9 +23,11 @@ example "addr=192.168.10.2"); left empty, UHD uses the first USRP it finds.
 They use the SOARR lab settings: SCID 341, S-band 2.185 GHz, 10 kbit/s.
 
 All flowgraphs use db_client's dummy entry with the same public test keys
-as db_client_example.yaml. SDLS authentication is on; SDLS encryption is
-off, because with encryption on the RX side currently removes the
-encapsulation header before decrypting (see docs/to-do.md).
+as db_client_example.yaml. tc_loopback_sim.grc runs full SDLS
+(encryption and authentication); the USRP flowgraphs use the SOARR lab
+setting, authentication only. To enable encryption there, turn on SDLS
+Encryption/Decryption, set the CCSDS Reader's SDLS type to "Both", and add
+an Encapsulation Parser after SDLS Decryption.
 
 db_client_example.yaml
 ----------------------

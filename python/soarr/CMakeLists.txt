@@ -106,5 +106,6 @@ GR_ADD_TEST(qa_sdls_encryption_round_trip ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_S
 
 GR_ADD_TEST(qa_sdls_authentication_verify ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_sdls_authentication_verify.py)
 GR_ADD_TEST(qa_sdls_authentication_round_trip ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_sdls_authentication_round_trip.py)
+GR_ADD_TEST(qa_sdls_rx_chain ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_sdls_rx_chain.py)
 GR_ADD_TEST(qa_acquisition_idle_sequencer ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_acquisition_idle_sequencer.py)
 GR_ADD_TEST(qa_system_tester ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_system_tester.py)

@@ -39,6 +39,8 @@ outputs:
 documentation: |-
   Parses a reassembled TC transfer frame: primary header, optional encapsulation/SDLS headers, data, optional SDLS trailer and FECF. The parsed fields become PDU metadata.
 
+  With SDLS encryption (SDLS type Encryption Only or Both) the encapsulation header is encrypted, so it stays in the data; strip it with Encapsulation Parser after SDLS Decryption.
+
   Ports:
   - ccsds: one complete transfer frame per PDU, from ccsds_receiver (via crc_check).
   - debug: the extracted data with the parsed fields as metadata. Despite its name this is the block's regular output; connect it to the RX inject_db.

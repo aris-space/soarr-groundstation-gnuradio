@@ -24,8 +24,12 @@ class ccsds_reader(gr.basic_block):
         Args:
             sdls_type (int): 0=No SDLS, 1=Encryption only,
                 2=Authentication only, 3=Both.
-            encapsulation_used (bool): whether to expect an
-                Encapsulation Packet Protocol header.
+            encapsulation_used (bool): whether frames carry an
+                Encapsulation Packet Protocol header. It is parsed and
+                stripped here only when SDLS encryption is off (sdls_type
+                0 or 2); with encryption the header is ciphertext, so it
+                stays in the published data for encapsulation_parser to
+                strip after sdls_decryption.
             data_type (int): 0=Raw, 1=CSP (adds a csp_header field).
 
         Raises:
@@ -46,6 +50,12 @@ class ccsds_reader(gr.basic_block):
         self.sdls_type = sdls_type
         self.encapsulation_used = encapsulation_used
         self.data_type = data_type
+
+        if encapsulation_used and self._encrypted():
+            self.logger.info(
+                "SDLS encryption is on: the encapsulation header stays in the data; "
+                "strip it with encapsulation_parser after sdls_decryption."
+            )
 
         # Register message ports
         self.message_port_register_in(pmt.intern("ccsds"))
@@ -101,6 +111,9 @@ class ccsds_reader(gr.basic_block):
             return encapsulation_packet.header_length(int(encap_header.get("length_of_length", 0)))
         return encapsulation_packet.header_length(int(encap_header.length_of_length))
 
+    def _encrypted(self) -> bool:
+        return self.sdls_type in (1, 3)
+
     def _sdls_header_length(self) -> int:
         return 4  # SPI (2 bytes) + IV (2 bytes)
 
@@ -146,6 +159,9 @@ class ccsds_reader(gr.basic_block):
             data_type: 0=Raw, 1=CSP
         """
         encapsulation_used = self.encapsulation_used if encapsulation_used is None else encapsulation_used
+        # With SDLS encryption the encapsulation header is part of the
+        # ciphertext; it is only readable after sdls_decryption.
+        encapsulation_used = encapsulation_used and not self._encrypted()
 
         def _data_length(ctx):
             total_length = int(ctx.tc_header.frame_length) + 1

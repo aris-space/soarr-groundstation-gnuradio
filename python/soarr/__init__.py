@@ -16,7 +16,8 @@ sdls_authentication -> sdls_header -> tc_primary_header ->
 acquisition_idle_sequencer.
 
 RX chain: cltu_deframer -> ccsds_receiver -> (digital.crc_check) ->
-ccsds_reader -> inject_db -> sdls_authentication_verify -> sdls_decryption.
+ccsds_reader -> inject_db -> sdls_authentication_verify -> sdls_decryption ->
+encapsulation_parser.
 
 inject_db fetches keys and counters from db_client; data_creator and
 system_tester support loopback testing. See docs/architecture.md.
