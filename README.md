@@ -5,7 +5,7 @@ CCSDS Telecommand (TC) uplink for ARIS's SOARR mission: encode, secure,
 frame, and transmit a telecommand on TX, and detect, correct, verify, and
 decrypt it again on RX.
 
-All 21 blocks are pure Python and appear in GNU Radio Companion under the
+All 22 blocks are pure Python and appear in GNU Radio Companion under the
 **[soarr]** category.
 
 ## Features
@@ -33,7 +33,8 @@ flowchart LR
     crypt --> auth["sdls_authentication"] --> sh["sdls_header"]
     sh --> tc["tc_primary_header"] --> crc["crc_append (GNU Radio)"]
     crc --> scr["lfsr_scrambler"] --> bch["bch_encoder"]
-    bch --> cltu["cltu_framer"] --> seq["acquisition_idle_sequencer"]
+    bch --> cltu["cltu_framer"] --> burst["cltu_burst_builder"]
+    burst --> p2s["PDU to Tagged Stream (GNU Radio)"] --> mod["modulator / SDR"]
 ```
 
 ### RX
@@ -47,10 +48,22 @@ flowchart LR
     dec --> par["encapsulation_parser"]
 ```
 
-`acquisition_idle_sequencer` is the only stream block; it turns the framed
-PDUs into a continuous byte stream for the modulator. Every other block
-passes PDUs as messages. See [docs/architecture.md](docs/architecture.md)
-for the full pipeline description.
+The TX chain ends in one of two transmission modes (CCSDS 231.0-B):
+
+- **Burst mode (PLOP-1)** — `cltu_burst_builder` wraps each CLTU in an
+  acquisition sequence and a short idle tail, and GNU Radio's PDU to
+  Tagged Stream block sends it to the SDR as one burst. The transmitter is
+  off between bursts and a CLTU goes out as soon as it is built — about
+  12 ms from command to verified payload in the software loopback. The
+  examples use this mode.
+- **Continuous carrier (PLOP-2)** — `acquisition_idle_sequencer` streams
+  idle bytes between CLTUs. Every stream buffer between it and the SDR
+  fills with idle bytes, so a new CLTU waits behind them: seconds at
+  10 kbit/s.
+
+Every block except `acquisition_idle_sequencer` passes PDUs as messages.
+See [docs/architecture.md](docs/architecture.md) for the full pipeline
+description.
 
 ## Blocks
 
@@ -66,7 +79,8 @@ for the full pipeline description.
 | `lfsr_scrambler` | LFSR | Applies the CCSDS TC pseudo-randomizer |
 | `bch_encoder` | CLTU | Splits the frame into BCH (63,56) codewords |
 | `cltu_framer` | CLTU | Wraps codewords in the CLTU start and tail sequences |
-| `acquisition_idle_sequencer` | (root) | Adds acquisition/idle sequences and outputs a continuous byte stream |
+| `cltu_burst_builder` | CLTU | Wraps each CLTU in acquisition sequence + idle tail as one transmission burst (PLOP-1) |
+| `acquisition_idle_sequencer` | (root) | Adds acquisition/idle sequences and outputs a continuous byte stream (PLOP-2) |
 | `cltu_deframer` | CLTU | Finds CLTUs in the received stream |
 | `ccsds_receiver` | Reception | BCH-corrects, de-randomizes, and reassembles TC transfer frames |
 | `ccsds_reader` | Reception | Parses a reassembled frame into its header fields and payload |

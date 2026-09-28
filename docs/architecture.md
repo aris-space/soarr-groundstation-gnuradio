@@ -37,6 +37,8 @@ flowchart LR
     lfsrScrambler["lfsr_scrambler"]
     bchEncoder["bch_encoder"]
     cltuFramer["cltu_framer"]
+    burstBuilder["cltu_burst_builder"]
+    pduToStream["pdu_to_tagged_stream (stock block)"]
     aqusitionIdleSequencer["acquisition_idle_sequencer (stream block)"]
 
     Injectdb -. "db_call / db_callback (key/SPI lookup)" .-> dbClient
@@ -49,7 +51,9 @@ flowchart LR
     crcAppend --> lfsrScrambler
     lfsrScrambler --> bchEncoder
     bchEncoder --> cltuFramer
-    cltuFramer --> aqusitionIdleSequencer
+    cltuFramer -- "burst mode (PLOP-1)" --> burstBuilder
+    burstBuilder --> pduToStream
+    cltuFramer -. "continuous carrier (PLOP-2)" .-> aqusitionIdleSequencer
 ```
 
 `db_client` is a query/response side-channel off `inject_db` (`db_call`/
@@ -59,10 +63,25 @@ flowchart LR
 Order is encrypt-then-authenticate (`sdls_encryption` before
 `sdls_authentication`) — confirmed, not open.
 
-`acquisition_idle_sequencer` bridges `cltu_framer`'s PDU output to a
-continuous byte stream for the SDR/modulator downstream. It's the only
-stream block in this module (`gr.sync_block`, `out_sig=[np.uint8]`) —
-every other block above is `gr.basic_block`, message-passing only.
+Two ways lead from `cltu_framer` to the SDR/modulator, matching the
+CCSDS 231.0-B physical layer operations procedures:
+
+- **Burst mode (PLOP-1)**: `cltu_burst_builder` prepends the acquisition
+  sequence and appends a short idle tail to each CLTU; GNU Radio's
+  `pdu_to_tagged_stream` turns each burst into stream items with a
+  `packet_len` length tag, which the USRP sink uses to switch the
+  transmitter on for exactly that burst. The stream carries nothing
+  between bursts, so no buffer fills up ahead of a CLTU: the delay is
+  processing time (~12 ms in `tc_loopback_sim.grc`) plus airtime. This
+  also allows fast TX/RX switching on one USRP.
+- **Continuous carrier (PLOP-2)**: `acquisition_idle_sequencer` is the
+  module's only stream block (`gr.sync_block`, `out_sig=[np.uint8]`); it
+  streams idle bytes whenever no CLTU is queued. Every stream buffer
+  downstream is then full of idle bytes, and a new CLTU waits behind all
+  of them — seconds at 10 kbit/s, more on Windows, where GNU Radio rounds
+  buffers up to 64 KiB.
+
+Every other block above is `gr.basic_block`, message-passing only.
 
 ## RX chain
 

@@ -10,6 +10,13 @@ continuous output stream, in priority order: an acquisition-sequence
 burst, queued PDU bytes, and an idle-fill pattern. See
 [architecture.md](../architecture.md).
 
+This is the continuous-carrier mode (CCSDS 231.0-B PLOP-2). Because it
+streams idle bytes whenever no CLTU is queued, every stream buffer
+between it and the SDR fills with idle bytes and a new CLTU waits behind
+them — seconds at 10 kbit/s. For low latency and fast TX/RX switching,
+use burst mode (PLOP-1) with [cltu_burst_builder](cltu_burst_builder.md)
+instead.
+
 ## Pipeline position
 
 TX chain, the terminal block:

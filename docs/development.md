@@ -161,7 +161,7 @@ line endings even on Windows, so bash can run the script from `/mnt/c`.
 
 ## GRC workflow
 
-The 21 blocks are exposed to GNU Radio Companion via
+The 22 blocks are exposed to GNU Radio Companion via
 `grc/soarr_*.block.yml`. Example flowgraphs for the full TX and RX chain —
 software only and over a USRP — are in [`examples/`](../examples/); see
 its README.

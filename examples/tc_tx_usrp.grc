@@ -6,7 +6,7 @@ options:
     cmake_opt: ''
     comment: ''
     copyright: ''
-    description: Builds SDLS-protected CCSDS TC frames and transmits them as BPSK via a USRP. Set usrp_addr to your device (e.g. "addr=192.168.10.2"); empty uses the first USRP found. Frequencies, SCID and keys are the SOARR lab values; the keys are public test patterns.
+    description: 'Builds SDLS-protected CCSDS TC frames and transmits them as BPSK via a USRP. Transmits in bursts (CCSDS PLOP-1): each CLTU goes out with its acquisition sequence right away, and the transmitter is off in between. Set usrp_addr to your device (e.g. "addr=192.168.10.2"); empty uses the first USRP found. Frequencies, SCID and keys are the SOARR lab values; the keys are public test patterns.'
     gen_cmake: 'On'
     gen_linking: dynamic
     generate_options: qt_gui
@@ -284,29 +284,6 @@ blocks:
     - 1264.0
     rotation: 0
     state: enabled
-- name: blocks_throttle2_0
-  id: blocks_throttle2
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    ignoretag: 'True'
-    limit: items
-    maximum: '0.1'
-    maxoutbuf: '4096'
-    minoutbuf: '0'
-    samples_per_second: samp_rate/40
-    type: byte
-    vlen: '1'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1352
-    - 1244.0
-    rotation: 0
-    state: enabled
 - name: digital_constellation_modulator_0
   id: digital_constellation_modulator
   parameters:
@@ -421,29 +398,6 @@ blocks:
     coordinate:
     - 176
     - 12.0
-    rotation: 0
-    state: enabled
-- name: soarr_acquisition_idle_sequencer_0
-  id: soarr_acquisition_idle_sequencer
-  parameters:
-    acquisition_sequence: '[170, 170, 170, 170, 170, 170, 170, 170, 170, 170, 170, 170, 170, 170, 170, 170]'
-    affinity: ''
-    alias: ''
-    comment: ''
-    diff_encoded: 'True'
-    idle_sequence: '170'
-    initial_acquisition: 'True'
-    max_idle_chunk: '64'
-    maxoutbuf: '4096'
-    minoutbuf: '0'
-    tsb_tag_name: packet_len
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1072
-    - 1220.0
     rotation: 0
     state: enabled
 - name: soarr_bch_encoder_0
@@ -670,26 +624,6 @@ blocks:
     coordinate:
     - 1336
     - 716.0
-    rotation: 0
-    state: enabled
-- name: trigger_acq
-  id: variable_qtgui_msg_push_button
-  parameters:
-    comment: ''
-    gui_hint: ''
-    label: Trigger Aquisition Sequence
-    msgName: pressed
-    relBackgroundColor: default
-    relFontColor: default
-    type: int
-    value: '1'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 792
-    - 1316.0
     rotation: 0
     state: enabled
 - name: uhd_usrp_sink_0
@@ -1080,6 +1014,46 @@ blocks:
     - 160
     rotation: 0
     state: enabled
+- name: soarr_cltu_burst_builder_0
+  id: soarr_cltu_burst_builder
+  parameters:
+    acquisition_length: '16'
+    tail_length: '4'
+    fill_byte: '0xAA'
+    diff_encoded: 'True'
+    alias: ''
+    affinity: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1072
+    - 1220.0
+    rotation: 0
+    state: enabled
+- name: pdu_pdu_to_tagged_stream_0
+  id: pdu_pdu_to_tagged_stream
+  parameters:
+    type: byte
+    tag: packet_len
+    alias: ''
+    affinity: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1322
+    - 1220.0
+    rotation: 0
+    state: enabled
 connections:
 - - blocks_message_strobe_0
   - strobe
@@ -1093,10 +1067,6 @@ connections:
   - '0'
   - uhd_usrp_sink_0
   - '0'
-- - blocks_throttle2_0
-  - '0'
-  - digital_constellation_modulator_0
-  - '0'
 - - digital_constellation_modulator_0
   - '0'
   - blocks_tagged_stream_multiply_length_0
@@ -1105,17 +1075,9 @@ connections:
   - out
   - virtual_sink_0
   - '0'
-- - soarr_acquisition_idle_sequencer_0
-  - '0'
-  - blocks_throttle2_0
-  - '0'
 - - soarr_bch_encoder_0
   - codewords
   - soarr_cltu_framer_0
-  - in
-- - soarr_cltu_framer_0
-  - out
-  - soarr_acquisition_idle_sequencer_0
   - in
 - - soarr_data_creator_0
   - out
@@ -1157,10 +1119,6 @@ connections:
   - out
   - digital_crc_append_0
   - in
-- - trigger_acq
-  - pressed
-  - soarr_acquisition_idle_sequencer_0
-  - trigger_acq
 - - variable_qtgui_msg_push_button_0
   - pressed
   - soarr_data_creator_0
@@ -1173,6 +1131,18 @@ connections:
   - '0'
   - soarr_sdls_encryption_0
   - in
+- - soarr_cltu_framer_0
+  - out
+  - soarr_cltu_burst_builder_0
+  - in
+- - soarr_cltu_burst_builder_0
+  - out
+  - pdu_pdu_to_tagged_stream_0
+  - pdus
+- - pdu_pdu_to_tagged_stream_0
+  - '0'
+  - digital_constellation_modulator_0
+  - '0'
 metadata:
   file_format: 1
   grc_version: 3.10.12.0

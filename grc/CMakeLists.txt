@@ -8,6 +8,7 @@
 
 install(FILES
     soarr_cltu_framer.block.yml
+    soarr_cltu_burst_builder.block.yml
     soarr_bch_encoder.block.yml
     soarr_lfsr_scrambler.block.yml
     soarr_tc_primary_header.block.yml

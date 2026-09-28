@@ -12,7 +12,7 @@ usrp = an Ettus USRP via gr-uhd).
                           A frame is sent every second; each received,
                           verified payload is printed. Start here.
     tc_tx_usrp.grc        Transmitter: builds TC frames and sends them as
-                          differential BPSK.
+                          differential BPSK bursts.
     tc_rx_usrp.grc        Receiver: BPSK demodulation, CLTU detection,
                           frame reassembly, SDLS verification.
     tc_loopback_usrp.grc  TX and RX on one USRP (TX/RX -> RX2, e.g. over a
@@ -21,6 +21,15 @@ usrp = an Ettus USRP via gr-uhd).
 For the USRP flowgraphs, set the usrp_addr variable to your device (for
 example "addr=192.168.10.2"); left empty, UHD uses the first USRP it finds.
 They use the SOARR lab settings: SCID 341, S-band 2.185 GHz, 10 kbit/s.
+
+All transmitting flowgraphs send in burst mode (CCSDS PLOP-1): CLTU Burst
+Builder puts the acquisition sequence and a short idle tail around each
+CLTU, and PDU to Tagged Stream hands it to the USRP sink as one burst
+(length tag packet_len). The transmitter is off between bursts and a CLTU
+goes out as soon as it is built. Set the acquisition length in CLTU Burst
+Builder to what the on-board receiver needs to lock on. For a continuous
+carrier (PLOP-2), use Acquisition and Idle Sequencer plus a throttle
+instead - at the cost of seconds of latency.
 
 All flowgraphs use db_client's dummy entry with the same public test keys
 as db_client_example.yaml. tc_loopback_sim.grc runs full SDLS

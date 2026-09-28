@@ -1,0 +1,53 @@
+id: soarr_cltu_burst_builder
+label: CLTU Burst Builder
+category: '[soarr]/CLTU'
+
+templates:
+  imports: from gnuradio import soarr
+  make: soarr.cltu_burst_builder(${acquisition_length}, ${tail_length}, ${fill_byte}, ${diff_encoded})
+
+parameters:
+- id: acquisition_length
+  label: Acquisition Length (bytes)
+  dtype: int
+  default: 16
+- id: tail_length
+  label: Idle Tail Length (bytes)
+  dtype: int
+  default: 4
+- id: fill_byte
+  label: Fill Byte
+  dtype: int
+  default: 0xAA
+- id: diff_encoded
+  label: Differential Modulation
+  dtype: enum
+  options: ['False', 'True']
+  option_labels: ['No', 'Yes']
+  default: 'False'
+
+asserts:
+- ${ acquisition_length >= 0 }
+- ${ tail_length >= 0 }
+- ${ fill_byte >= 0 and fill_byte <= 0xFF }
+
+inputs:
+- label: in
+  domain: message
+  optional: 0
+
+outputs:
+- label: out
+  domain: message
+  optional: 0
+
+documentation: |-
+  Turns each CLTU into one transmission burst for CCSDS PLOP-1 operation (carrier on only while sending): acquisition sequence + CLTU + short idle tail.
+
+  Ports:
+  - in: one CLTU per PDU, from cltu_framer.
+  - out: the burst, for GNU Radio's PDU to Tagged Stream block (length tag packet_len), then the modulator and a USRP sink with Length Tag Name packet_len.
+
+  The stream then carries only bursts and nothing in between, so a new CLTU is sent right away instead of waiting behind queued idle bytes. Set Acquisition Length to the time the receiver needs to lock on; with a differential modulator set Differential Modulation to Yes. For a continuous carrier (PLOP-2) use Acquisition and Idle Sequencer instead.
+
+file_format: 1
