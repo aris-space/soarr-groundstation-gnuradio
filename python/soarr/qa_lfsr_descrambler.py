@@ -40,6 +40,22 @@ class qa_lfsr_descrambler(gr_unittest.TestCase):
         finally:
             self.descrambler.message_port_pub = original_pub
 
+    # cltu_deframer sets scramble_reset=True on each CLTU's first codeword
+    # and False on the rest: True restarts the randomizer sequence, False
+    # keeps it running.
+    def test_010_scramble_reset_restarts_sequence(self):
+        scrambled = bytes([0xFF, 0x39, 0x9E, 0x5A, 0x68])  # sequence start XOR zeros
+
+        def _run(reset):
+            meta = pmt.dict_add(pmt.make_dict(), pmt.intern("scramble_reset"), pmt.from_bool(reset))
+            self._descramble_and_capture(meta, pmt.init_u8vector(len(scrambled), list(scrambled)))
+            self.assertEqual(len(self.captured_output), 1)
+            return bytes(pmt.u8vector_elements(pmt.cdr(self.captured_output[0][1])))
+
+        self.assertEqual(_run(True), bytes(5))
+        self.assertNotEqual(_run(False), bytes(5))  # sequence continued, not restarted
+        self.assertEqual(_run(True), bytes(5))
+
     def test_001_default_parameters(self):
         self.assertEqual(self.descrambler.seed, 0xFF)
         self.assertEqual(self.descrambler.register_length, 8)

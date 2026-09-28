@@ -150,7 +150,7 @@ class lfsr_descrambler(gr.basic_block):
             pdu_data = pmt.u8vector_elements(body)
 
             if pmt.dict_has_key(meta, pmt.intern("scramble_reset")):
-                if pmt.to_bool(pmt.dict_ref(meta, pmt.intern("scramble_reset"))):
+                if pmt.to_bool(pmt.dict_ref(meta, pmt.intern("scramble_reset"), pmt.PMT_F)):
                     self.reset_sequence()
             elif pmt.dict_has_key(meta, pmt.intern("filled")):
                 # Presence of 'filled' marks end-of-message in this chain.
