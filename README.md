@@ -136,8 +136,14 @@ Afterwards, restart GNU Radio Companion; the blocks appear under
 
 ## Usage
 
-In GNU Radio Companion, wire the blocks as shown in the chains above. From
-Python:
+The quickest start is the example flowgraphs in [examples/](examples/):
+open `tc_loopback_sim.grc` in GNU Radio Companion and run it — it sends
+TC frames through the whole TX and RX chain in software, no SDR needed.
+`tc_tx_usrp.grc`, `tc_rx_usrp.grc` and `tc_loopback_usrp.grc` do the same
+over a USRP; see [examples/README](examples/README).
+
+To build your own flowgraph, wire the blocks as shown in the chains above.
+From Python:
 
 ```python
 from gnuradio import soarr
@@ -168,6 +174,11 @@ encrypt/decrypt, authenticate/verify round trips.
 
 ## Known issues
 
+- SDLS encryption together with an encapsulation header does not round-trip
+  yet: TX encrypts the encapsulation header along with the payload, but on
+  RX `ccsds_reader` removes the header before `sdls_decryption` runs, so
+  the decrypted payload is wrong. Authentication alone works; the examples
+  run with encryption off.
 - `db_client`'s `auto_reset_counters` option (in-memory test mode) wraps
   the SDLS counter back to 0, which reuses AES-CTR counters under the
   same key. Never enable it with real key material.

@@ -20,8 +20,9 @@ SDLS, SPI, IV, etc.) follow their CCSDS definitions. Per-block detail
 ## TX chain
 
 Confirmed via `python/soarr/qa_tx_chain.py`'s `msg_connect` wiring
-(lines 89–101), and independently confirmed end-to-end by a working
-external flowgraph (`CCSDS_Full.grc` — see Known Gaps):
+(lines 89–101), and end to end by the example flowgraphs in
+[`examples/`](../examples/) (`tc_loopback_sim.grc` runs TX → RX in
+software):
 
 ```mermaid
 flowchart LR
@@ -128,12 +129,10 @@ The order shown above (`sdls_authentication_verify` before
 still-encrypted bytes; `sdls_decryption`'s AES-CTR transforms those same
 bytes. Decrypting first would break tag verification for any real payload.
 
-This order is also confirmed by direct wiring in a working external
-flowgraph (`sdlsAuthenticationVerify.out → sdlsDecryption.in`, using the
-pre-rename block names it was built with) — not just by the crypto
-argument. That flowgraph isn't in this repo yet (see Known Gaps), so there
-is still no in-repo `.grc` example or QA test proving this order; treat it
-as confirmed-in-practice but not yet self-verifying from this repo alone.
+The example flowgraphs wire it this way
+(`sdls_authentication_verify.out → sdls_decryption.in`), and
+`tc_loopback_sim.grc` delivers every payload byte-identical with
+authentication on.
 
 ## Ground-tooling (not signal chain)
 
@@ -147,11 +146,14 @@ as confirmed-in-practice but not yet self-verifying from this repo alone.
 
 ## Known gaps
 
-- No example `.grc` flowgraph exists **in this repo** for the full TX or
-  RX chain (`examples/db_client_example.yaml` is a YAML *data* file for
-  `db_client`'s type=1 config mode, not a flowgraph). A working example
-  does exist outside the repo (`CCSDS_Full.grc`, built with this OOT
-  module, plus `DataFlow_TX.drawio.xml`/`DataFlow_RX.drawio.xml`) and is
-  intended to become an in-repo example — it currently uses pre-rename
-  `sage_*` block IDs *and* pre-ADR-0001 camelCase block names, so it needs
-  updating on both counts before it can be added.
+- **Encryption and encapsulation are undone in the wrong order on RX.**
+  TX adds the encapsulation header first and then encrypts header and
+  payload together (`encapsulation_header → sdls_encryption`). On RX,
+  `ccsds_reader` parses and strips the encapsulation header *before*
+  `sdls_decryption` runs, so it reads ciphertext as a header, strips a
+  wrong number of bytes, and decryption then runs on a shifted slice.
+  `sdls_authentication_verify` still passes, because the CMAC covers the
+  ciphertext it rebuilds. With encryption off the chain round-trips
+  byte-identical; with it on, no payload is recovered correctly. Fixing
+  it means removing the encapsulation header only after decryption — see
+  [to-do.md](to-do.md).

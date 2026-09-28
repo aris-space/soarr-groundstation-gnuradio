@@ -162,11 +162,9 @@ line endings even on Windows, so bash can run the script from `/mnt/c`.
 ## GRC workflow
 
 The 20 blocks are exposed to GNU Radio Companion via
-`grc/soarr_*.block.yml`. There is currently no example `.grc` flowgraph in
-this repo demonstrating the full TX or RX chain (see
-[architecture.md](architecture.md)'s Known Gaps) —
-`examples/db_client_example.yaml` is a YAML *data* file for `db_client`'s
-type=1 config mode, not a flowgraph.
+`grc/soarr_*.block.yml`. Example flowgraphs for the full TX and RX chain —
+software only and over a USRP — are in [`examples/`](../examples/); see
+its README.
 
 ## Dependencies
 

@@ -1,6 +1,32 @@
 Examples for gr-soarr
 =====================
 
+Flowgraphs
+----------
+
+The flowgraphs are named tc_<what>_<backend>: tc = telecommand, then what
+the flowgraph does, then where the signal goes (sim = software only,
+usrp = an Ettus USRP via gr-uhd).
+
+    tc_loopback_sim.grc   Full TX -> RX chain in software, no SDR needed.
+                          A frame is sent every second; each received,
+                          verified payload is printed. Start here.
+    tc_tx_usrp.grc        Transmitter: builds TC frames and sends them as
+                          differential BPSK.
+    tc_rx_usrp.grc        Receiver: BPSK demodulation, CLTU detection,
+                          frame reassembly, SDLS verification.
+    tc_loopback_usrp.grc  TX and RX on one USRP (TX/RX -> RX2, e.g. over a
+                          cable with an attenuator).
+
+For the USRP flowgraphs, set the usrp_addr variable to your device (for
+example "addr=192.168.10.2"); left empty, UHD uses the first USRP it finds.
+They use the SOARR lab settings: SCID 341, S-band 2.185 GHz, 10 kbit/s.
+
+All flowgraphs use db_client's dummy entry with the same public test keys
+as db_client_example.yaml. SDLS authentication is on; SDLS encryption is
+off, because with encryption on the RX side currently removes the
+encapsulation header before decrypting (see docs/to-do.md).
+
 db_client_example.yaml
 ----------------------
 

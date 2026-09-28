@@ -1,0 +1,1081 @@
+options:
+  parameters:
+    author: gr-soarr
+    catch_exceptions: 'True'
+    category: '[GRC Hier Blocks]'
+    cmake_opt: ''
+    comment: ''
+    copyright: ''
+    description: 'Runs the full TC chain without any SDR: data_creator -> SDLS -> TC frame -> CLTU -> byte stream -> CLTU detection -> frame reassembly -> SDLS verification and decryption. A new frame is sent every second; each received payload is printed. SDLS encryption is off: with it on, the RX side currently removes the encapsulation header before decrypting (see docs/to-do.md).'
+    gen_cmake: 'On'
+    gen_linking: dynamic
+    generate_options: no_gui
+    hier_block_src_path: '.:'
+    id: tc_loopback_sim
+    max_nouts: '0'
+    output_language: python
+    placement: (0,0)
+    qt_qss_theme: ''
+    realtime_scheduling: ''
+    run: 'True'
+    run_command: '{python} -u {filename}'
+    run_options: prompt
+    sizing_mode: fixed
+    thread_safe_setters: ''
+    title: gr-soarr TC loopback (software only)
+    window_size: (1000,1000)
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 8
+    - 8
+    rotation: 0
+    state: enabled
+blocks:
+- name: SCID
+  id: variable
+  parameters:
+    comment: ''
+    value: '341'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 608
+    - 12.0
+    rotation: 0
+    state: enabled
+- name: SPI
+  id: variable
+  parameters:
+    comment: ''
+    value: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 528
+    - 12.0
+    rotation: 0
+    state: enabled
+- name: crc
+  id: variable_struct
+  parameters:
+    comment: ''
+    field0: '''Size'''
+    field1: '''Polynomial'''
+    field10: ''
+    field11: ''
+    field12: ''
+    field13: ''
+    field14: ''
+    field15: ''
+    field16: ''
+    field17: ''
+    field18: ''
+    field19: ''
+    field2: '''initRegisterValue'''
+    field3: '''finalXorValue'''
+    field4: ''
+    field5: ''
+    field6: ''
+    field7: ''
+    field8: ''
+    field9: ''
+    value0: '16'
+    value1: '0x1021'
+    value10: '0'
+    value11: '0'
+    value12: '0'
+    value13: '0'
+    value14: '0'
+    value15: '0'
+    value16: '0'
+    value17: '0'
+    value18: '0'
+    value19: '0'
+    value2: '0xFFFF'
+    value3: '0xFFFF'
+    value4: '0'
+    value5: '0'
+    value6: '0'
+    value7: '0'
+    value8: '0'
+    value9: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1824
+    - 108.0
+    rotation: 0
+    state: enabled
+- name: data_rate
+  id: variable
+  parameters:
+    comment: ''
+    value: 10e3
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 128
+    - 892.0
+    rotation: 0
+    state: enabled
+- name: decim_cic
+  id: variable
+  parameters:
+    comment: ''
+    value: '10'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 984
+    - 844.0
+    rotation: 0
+    state: enabled
+- name: decim_rrc
+  id: variable
+  parameters:
+    comment: ''
+    value: '2'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 896
+    - 844.0
+    rotation: 0
+    state: enabled
+- name: excess_bw
+  id: variable
+  parameters:
+    comment: ''
+    value: '0.35'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1120
+    - 844.0
+    rotation: 0
+    state: enabled
+- name: s_band_center
+  id: variable
+  parameters:
+    comment: ''
+    value: 2.185e9
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 128
+    - 828.0
+    rotation: 0
+    state: enabled
+- name: samp_rate
+  id: variable
+  parameters:
+    comment: ''
+    value: 40*uhf_bandwidth
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1872
+    - 396.0
+    rotation: 0
+    state: enabled
+- name: samp_rate_0
+  id: variable
+  parameters:
+    comment: ''
+    value: 400e3
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 120
+    - 764.0
+    rotation: 0
+    state: disabled
+- name: sps_sync
+  id: variable
+  parameters:
+    comment: ''
+    value: '2'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 592
+    - 964.0
+    rotation: 0
+    state: enabled
+- name: uhf_bandwidth
+  id: variable
+  parameters:
+    comment: ''
+    value: 10e3
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1760
+    - 396.0
+    rotation: 0
+    state: enabled
+- name: uhf_center
+  id: variable
+  parameters:
+    comment: ''
+    value: 437.065e6
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 2064
+    - 692.0
+    rotation: 0
+    state: enabled
+- name: blocks_message_debug_0_0
+  id: blocks_message_debug
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    en_uvec: 'True'
+    log_level: warn
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1992
+    - 1328.0
+    rotation: 0
+    state: enabled
+- name: blocks_message_debug_0_0_0
+  id: blocks_message_debug
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    en_uvec: 'True'
+    log_level: debug
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1128
+    - 1536.0
+    rotation: 0
+    state: disabled
+- name: blocks_message_strobe_0
+  id: blocks_message_strobe
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    msg: pmt.intern("start")
+    period: '1000'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 128
+    - 212.0
+    rotation: 0
+    state: enabled
+- name: blocks_throttle2_0
+  id: blocks_throttle2
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    ignoretag: 'True'
+    limit: items
+    maximum: '0.1'
+    maxoutbuf: '4096'
+    minoutbuf: '0'
+    samples_per_second: 50e3
+    type: byte
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1304
+    - 572.0
+    rotation: 0
+    state: enabled
+- name: digital_correlate_access_code_tag_xx_0
+  id: digital_correlate_access_code_tag_xx
+  parameters:
+    access_code: '1110101110010000'
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    tagname: start
+    threshold: '1'
+    type: byte
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 248
+    - 1356.0
+    rotation: 0
+    state: enabled
+- name: digital_crc_append_0
+  id: digital_crc_append
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    final_xor: crc.finalXorValue
+    initial_value: crc.initRegisterValue
+    input_reflected: 'False'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    num_bits: crc.Size
+    poly: crc.Polynomial
+    result_reflected: 'False'
+    skip_header_bytes: '0'
+    swap_endianness: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1288
+    - 332.0
+    rotation: 0
+    state: enabled
+- name: digital_crc_check_0
+  id: digital_crc_check
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    discard_crc: 'False'
+    final_xor: crc.finalXorValue
+    initial_value: crc.initRegisterValue
+    input_reflected: 'False'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    num_bits: crc.Size
+    poly: crc.Polynomial
+    result_reflected: 'False'
+    skip_header_bytes: '0'
+    swap_endianness: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 896
+    - 1360.0
+    rotation: 0
+    state: enabled
+- name: import_0
+  id: import
+  parameters:
+    alias: ''
+    comment: ''
+    imports: import numpy as np
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 544
+    - 860.0
+    rotation: 0
+    state: enabled
+- name: note_0_0_0
+  id: note
+  parameters:
+    alias: ''
+    comment: ''
+    note: 'Software-only loopback: the byte stream goes straight from TX to RX, no SDR.'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1448
+    - 492.0
+    rotation: 0
+    state: enabled
+- name: snippet_0
+  id: snippet
+  parameters:
+    alias: ''
+    code: 'from gnuradio import gr
+
+      # Set the desired level (e.g., debug, info, warn, error)
+
+      gr.logging().set_default_level(gr.log_levels.info)'
+    comment: ''
+    priority: '0'
+    section: init_before_blocks
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 176
+    - 12.0
+    rotation: 0
+    state: enabled
+- name: soarr_acquisition_idle_sequencer_0
+  id: soarr_acquisition_idle_sequencer
+  parameters:
+    acquisition_sequence: '[170, 170, 170, 170, 170, 170, 170, 170, 170, 170, 170, 170, 170, 170, 170, 170]'
+    affinity: ''
+    alias: ''
+    comment: ''
+    diff_encoded: 'False'
+    idle_sequence: '170'
+    initial_acquisition: 'True'
+    max_idle_chunk: '64'
+    maxoutbuf: '4096'
+    minoutbuf: '0'
+    tsb_tag_name: packet_len
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1024
+    - 548.0
+    rotation: 0
+    state: enabled
+- name: soarr_bch_encoder_0
+  id: soarr_bch_encoder
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    polynomial: '197'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 536
+    - 460.0
+    rotation: 0
+    state: enabled
+- name: soarr_ccsds_reader_0
+  id: soarr_ccsds_reader
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    data_type: '0'
+    encapsulation_used: 'True'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    sdls_type: '2'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1096
+    - 1340.0
+    rotation: 0
+    state: enabled
+- name: soarr_ccsds_receiver_0
+  id: soarr_ccsds_receiver
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    field_type: '0'
+    fixed_byte_length: '0'
+    maxoutbuf: '0'
+    message_type: '0'
+    minoutbuf: '0'
+    scid: '0'
+    scid_filter_enable: 'False'
+    vcid: '0'
+    vcid_filter_enable: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 712
+    - 1348.0
+    rotation: 0
+    state: enabled
+- name: soarr_cltu_deframer_0
+  id: soarr_cltu_deframer
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    input_packed: 'False'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    output_packed: 'True'
+    payload_bytes: '8'
+    start_sequence: '60304'
+    tag_name: start
+    tail_sequence: '14251014049101104505'
+    threshold: '2'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 488
+    - 1324.0
+    rotation: 0
+    state: enabled
+- name: soarr_cltu_framer_0
+  id: soarr_cltu_framer
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    start_sequence: '60304'
+    tail_sequence: '14251014049101104505'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 760
+    - 452.0
+    rotation: 0
+    state: enabled
+- name: soarr_data_creator_0
+  id: soarr_data_creator
+  parameters:
+    affinity: ''
+    alias: ''
+    bypass: 'False'
+    comment: ''
+    control: 'False'
+    data: None
+    data_length_bytes: '256'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    mode: '0'
+    payload_source: random
+    scid: SCID
+    sdls_counter: '0'
+    spi: SPI
+    vcid: '0'
+    vcid_counter: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 408
+    - 68.0
+    rotation: 0
+    state: enabled
+- name: soarr_db_client_0
+  id: soarr_db_client
+  parameters:
+    affinity: ''
+    alias: ''
+    auth_key: FFEEDDCCBBAA99887766554433221100FFEEDDCCBBAA99887766554433221100
+    auto_reset_counters: 'False'
+    comment: ''
+    crypt_key: 00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF
+    forward_body: 'True'
+    ip: 127.0.0.1
+    key_state_auth: active
+    key_state_enc: active
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    port: '80'
+    scid: SCID
+    sdls_counter: '0'
+    spi: SPI
+    type: '0'
+    vcid: '18'
+    vcid_counter: '0'
+    yaml_path: ''
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 768
+    - 228.0
+    rotation: 0
+    state: enabled
+- name: soarr_db_client_0_0
+  id: soarr_db_client
+  parameters:
+    affinity: ''
+    alias: ''
+    auth_key: FFEEDDCCBBAA99887766554433221100FFEEDDCCBBAA99887766554433221100
+    auto_reset_counters: 'False'
+    comment: ''
+    crypt_key: 00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF
+    forward_body: 'True'
+    ip: 127.0.0.1
+    key_state_auth: active
+    key_state_enc: active
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    port: '80'
+    scid: SCID
+    sdls_counter: '0'
+    spi: SPI
+    type: '0'
+    vcid: '18'
+    vcid_counter: '0'
+    yaml_path: ''
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1336
+    - 1460.0
+    rotation: 0
+    state: enabled
+- name: soarr_encapsulation_header_0
+  id: soarr_encapsulation_header
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    user_defined_field: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1304
+    - 140.0
+    rotation: 0
+    state: enabled
+- name: soarr_inject_db_0
+  id: soarr_inject_db
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 832
+    - 144.0
+    rotation: 0
+    state: enabled
+- name: soarr_inject_db_0_0
+  id: soarr_inject_db
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1400
+    - 1360.0
+    rotation: 0
+    state: enabled
+- name: soarr_lfsr_scrambler_0
+  id: soarr_lfsr_scrambler
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    register_length: '8'
+    seed: '255'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 352
+    - 452.0
+    rotation: 0
+    state: enabled
+- name: soarr_sdls_authentication_0
+  id: soarr_sdls_authentication
+  parameters:
+    affinity: ''
+    alias: ''
+    authentication_state: 'True'
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    nonce_hex: '0000000000000000000000000000'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 488
+    - 324.0
+    rotation: 0
+    state: enabled
+- name: soarr_sdls_authentication_verify_0
+  id: soarr_sdls_authentication_verify
+  parameters:
+    affinity: ''
+    alias: ''
+    authentication_state: 'True'
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    nonce_hex: '0000000000000000000000000000'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1536
+    - 1348.0
+    rotation: 0
+    state: enabled
+- name: soarr_sdls_decryption_0
+  id: soarr_sdls_decryption
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    decryption_state: 'False'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    nonce_hex: '0000000000000000000000000000'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1768
+    - 1348.0
+    rotation: 0
+    state: enabled
+- name: soarr_sdls_encryption_0
+  id: soarr_sdls_encryption
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    encryption_state: 'False'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    nonce_hex: '0000000000000000000000000000'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 264
+    - 324.0
+    rotation: 0
+    state: enabled
+- name: soarr_sdls_header_0
+  id: soarr_sdls_header
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 752
+    - 336.0
+    rotation: 0
+    state: enabled
+- name: soarr_tc_primary_header_0
+  id: soarr_tc_primary_header
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    is_crc_used: 'True'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    scid: '0'
+    vcid: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1008
+    - 316.0
+    rotation: 0
+    state: enabled
+- name: virtual_sink_0
+  id: virtual_sink
+  parameters:
+    alias: ''
+    comment: ''
+    stream_id: to_encoding
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1600
+    - 332.0
+    rotation: 0
+    state: enabled
+- name: virtual_sink_2
+  id: virtual_sink
+  parameters:
+    alias: ''
+    comment: ''
+    stream_id: to_sdls
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1616
+    - 140.0
+    rotation: 0
+    state: enabled
+- name: virtual_sink_3
+  id: virtual_sink
+  parameters:
+    alias: ''
+    comment: ''
+    stream_id: virtual_channel
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1232
+    - 452.0
+    rotation: 0
+    state: disabled
+- name: virtual_source_0
+  id: virtual_source
+  parameters:
+    alias: ''
+    comment: ''
+    stream_id: to_encoding
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 112
+    - 460.0
+    rotation: 0
+    state: enabled
+- name: virtual_source_1
+  id: virtual_source
+  parameters:
+    alias: ''
+    comment: ''
+    stream_id: to_sdls
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 80
+    - 332.0
+    rotation: 0
+    state: enabled
+- name: blocks_unpack_k_bits_bb_0
+  id: blocks_unpack_k_bits_bb
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    k: '8'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1504
+    - 572.0
+    rotation: 0
+    state: enabled
+connections:
+- - blocks_message_strobe_0
+  - strobe
+  - soarr_data_creator_0
+  - ping
+- - digital_correlate_access_code_tag_xx_0
+  - '0'
+  - soarr_cltu_deframer_0
+  - '0'
+- - digital_crc_append_0
+  - out
+  - virtual_sink_0
+  - '0'
+- - digital_crc_check_0
+  - fail
+  - blocks_message_debug_0_0_0
+  - log
+- - digital_crc_check_0
+  - ok
+  - soarr_ccsds_reader_0
+  - ccsds
+- - soarr_acquisition_idle_sequencer_0
+  - '0'
+  - blocks_throttle2_0
+  - '0'
+- - soarr_bch_encoder_0
+  - codewords
+  - soarr_cltu_framer_0
+  - in
+- - soarr_ccsds_reader_0
+  - debug
+  - soarr_inject_db_0_0
+  - in
+- - soarr_ccsds_receiver_0
+  - out
+  - digital_crc_check_0
+  - in
+- - soarr_cltu_deframer_0
+  - out
+  - blocks_message_debug_0_0_0
+  - log
+- - soarr_cltu_deframer_0
+  - out
+  - soarr_ccsds_receiver_0
+  - in
+- - soarr_cltu_framer_0
+  - out
+  - soarr_acquisition_idle_sequencer_0
+  - in
+- - soarr_data_creator_0
+  - out
+  - soarr_inject_db_0
+  - in
+- - soarr_db_client_0
+  - db_callback
+  - soarr_inject_db_0
+  - db_callback
+- - soarr_db_client_0_0
+  - db_callback
+  - soarr_inject_db_0_0
+  - db_callback
+- - soarr_encapsulation_header_0
+  - out
+  - virtual_sink_2
+  - '0'
+- - soarr_inject_db_0
+  - db_call
+  - soarr_db_client_0
+  - db_call
+- - soarr_inject_db_0
+  - out
+  - soarr_encapsulation_header_0
+  - in
+- - soarr_inject_db_0_0
+  - db_call
+  - soarr_db_client_0_0
+  - db_call
+- - soarr_inject_db_0_0
+  - out
+  - soarr_sdls_authentication_verify_0
+  - in
+- - soarr_lfsr_scrambler_0
+  - out
+  - soarr_bch_encoder_0
+  - message
+- - soarr_sdls_authentication_0
+  - out
+  - soarr_sdls_header_0
+  - in
+- - soarr_sdls_authentication_verify_0
+  - out
+  - soarr_sdls_decryption_0
+  - in
+- - soarr_sdls_decryption_0
+  - out
+  - blocks_message_debug_0_0
+  - print
+- - soarr_sdls_encryption_0
+  - out
+  - soarr_sdls_authentication_0
+  - in
+- - soarr_sdls_header_0
+  - out
+  - soarr_tc_primary_header_0
+  - in
+- - soarr_tc_primary_header_0
+  - out
+  - digital_crc_append_0
+  - in
+- - virtual_source_0
+  - '0'
+  - soarr_lfsr_scrambler_0
+  - in
+- - virtual_source_1
+  - '0'
+  - soarr_sdls_encryption_0
+  - in
+- - blocks_throttle2_0
+  - '0'
+  - blocks_unpack_k_bits_bb_0
+  - '0'
+- - blocks_unpack_k_bits_bb_0
+  - '0'
+  - digital_correlate_access_code_tag_xx_0
+  - '0'
+metadata:
+  file_format: 1
+  grc_version: 3.10.12.0
