@@ -124,8 +124,7 @@ TX — see [cltu_framer.md](cltu_framer.md).
 ## Known issues / TODOs
 
 None currently. Whether `process_bytes` should stay public alongside
-`general_work` is listed in [to-do.md](../to-do.md) as an open design
-question.
+`general_work` is an open design question ([#3](https://github.com/aris-space/soarr-groundstation-gnuradio/issues/3)).
 
 ## Test coverage
 

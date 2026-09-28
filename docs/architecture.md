@@ -205,4 +205,4 @@ decryption. Both paths are covered end to end by
 
 ## Known gaps
 
-None currently; see [to-do.md](to-do.md) for open items.
+None currently; open items are tracked as [GitHub issues](https://github.com/aris-space/soarr-groundstation-gnuradio/issues).

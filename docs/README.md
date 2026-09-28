@@ -41,8 +41,9 @@ development setup, and the decision records and PRDs that back them.
    - [sdls_decryption](prd/sdls_decryption.md)
    - [encapsulation_parser](prd/encapsulation_parser.md)
    - [system_tester](prd/system_tester.md)
-6. [to-do.md](to-do.md) — outstanding, currently-postponed items
-   (repo-level gaps, deferred per-block design questions)
+
+Open bugs, design questions, and test-coverage gaps are tracked as
+[GitHub issues](https://github.com/aris-space/soarr-groundstation-gnuradio/issues).
 
 ## Folder map
 
@@ -52,7 +53,6 @@ docs/
 ├── architecture.md
 ├── development.md
 ├── coding-standards.md
-├── to-do.md              outstanding/postponed items
 ├── adr/                 six accepted ADRs
 ├── prd/                 one per block, 23 total
 ├── doxygen/             gr_modtool Doxygen setup (C++ API docs)

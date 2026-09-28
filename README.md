@@ -208,10 +208,11 @@ encrypt/decrypt, authenticate/verify round trips.
 
 - `db_client`'s `auto_reset_counters` option (in-memory test mode) wraps
   the SDLS counter back to 0, which reuses AES-CTR counters under the
-  same key. Never enable it with real key material.
+  same key. Never enable it with real key material
+  ([#1](https://github.com/aris-space/soarr-groundstation-gnuradio/issues/1)).
 
-Open design questions and test-coverage gaps are listed in
-[docs/to-do.md](docs/to-do.md).
+Open bugs, design questions, and test-coverage gaps are tracked as
+[GitHub issues](https://github.com/aris-space/soarr-groundstation-gnuradio/issues).
 
 ## Documentation
 
@@ -222,7 +223,6 @@ Open design questions and test-coverage gaps are listed in
 | [docs/coding-standards.md](docs/coding-standards.md) | Naming, error handling, docstring, and commit rules |
 | [docs/adr/](docs/adr/) | Architecture decision records |
 | [docs/prd/](docs/prd/) | One requirements document per block |
-| [docs/to-do.md](docs/to-do.md) | Known bugs and open design questions |
 
 ## License
 
