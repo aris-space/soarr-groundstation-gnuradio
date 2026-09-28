@@ -6,12 +6,6 @@ templates:
   imports: from gnuradio import soarr
   make: soarr.sdls_decryption(${decryption_state}, bytes.fromhex('{:028x}'.format(${nonce_hex})))
 
-#  Make one 'parameters' list entry for every parameter you want settable from the GUI.
-#     Keys include:
-#     * id (makes the value accessible as keyname, e.g. in the make entry)
-#     * label (label shown in the GUI)
-#     * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
-#     * default
 parameters:
 - id: decryption_state
   label: Decryption State
@@ -28,13 +22,6 @@ parameters:
 asserts:
 - ${ nonce_hex >= 0 and nonce_hex <= 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF }
 
-#  Make one 'inputs' list entry per input and one 'outputs' list entry per output.
-#  Keys include:
-#      * label (an identifier for the GUI)
-#      * domain (optional - stream or message. Default is stream)
-#      * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
-#      * vlen (optional - data stream vector length. Default is 1)
-#      * optional (optional - set to 1 for optional inputs. Default is 0)
 inputs:
 - label: in
   domain: message
@@ -45,6 +32,11 @@ outputs:
   domain: message
   optional: 0
 
-#  'file_format' specifies the version of the GRC yml format used in the file
-#  and should usually not be changed.
+documentation: |-
+  Decrypts the payload with AES-256-CTR (CCSDS 355.0-B-1 SDLS). Nonce must match the one used by sdls_encryption.
+
+  Ports:
+  - in: verified ciphertext with crypt_key and sdls_counter in the metadata, from sdls_authentication_verify.
+  - out: the plaintext. crypt_key is removed from the metadata.
+
 file_format: 1

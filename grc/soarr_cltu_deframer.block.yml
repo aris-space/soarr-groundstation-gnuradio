@@ -6,12 +6,6 @@ templates:
   imports: from gnuradio import soarr
   make: soarr.cltu_deframer(${start_sequence}, ${tail_sequence}, ${payload_bytes}, ${threshold}, ${input_packed}, ${output_packed}, ${tag_name}, ${max_codewords})
 
-#  Make one 'parameters' list entry for every parameter you want settable from the GUI.
-#     Keys include:
-#     * id (makes the value accessible as keyname, e.g. in the make entry)
-#     * label (label shown in the GUI)
-#     * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
-#     * default
 parameters:
 - id: start_sequence
   label: Start Sequence
@@ -57,17 +51,6 @@ parameters:
   dtype: int
   default: 147
 
-
-
-
-#  Make one 'inputs' list entry per input and one 'outputs' list entry per output.
-#  Keys include:
-#      * label (an identifier for the GUI)
-#      * domain (optional - stream or message. Default is stream)
-#      * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
-#      * vlen (optional - data stream vector length. Default is 1)
-#      * optional (optional - set to 1 for optional inputs. Default is 0)
-
 asserts:
 - ${ threshold >= 0 and threshold <= payload_bytes * 8 }
 - ${ start_sequence >= 0 and start_sequence <= 0xFFFFFFFF }
@@ -76,7 +59,6 @@ asserts:
 - ${ max_codewords > 0 }
 - ${ not input_packed or (payload_bytes % 8 == 0) }
 - ${ not output_packed or (payload_bytes % 8 == 0) }
-
 
 inputs:
 - label: in
@@ -87,6 +69,13 @@ outputs:
 - label: out
   domain: message
 
-#  'file_format' specifies the version of the GRC yml format used in the file
-#  and should usually not be changed.
+documentation: |-
+  Finds CLTUs (CCSDS 231.0-B-4) in the received stream: a start sequence, one or more codewords, and a tail sequence. Start and tail are accepted with up to Threshold bit errors.
+
+  Ports:
+  - in: byte stream (Packed Input = Yes) or bit stream, typically after a Correlate Access Code - Tag block whose tag name matches Tag Name.
+  - out: one PDU per codeword, sent once the CLTU's tail is found. The first codeword of each CLTU carries scramble_reset = True.
+
+  A start sequence without a tail within Max Codewords per CLTU is discarded.
+
 file_format: 1

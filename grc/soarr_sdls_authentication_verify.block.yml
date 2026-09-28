@@ -6,12 +6,6 @@ templates:
   imports: from gnuradio import soarr
   make: soarr.sdls_authentication_verify(${authentication_state}, bytes.fromhex('{:028x}'.format(${nonce_hex})))
 
-#  Make one 'parameters' list entry for every parameter you want settable from the GUI.
-#     Keys include:
-#     * id (makes the value accessible as keyname, e.g. in the make entry)
-#     * label (label shown in the GUI)
-#     * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
-#     * default
 parameters:
 - id: authentication_state
   label: Authentication State
@@ -27,13 +21,6 @@ parameters:
 asserts:
 - ${ nonce_hex >= 0 and nonce_hex <= 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF }
 
-#  Make one 'inputs' list entry per input and one 'outputs' list entry per output.
-#  Keys include:
-#      * label (an identifier for the GUI)
-#      * domain (optional - stream or message. Default is stream)
-#      * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
-#      * vlen (optional - data stream vector length. Default is 1)
-#      * optional (optional - set to 1 for optional inputs. Default is 0)
 inputs:
 - label: in
   domain: message
@@ -44,6 +31,13 @@ outputs:
   domain: message
   optional: 0
 
-#  'file_format' specifies the version of the GRC yml format used in the file
-#  and should usually not be changed.
+documentation: |-
+  Verifies and strips the AES-CMAC tag appended by sdls_authentication (CCSDS 355.0-B-1 SDLS). Frames with a wrong tag are dropped.
+
+  Ports:
+  - in: tagged payload with auth_key and sdls_counter in the metadata, from the RX inject_db.
+  - out: the verified payload without the tag, for sdls_decryption. auth_key is removed from the metadata.
+
+  Must come before sdls_decryption: the tag is computed over the encrypted bytes.
+
 file_format: 1

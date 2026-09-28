@@ -6,12 +6,6 @@ templates:
   imports: from gnuradio import soarr
   make: soarr.sdls_encryption(${encryption_state}, bytes.fromhex('{:028x}'.format(${nonce_hex})))
 
-#  Make one 'parameters' list entry for every parameter you want settable from the GUI.
-#     Keys include:
-#     * id (makes the value accessible as keyname, e.g. in the make entry)
-#     * label (label shown in the GUI)
-#     * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
-#     * default
 parameters:
 - id: encryption_state
   label: Encryption State
@@ -23,14 +17,6 @@ parameters:
   label: Nonce
   dtype: int
   default: 0
-
-#  Make one 'inputs' list entry per input and one 'outputs' list entry per output.
-#  Keys include:
-#      * label (an identifier for the GUI)
-#      * domain (optional - stream or message. Default is stream)
-#      * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
-#      * vlen (optional - data stream vector length. Default is 1)
-#      * optional (optional - set to 1 for optional inputs. Default is 0)
 
 asserts:
 - ${ nonce_hex >= 0 and nonce_hex <= 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF }
@@ -45,6 +31,11 @@ outputs:
   domain: message
   optional: 0
 
-#  'file_format' specifies the version of the GRC yml format used in the file
-#  and should usually not be changed.
+documentation: |-
+  Encrypts the payload with AES-256-CTR (CCSDS 355.0-B-1 SDLS). The 16-byte counter block is Nonce (14 bytes, never transmitted) + sdls_counter (2 bytes, sent as the IV).
+
+  Ports:
+  - in: payload with crypt_key and sdls_counter in the metadata, from encapsulation_header.
+  - out: the ciphertext, for sdls_authentication. crypt_key is removed from the metadata.
+
 file_format: 1

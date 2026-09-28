@@ -6,28 +6,11 @@ templates:
   imports: from gnuradio import soarr
   make: soarr.encapsulation_header(${user_defined_field})
 
-#  Make one 'parameters' list entry for every parameter you want settable from the GUI.
-#     Keys include:
-#     * id (makes the value accessible as keyname, e.g. in the make entry)
-#     * label (label shown in the GUI)
-#     * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
-#     * default
 parameters:
 - id: user_defined_field
   label: User Defined Field
   dtype: int
   default: 0b0000
-#- id: ...
-#  label: ...
-#  dtype: ...
-
-#  Make one 'inputs' list entry per input and one 'outputs' list entry per output.
-#  Keys include:
-#      * label (an identifier for the GUI)
-#      * domain (optional - stream or message. Default is stream)
-#      * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
-#      * vlen (optional - data stream vector length. Default is 1)
-#      * optional (optional - set to 1 for optional inputs. Default is 0)
 
 asserts:
 - ${ user_defined_field >= 0 and user_defined_field <= 0b1111 }
@@ -42,6 +25,11 @@ outputs:
   domain: message
   optional: 0
 
-#  'file_format' specifies the version of the GRC yml format used in the file
-#  and should usually not be changed.
+documentation: |-
+  Prepends a CCSDS 133.1-B encapsulation packet header to each payload. The header variant is chosen from the payload length.
+
+  Ports:
+  - in: the command payload, from inject_db.
+  - out: header + payload, metadata unchanged, for sdls_encryption.
+
 file_format: 1

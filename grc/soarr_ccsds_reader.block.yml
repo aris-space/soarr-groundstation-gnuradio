@@ -6,12 +6,6 @@ templates:
   imports: from gnuradio import soarr
   make: soarr.ccsds_reader(int(${sdls_type}), ${encapsulation_used}, int(${data_type}))
 
-#  Make one 'parameters' list entry for every parameter you want settable from the GUI.
-#     Keys include:
-#     * id (makes the value accessible as keyname, e.g. in the make entry)
-#     * label (label shown in the GUI)
-#     * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
-#     * default
 parameters:
 - id: sdls_type
   label: SDLS Security Type
@@ -34,13 +28,6 @@ parameters:
   options: ['0', '1']
   option_labels: ['Raw', 'CSP (Cubesat Space Protocol)']
 
-#  Make one 'inputs' list entry per input and one 'outputs' list entry per output.
-#  Keys include:
-#      * label (an identifier for the GUI)
-#      * domain (optional - stream or message. Default is stream)
-#      * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
-#      * vlen (optional - data stream vector length. Default is 1)
-#      * optional (optional - set to 1 for optional inputs. Default is 0)
 inputs:
 - label: ccsds
   domain: message
@@ -48,8 +35,12 @@ inputs:
 outputs:
 - label: debug
   domain: message
-#  optional: ...
 
-#  'file_format' specifies the version of the GRC yml format used in the file
-#  and should usually not be changed.
+documentation: |-
+  Parses a reassembled TC transfer frame: primary header, optional encapsulation/SDLS headers, data, optional SDLS trailer and FECF. The parsed fields become PDU metadata.
+
+  Ports:
+  - ccsds: one complete transfer frame per PDU, from ccsds_receiver (via crc_check).
+  - debug: the extracted data with the parsed fields as metadata. Despite its name this is the block's regular output; connect it to the RX inject_db.
+
 file_format: 1

@@ -6,12 +6,6 @@ templates:
   imports: from gnuradio import soarr
   make: soarr.db_client(${type}, ${ip}, ${port}, ${yaml_path}, ${forward_body}, ${auto_reset_counters}, ${scid}, ${spi}, ${vcid}, ${crypt_key}, ${auth_key}, ${sdls_counter}, ${vcid_counter}, ${key_state_enc}, ${key_state_auth})
 
-#  Make one 'parameters' list entry for every parameter you want settable from the GUI.
-#     Keys include:
-#     * id (makes the value accessible as keyname, e.g. in the make entry)
-#     * label (label shown in the GUI)
-#     * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
-#     * default
 parameters:
 - id: type
   label: DB Mode
@@ -107,19 +101,8 @@ parameters:
   default: active
   hide: ${ 'part' if type == '0' else 'all' }
 
-
-#  Make one 'inputs' list entry per input and one 'outputs' list entry per output.
-#  Keys include:
-#      * label (an identifier for the GUI)
-#      * domain (optional - stream or message. Default is stream)
-#      * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
-#      * vlen (optional - data stream vector length. Default is 1)
-#      * optional (optional - set to 1 for optional inputs. Default is 0)
-
 asserts:
 - ${ type == '0' or type == '1' or type == '2' }
-
-
 
 inputs:
 - label: db_call
@@ -131,6 +114,18 @@ outputs:
   domain: message
   optional: 0
 
-#  'file_format' specifies the version of the GRC yml format used in the file
-#  and should usually not be changed.
+documentation: |-
+  Serves keys, SPIs and counters for inject_db, looked up by SCID + SPI.
+
+  DB Mode:
+  - Dummy: one entry built from the Dummy parameters below.
+  - Local YAML: entries from a YAML file (see examples/db_client_example.yaml).
+  - Remote DB: not implemented; falls back to the dummy entry.
+
+  Ports:
+  - db_call: queries from inject_db.
+  - db_callback: the answers, to inject_db.
+
+  The SDLS counter is 16 bits; once an entry has used all values, its requests are refused until a new key is loaded. The VCID counter (frame sequence number) wraps from 255 to 0. Auto Reset Counters reuses SDLS counters: test use only.
+
 file_format: 1

@@ -6,24 +6,8 @@ templates:
   imports: from gnuradio import soarr
   make: soarr.inject_db()
 
-#  Make one 'parameters' list entry for every parameter you want settable from the GUI.
-#     Keys include:
-#     * id (makes the value accessible as keyname, e.g. in the make entry)
-#     * label (label shown in the GUI)
-#     * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
-#     * default
 parameters: []
-#- id: ...
-#  label: ...
-#  dtype: ...
 
-#  Make one 'inputs' list entry per input and one 'outputs' list entry per output.
-#  Keys include:
-#      * label (an identifier for the GUI)
-#      * domain (optional - stream or message. Default is stream)
-#      * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
-#      * vlen (optional - data stream vector length. Default is 1)
-#      * optional (optional - set to 1 for optional inputs. Default is 0)
 inputs:
 - label: in
   domain: message
@@ -40,6 +24,14 @@ outputs:
   domain: message
   optional: 0
 
-#  'file_format' specifies the version of the GRC yml format used in the file
-#  and should usually not be changed.
+documentation: |-
+  Looks up the keys and counters for each frame in db_client and merges them into the PDU's metadata.
+
+  Ports:
+  - in: frames needing key material (metadata: scid, spi, bypass, control).
+  - db_call / db_callback: connect both to db_client.
+  - out: the original payload with the merged metadata, for encapsulation_header (TX) or sdls_authentication_verify (RX).
+
+  Several requests may be in flight at once; each answer is matched to its own request.
+
 file_format: 1

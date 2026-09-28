@@ -54,4 +54,12 @@ outputs:
   domain: stream
   dtype: byte
 
+documentation: |-
+  Turns framed CLTU PDUs into the continuous byte stream the modulator needs. The only stream block of the TX chain.
+
+  Ports:
+  - in: CLTU PDUs from cltu_framer; payloads are queued and sent back to back.
+  - trigger_acq (optional): any message requests an acquisition sequence before the next CLTU.
+  - out: continuous byte stream; idle-fill bytes are sent while nothing is queued.
+
 file_format: 1
