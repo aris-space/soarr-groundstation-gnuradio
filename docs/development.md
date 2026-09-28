@@ -159,6 +159,15 @@ alias gr-soarr-install='/mnt/c/<path-to-repo>/tools/install_gr_soarr.sh'
 [`.gitattributes`](../.gitattributes) keeps `*.sh` checked out with LF
 line endings even on Windows, so bash can run the script from `/mnt/c`.
 
+**Network USRPs under WSL drop packets.** Streaming from a network USRP
+(N200/N210) into WSL2 loses sample packets — UHD prints `D` (dropped
+packet / RX sequence error). Measured with UHD's `benchmark_rate` at
+400 kS/s over the same link: 574 sequence errors and ~2.2 % of samples
+lost in 60 s under WSL2 (mirrored networking), none natively on Windows.
+Run USRP flowgraphs natively on Windows (radioconda includes UHD), or pass
+a USB network adapter straight into WSL with `usbipd-win` so the Linux
+driver handles it instead of the Windows network stack.
+
 ## GRC workflow
 
 The 22 blocks are exposed to GNU Radio Companion via
