@@ -9,9 +9,8 @@ set -euo pipefail
 # (separate from <repo>/build, which the Windows/Visual Studio build uses,
 # since this script deletes its build directory before and after building)
 
-# Default MODULE_DIR to this script's own repo root (tools/.. ), mirroring
-# ensure_gnuradio_soarr_dev.py's _repo_root() — works out of the box for any
-# clone, not just the original author's machine. Override with --module-dir.
+# Default MODULE_DIR to this script's own repo root (tools/..), so it works
+# from any clone. Override with --module-dir.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_MODULE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
@@ -183,5 +182,4 @@ PY
 echo "Cleaning build directory after install: ${BUILD_DIR}"
 rm -rf "${BUILD_DIR}"
 
-echo "Done. If imports still point to old code, run:"
-echo "  ${PYTHON_BIN} ${REPO_DIR}/tools/ensure_gnuradio_soarr_dev.py --yes"
+echo "Done. Restart GNU Radio Companion to load the updated blocks."

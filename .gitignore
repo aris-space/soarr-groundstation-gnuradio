@@ -30,10 +30,6 @@ __pycache__/
 *.lib
 *.exp
 
-# Local dev-workspace junction (created by tools/ensure_gnuradio_soarr_dev.py
-# workflow) linking python/gnuradio/soarr -> python/soarr for editable imports
-python/gnuradio/soarr/
-
 # Python
 .venv/
 venv/

@@ -42,17 +42,14 @@ conda install -c conda-forge libboost-devel=1.88.0
 ## Configure, build, install (Windows)
 
 `tools/install_gr_soarr.ps1` is a one-shot clean rebuild script — the
-Windows/PowerShell counterpart to `install_gr_soarr.sh` below (a separate
-script, not a wrapper around it, since MSVC's Visual Studio generator needs
-native PowerShell rather than bash-over-WSL). It derives
+Windows/PowerShell counterpart to `install_gr_soarr.sh` below. It derives
 `CMAKE_PREFIX_PATH`/`Gnuradio_DIR`/`MPIR_*` from `$env:CONDA_PREFIX`
 instead of hardcoding a path, wipes `build/` before configuring so a stale
-cache never blocks reconfiguration, configures/builds/installs, then runs
-`ensure_gnuradio_soarr_dev.py --yes` (unless `-SkipLink`) to fix the
-shadow-install and workspace-link problems described below. Unlike the
-Linux script it does **not** delete `build/` afterward — regenerating a
-Visual Studio solution is expensive, and the usual Windows workflow is to
-reopen/incrementally rebuild it.
+cache never blocks reconfiguration, configures/builds/installs, and checks
+that `gnuradio.soarr` imports from the install location. Unlike the Linux
+script it does **not** delete `build/` afterward — regenerating a Visual
+Studio solution is expensive, and it can be reopened or rebuilt
+incrementally.
 
 ```powershell
 conda activate radioconda
@@ -61,11 +58,10 @@ conda activate radioconda
 
 Options: `-ModuleDir <path>` (default: this script's own repo root),
 `-Prefix <path>` (default `$env:CONDA_PREFIX`), `-Python <exe>` (default
-`python`), `-Config <name>` (default `Release`), `-Generator <name>`
-(default `Visual Studio 17 2022`), `-Platform <arch>` (default `x64`),
-`-PipInstall` (also runs `pip install -r requirements.txt`, off by
-default), `-SkipLink` (skip the `ensure_gnuradio_soarr_dev.py` step, just
-verify the plain installed import).
+the env's own `python.exe`), `-Config <name>` (default `Release`),
+`-Generator <name>` (default `Visual Studio 17 2022`), `-Platform <arch>`
+(default `x64`), `-PipInstall` (also runs `pip install -r
+requirements.txt`, off by default).
 
 Equivalent manual sequence, if you'd rather run each step yourself:
 
@@ -76,12 +72,20 @@ cmake --build build --config Release
 cmake --install build --config Release
 ```
 
+GNU Radio Companion always uses the **installed** copy: after changing a
+block, re-run the install script and restart GRC.
+
 ## Running tests
 
 ```powershell
 conda activate radioconda
 pytest .\python\soarr\ -q
 ```
+
+Tests always run against the checkout's `python/soarr/`, not an installed
+copy: [`conftest.py`](../conftest.py) registers that folder as
+`gnuradio.soarr` before any test is collected, so no install or
+environment change is needed to test an edit.
 
 `.vscode/settings.json` configures Python testing via `pytest`
 (`python.testing.pytestEnabled: true`, `pytestArgs: ["python/soarr"]`),
@@ -90,58 +94,6 @@ matching [`pytest.ini`](../pytest.ini)'s discovery rules
 VS Code's Test Explorer and the command-line invocation agree.
 `cmake.ctest.testExplorerIntegrationEnabled: false` keeps CMake Tools'
 CTest tree out of the same Testing panel, so it shows pytest only.
-
-## Making `gnuradio.soarr` resolve to the workspace
-
-Two separate problems can each stop `import gnuradio.soarr` from resolving
-to your repo checkout, and `tools/ensure_gnuradio_soarr_dev.py` fixes both:
-
-**The shadow-install problem.** On Windows/conda, a previous
-`cmake --install` can leave a real, copied install of the module at
-`<radioconda-env>/Lib/site-packages/gnuradio/soarr`. Because that
-directory sits on `sys.path`, it **shadows** the in-repo workspace source
-(`python/soarr`) — Python silently keeps importing the old installed copy,
-and edits to the repo appear to have no effect.
-
-**The missing workspace link problem.** Separately,
-`import gnuradio.soarr` can't resolve to the workspace *at all* unless
-`python/gnuradio/soarr` exists as a live link to `python/soarr`:
-`gnuradio` resolves to `python/gnuradio/` (a real package with a tracked
-`__init__.py`), and Python only looks for the `soarr` submodule inside
-that same directory — not elsewhere on `sys.path`, even with the `.pth`
-file below in place. This link isn't tracked by git (see `.gitignore`),
-and on a Windows account without the symlink privilege, a plain `ln -s`
-silently falls back to a one-time, non-live copy that goes stale the next
-time a file under `python/soarr/` changes.
-
-`tools/ensure_gnuradio_soarr_dev.py` fixes both:
-
-1. Deletes the shadowing `<site-packages>/gnuradio/soarr` directory, if
-   present (guarded — only deletes if the directory actually looks like a
-   gr-soarr install, e.g. contains `cltu_framer.py`/`bch_encoder.py`, or
-   their pre-rename `cltuFramer.py`/`bchEncoder.py` equivalents).
-2. Writes `<site-packages>/gnuradio_soarr_workspace.pth`, pointing at
-   `<repo>/python`, so the workspace source is what `sys.path` resolves
-   `gnuradio.soarr` to.
-3. (Re)creates `python/gnuradio/soarr` as a real NTFS junction to
-   `python/soarr` on Windows (no special privilege needed, unlike a
-   symlink), or a plain symlink on Linux/macOS. Safe against a stale
-   pre-existing copy from an earlier failed `ln -s` — that gets removed
-   and replaced, not merged into.
-4. Verifies `gnuradio.soarr.cltu_deframer` actually resolves to the
-   workspace, not a stale copy.
-
-`tools/install_gr_soarr.ps1` above already runs this after installing. Run
-it manually (inside the target conda env) if you used the manual CMake
-sequence instead, or after any `cmake --install` if you notice stale
-behavior:
-
-```powershell
-conda activate radioconda
-python tools\ensure_gnuradio_soarr_dev.py --yes   # or --dry-run to preview
-# PowerShell wrapper, equivalent:
-.\tools\ensure_gnuradio_soarr_dev.ps1 --yes
-```
 
 ## WSL/Linux one-shot rebuild: `install_gr_soarr.sh`
 
