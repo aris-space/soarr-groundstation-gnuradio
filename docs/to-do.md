@@ -11,6 +11,7 @@ log or a session snapshot (see git history for that).
   an instance used with real key material, the counter wraps and
   repeats, and reusing a (nonce, counter) pair under AES-CTR with the
   same key breaks confidentiality for both messages involved.
+
 ## Deferred design questions
 
 - [acquisition_idle_sequencer](prd/acquisition_idle_sequencer.md) — the

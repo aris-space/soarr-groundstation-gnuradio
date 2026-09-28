@@ -70,14 +70,13 @@ docs/
   to it rather than duplicating it, so there's one place to update when a
   rule changes.
 - Block naming (in coding-standards.md, decided by
-  [ADR-0001](adr/0001-block-naming-convention.md)) is snake_case — applied;
-  every block's file, class, and GRC block-id now match. The
-  docstring/PMT-shape convention (ADR-0004) and message-handler error
-  handling (ADR-0003) are applied throughout as well.
-- PRDs carry no verification-status marker (no "Draft"/"Reviewed" field) —
-  like ADRs and the root docs before them, a PRD is only committed after
-  being reviewed and signed off in the same interview process that writes
-  it, so a status field would just duplicate that.
+  [ADR-0001](adr/0001-block-naming-convention.md)) is snake_case: every
+  block's file, class, and GRC block-id match. The docstring/PMT-shape
+  convention (ADR-0004) and message-handler error handling (ADR-0003)
+  apply to every block as well.
+- PRDs carry no status marker (no "Draft"/"Reviewed" field): a PRD is
+  reviewed before it is committed, so the committed version is the
+  reviewed one.
 - A PRD describes the block it documents **only from its current
   state** — not the editorial process that produced the doc, and not a
   prior, superseded version of anything it documents. Git history already

@@ -139,8 +139,8 @@ Enforced by a `commit-msg` hook — see
 - **atomic commits** — one type per commit. Conventional Commits has no
   way to combine two types in one message (no dual headers, no
   comma-separated types), so a commit spanning two separate concerns
-  should be split rather than bundled — e.g. a PRD-writing session that
-  also fixes bugs it uncovers splits along the file boundary into a
+  should be split rather than bundled — e.g. a new PRD together with
+  a bug fix it uncovered splits along the file boundary into a
   `docs` commit (the PRD/doc files) and a `fix`/`refactor` commit (the
   block's code/test files), not one commit covering both. Commit early
   and often rather than batching unrelated work into one commit.
@@ -163,12 +163,12 @@ Enforced by a `commit-msg` hook — see
   structure above (the spec's body is explicitly free-form); what goes in
   it is this project's own rule: state **what changed and why** (motivation,
   the problem being solved, a decision and its rationale) — not **how** it
-  was found or fixed. Leave out `/code-review`-round narration, test
+  was found or fixed. Leave out review-round narration, test
   pass/fail tallies, and TDD red/green step commentary; that detail belongs
-  in the PR/session, not the permanent log. Describe only what this
+  in the pull request, not the permanent log. Describe only what this
   commit actually contains — not work planned for a later commit, and not
   an external plan/roadmap's phase or step number. The commit log outlives
-  any particular planning document or session, so a message should be
+  any planning document or pull request, so a message should be
   self-explanatory to a reader who has neither.
 - **footer** (optional) — `Refs: <path>` pointing at the relevant doc (e.g.
   `Refs: docs/prd/tc_primary_header.md`), and/or `BREAKING CHANGE: <desc>`
