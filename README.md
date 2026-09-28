@@ -120,7 +120,15 @@ cmake --install build --config Release
 ```
 
 CMake picks its default generator and whichever compiler it finds; add
-`-G "<generator>"` to the first command to choose a specific one.
+`-G "<generator>"` to the first command to choose a specific one. Add the
+install location to the first command as well:
+
+- Windows with conda: `-DCMAKE_INSTALL_PREFIX=%CONDA_PREFIX%\Library -DGR_PYTHON_DIR=%CONDA_PREFIX%\Lib\site-packages`
+  (conda keeps GNU Radio, and the folder GNU Radio Companion reads blocks
+  from, under `Library`)
+- Linux with conda: `-DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX`
+- Linux with GNU Radio from the package manager: the default `/usr/local`
+  works as is
 
 Afterwards, restart GNU Radio Companion; the blocks appear under
 **[soarr]**. Script options, VS Code setup, and troubleshooting are in

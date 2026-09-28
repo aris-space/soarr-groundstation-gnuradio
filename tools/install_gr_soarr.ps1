@@ -8,6 +8,11 @@
     GNU Radio paths derived from $env:CONDA_PREFIX, builds, installs, and
     checks that gnuradio.soarr imports from the install location.
 
+    Conda on Windows keeps GNU Radio under $env:CONDA_PREFIX\Library, where
+    GNU Radio Companion looks for block definitions, but Python packages in
+    the env's site-packages. The module is installed the same way: prefix
+    Library, Python package into site-packages.
+
     build/ is kept afterwards: regenerating a Visual Studio solution is slow,
     and it can be reopened or rebuilt incrementally.
 
@@ -15,7 +20,7 @@
     Repository root. Defaults to the repository this script is in.
 
 .PARAMETER Prefix
-    CMAKE_INSTALL_PREFIX. Defaults to $env:CONDA_PREFIX.
+    CMAKE_INSTALL_PREFIX. Defaults to $env:CONDA_PREFIX\Library.
 
 .PARAMETER Python
     Python interpreter for CMake and the import check. Defaults to the one
@@ -69,7 +74,7 @@ if (-not $env:CONDA_PREFIX) {
 
 $LibDir = Join-Path $env:CONDA_PREFIX "Library"
 if (-not $Prefix) {
-    $Prefix = $env:CONDA_PREFIX
+    $Prefix = $LibDir
 }
 
 # Use the env's own interpreter rather than whichever "python" is first on PATH.
@@ -80,6 +85,9 @@ if (-not (Get-Command $Python -ErrorAction SilentlyContinue)) {
     Exit-WithError "Python executable not found: $Python"
 }
 $PythonExe = (Get-Command $Python).Source
+
+$SitePackages = (& $PythonExe -c "import sysconfig; print(sysconfig.get_paths()['purelib'])").Trim()
+if ($LASTEXITCODE -ne 0) { Exit-WithError "Could not determine site-packages of $PythonExe." }
 
 $GnuradioDir = Join-Path $LibDir "lib\cmake\gnuradio"
 if (-not (Test-Path $GnuradioDir)) {
@@ -96,6 +104,7 @@ Write-Host "--- gr-soarr install ---"
 Write-Host "Repo:      $ModuleDir"
 Write-Host "Build:     $BuildDir"
 Write-Host "Prefix:    $Prefix"
+Write-Host "Python to: $SitePackages"
 Write-Host "Python:    $PythonExe"
 Write-Host "Generator: $Generator ($Platform)"
 
@@ -115,6 +124,7 @@ Write-Host "Configuring"
 cmake -S $ModuleDir -B $BuildDir -G $Generator -A $Platform `
     "-DCMAKE_BUILD_TYPE=$Config" `
     "-DCMAKE_INSTALL_PREFIX=$Prefix" `
+    "-DGR_PYTHON_DIR=$SitePackages" `
     "-DCMAKE_PREFIX_PATH=$LibDir" `
     "-DGnuradio_DIR=$GnuradioDir" `
     "-DMPIR_INCLUDE_DIR=$(Join-Path $LibDir 'include')" `

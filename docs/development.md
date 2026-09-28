@@ -25,6 +25,15 @@ The workspace uses these settings in
 | `MPIR_INCLUDE_DIR` | `${env:CONDA_PREFIX}/Library/include` |
 | `MPIR_LIBRARY` | `${env:CONDA_PREFIX}/Library/lib/mpir.lib` |
 | `MPIRXX_LIBRARY` | `${env:CONDA_PREFIX}/Library/lib/mpirxx_static.lib` |
+| `CMAKE_INSTALL_PREFIX` | `${env:CONDA_PREFIX}/Library` |
+| `GR_PYTHON_DIR` | `${env:CONDA_PREFIX}/Lib/site-packages` |
+
+Conda on Windows keeps GNU Radio under `Library`, which is also where GNU
+Radio Companion looks for block definitions
+(`Library/share/gnuradio/grc/blocks`), while Python packages live in the
+env's `Lib/site-packages`. The install prefix and `GR_PYTHON_DIR` follow
+that split; with the env root as prefix instead, the block definitions
+would land in a folder GRC never reads.
 
 `CONDA_PREFIX` is read from the environment VS Code was started in, so
 launch it from the activated env (`conda activate radioconda`, then
@@ -57,7 +66,7 @@ conda activate radioconda
 ```
 
 Options: `-ModuleDir <path>` (default: this script's own repo root),
-`-Prefix <path>` (default `$env:CONDA_PREFIX`), `-Python <exe>` (default
+`-Prefix <path>` (default `$env:CONDA_PREFIX\Library`), `-Python <exe>` (default
 the env's own `python.exe`), `-Config <name>` (default `Release`),
 `-Generator <name>` (default `Visual Studio 17 2022`), `-Platform <arch>`
 (default `x64`), `-PipInstall` (also runs `pip install -r
@@ -67,7 +76,9 @@ Equivalent manual sequence, if you'd rather run each step yourself:
 
 ```powershell
 conda activate radioconda
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+    -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX\Library" `
+    -DGR_PYTHON_DIR="$env:CONDA_PREFIX\Lib\site-packages"
 cmake --build build --config Release
 cmake --install build --config Release
 ```

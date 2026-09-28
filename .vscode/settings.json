@@ -17,7 +17,8 @@
         "-DMPIR_INCLUDE_DIR=${env:CONDA_PREFIX}/Library/include",
         "-DMPIR_LIBRARY=${env:CONDA_PREFIX}/Library/lib/mpir.lib",
         "-DMPIRXX_LIBRARY=${env:CONDA_PREFIX}/Library/lib/mpirxx_static.lib",
-        "-DCMAKE_INSTALL_PREFIX=${env:CONDA_PREFIX}"
+        "-DCMAKE_INSTALL_PREFIX=${env:CONDA_PREFIX}/Library",
+        "-DGR_PYTHON_DIR=${env:CONDA_PREFIX}/Lib/site-packages"
     ],
     "python.testing.pytestArgs": [
         "python/soarr"
