@@ -2,9 +2,9 @@
 
 ## Purpose
 
-Frames a single 8-byte BCH codeword PDU into a CLTU (Command Link
-Transmission Unit) per CCSDS 231.0-B-4: prepends a 2-byte start sequence
-and appends an 8-byte tail sequence, both runtime-configurable. The last
+Frames one transfer frame's BCH codewords into a single CLTU (Command
+Link Transmission Unit) per CCSDS 231.0-B-4: prepends a 2-byte start
+sequence and appends an 8-byte tail sequence, both runtime-configurable. The last
 framing step before the byte stream reaches the modulator. See
 [architecture.md](../architecture.md).
 
@@ -27,8 +27,8 @@ tested anywhere in this repo — `qa_layoutTest.py` captures `cltu_framer`'s
 
 | Port | Direction | PMT shape | Example |
 |---|---|---|---|
-| `in` | input | PDU: `(metadata_dict . payload_u8vector)`. Payload must be exactly 8 bytes — anything else (including empty) is rejected. | `pmt.cons({}, u8vector(8 bytes))` |
-| `out` | output | PDU: `(metadata_dict . cltu_u8vector)`, always `start_sequence (2 bytes) + payload (8 bytes) + tail_sequence (8 bytes)` = 18 bytes total. Metadata unchanged. | `pmt.cons({}, u8vector(18 bytes))` |
+| `in` | input | PDU: `(metadata_dict . codewords_u8vector)` — all codewords of one frame, as `bch_encoder` publishes them. Payload must be a non-zero multiple of 8 bytes — anything else (including empty) is rejected. | `pmt.cons({}, u8vector(N × 8 bytes))` |
+| `out` | output | PDU: `(metadata_dict . cltu_u8vector)`, one CLTU: `start_sequence (2 bytes) + codewords (N × 8 bytes) + tail_sequence (8 bytes)`. Metadata unchanged. | `pmt.cons({}, u8vector(2 + N × 8 + 8 bytes))` |
 
 ## Parameters
 
@@ -52,23 +52,22 @@ against a bad runtime-reassigned value, not the constructor check alone.
 packed fresh (not cached), then concatenated as
 `start ‖ payload ‖ tail` and published with the metadata dict unchanged.
 
-**Payload size**: exactly 8 bytes required (named constant
-`PAYLOAD_SIZE_BYTES`); anything else, including an empty payload, is
-rejected via one unified check (logged, no publish —
-`qa_cltu_framer.py::test_002`, `test_003`, `test_012`, `test_013`).
+**Payload size**: a non-zero multiple of 8 bytes (`CODEWORD_SIZE_BYTES`)
+required — one or more whole codewords; anything else, including an
+empty payload, is rejected via one unified check (logged, no publish —
+`qa_cltu_framer.py::test_002`, `test_003`, `test_012`, `test_013`,
+`test_019`).
 
-**`filled` metadata**: if present in the input metadata (set by
-`bch_encoder` only on a message's last codeword — see
-[bch_encoder.md](bch_encoder.md)), triggers one extra `info`-level log
-line (`"OK\n"`) after the normal `debug`-level `"OK"` — a cosmetic
-end-of-message marker with no other effect, same as documented for
-`bch_encoder`.
+**One CLTU per frame**: every codeword of the input PDU goes between a
+single start/tail pair, so a multi-codeword transfer frame becomes one
+CLTU (`START cw1 cw2 ... TAIL`), as the standard requires. This relies
+on `bch_encoder` publishing all of a frame's codewords as one PDU.
 
 **Error handling** (compliant with
 [coding-standards.md](../coding-standards.md),
 [ADR-0003](../adr/0003-message-handler-error-policy.md)): `add_sequences`'s
 full body — the pair/u8vector shape checks, extracting the payload,
-validating its size is exactly `PAYLOAD_SIZE_BYTES`, packing both
+validating its size is a whole number of codewords, packing both
 sequences, building the CLTU, and the `message_port_pub` call — is
 wrapped in catch-log-drop (`except Exception`), logged at `error` (this
 TX-side block isn't in the raw-RF `warn` list).
@@ -112,39 +111,12 @@ directly against the primary standard document:
 
 ## Known issues / TODOs
 
-- **Multi-codeword messages are framed as multiple separate CLTUs, not
-  one.** Confirmed directly against the primary CCSDS 231.0-B-4 standard
-  document (see CCSDS reference above). The standard defines one CLTU as
-  *one* start sequence, *all* of a transfer frame's BCH codewords
-  concatenated, and *one* tail sequence. `bch_encoder` publishes one PDU
-  per 56-bit codeword it splits a payload into — each such PDU is itself
-  8 bytes/64 bits (7 info + 1 parity/filler byte), and any payload longer
-  than 7 bytes (essentially guaranteed once headers are included)
-  produces more than one codeword PDU (`bch_encoder.md`'s Message ports
-  section). `cltu_framer` has no buffering: it treats every incoming
-  8-byte PDU as a complete, independent frame and wraps *each one* in its
-  own start/tail sequence. Downstream, `acquisition_idle_sequencer.py`'s
-  `work()` (lines 75-116) queues and streams each PDU it receives
-  back-to-back with no gap or separator (confirmed by reading its
-  `_pdu_queue`/`_start_burst` logic) — so the actual RF byte stream for a
-  multi-codeword message becomes `START codeword1 TAIL START codeword2
-  TAIL ...` instead of the CCSDS-compliant `START codeword1 codeword2 ...
-  TAIL`. No test in this repo exercises a multi-codeword message through
-  `cltu_framer` (every `qa_cltu_framer.py` test sends one independent
-  8-byte PDU per call; `test_007_multiple_consecutive_messages` proves 5
-  independent calls behave independently, not that one logical message
-  spanning multiple codewords is combined into one CLTU). Fixing this
-  means `cltu_framer` buffering codewords across messages until it sees
-  `filled` in the metadata (the same signal `bch_encoder` already sets on
-  the last codeword) and emitting one combined PDU — a real
-  behavioral/contract change (1-in-1-out becomes N-in-1-out), deliberately
-  left as follow-up work rather than folded into this block's other
-  fixes.
+None currently.
 
 ## Test coverage
 
-- `python/soarr/qa_cltu_framer.py` — 18 test methods (`test_instance` +
-  `test_001`–`test_017`): construction with custom start/tail sequences,
+- `python/soarr/qa_cltu_framer.py` — 20 test methods (`test_instance` +
+  `test_001`–`test_019`): construction with custom start/tail sequences,
   correct framing (start ‖ payload ‖ tail) with arbitrary/all-zero/
   all-`0xFF` payloads, an empty payload rejected, a wrong-size payload
   (3 bytes) rejected, a non-u8vector body rejected, custom sequences,
@@ -157,10 +129,13 @@ directly against the primary standard document:
   `tail_sequence` raising at construction (`test_015`), a non-pair input
   dropped cleanly instead of crashing the handler (`test_016`), and a
   runtime-reassigned out-of-range sequence value dropped cleanly instead
-  of raising `struct.error` through the real handler (`test_017`). No
-  test covers a payload spanning multiple BCH codewords (see Known
-  issues above — this repo has no test proving or disproving
-  multi-codeword CLTU framing either way).
+  of raising `struct.error` through the real handler (`test_017`), a
+  3-codeword payload framed as one CLTU (`test_018`), and payloads that
+  aren't a whole number of codewords rejected (`test_019`).
+- `python/soarr/qa_lfsr_cltu_bch_chain.py` — the real
+  `lfsr_scrambler → bch_encoder → cltu_framer` chain producing exactly
+  one CLTU per input frame for 1, 2, and 3 codewords, byte-identical to
+  a stagewise reference built per CCSDS 231.0-B-4 Figure 5-1.
 - `python/soarr/qa_layoutTest.py::test_011_cltu_framer_real_handler` —
   same pattern as the other TX blocks' "real handler" tests: builds a
   fresh, standalone instance and calls `add_sequences` directly, not the

@@ -274,6 +274,158 @@ class qa_cltu_deframer(gr_unittest.TestCase):
 
         self.assertEqual(len(captured), 0)
 
+    # --- CLTUs with more than one codeword (CCSDS 231.0-B-4 Figure 5-1:
+    # start sequence + N codewords + tail sequence) ---
+
+    CODEWORDS = [
+        [0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17],
+        [0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27],
+        [0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37],
+    ]
+
+    def _make_cltu(self, codewords):
+        return self._make_frame([b for cw in codewords for b in cw])
+
+    def _payloads(self, captured):
+        return [bytes(pmt.u8vector_elements(pmt.cdr(msg))) for _, msg in captured]
+
+    def _scramble_resets(self, captured):
+        return [pmt.to_bool(pmt.dict_ref(pmt.car(msg), pmt.intern("scramble_reset"), pmt.PMT_NIL))
+                for _, msg in captured]
+
+    def test_013_multi_codeword_cltu_is_split_into_codewords(self):
+        dut = cltu_deframer(start_sequence=START, tail_sequence=TAIL)
+        captured = self._run_and_capture(dut, self._make_cltu(self.CODEWORDS))
+
+        self.assertEqual(self._payloads(captured), [bytes(cw) for cw in self.CODEWORDS])
+        # Only a CLTU's first codeword restarts the de-randomizer
+        self.assertEqual(self._scramble_resets(captured), [True, False, False])
+
+    def test_014_multi_codeword_cltu_waits_for_tail(self):
+        dut = cltu_deframer(start_sequence=START, tail_sequence=TAIL)
+        cltu = self._make_cltu(self.CODEWORDS)
+
+        first = self._run_and_capture(dut, cltu[:2 + 16])  # start + 2 codewords
+        second = self._run_and_capture(dut, cltu[2 + 16:])
+
+        self.assertEqual(len(first), 0)
+        self.assertEqual(self._payloads(second), [bytes(cw) for cw in self.CODEWORDS])
+
+    def test_015_multi_codeword_cltu_unpacked_bits(self):
+        dut = cltu_deframer(start_sequence=START, tail_sequence=TAIL, input_packed=False)
+        bit_stream = self._bytes_to_bits(bytes([0x42]) + self._make_cltu(self.CODEWORDS))
+
+        captured = self._run_and_capture(dut, bit_stream)
+
+        self.assertEqual(self._payloads(captured), [bytes(cw) for cw in self.CODEWORDS])
+
+    def test_016_back_to_back_cltus_of_different_lengths(self):
+        dut = cltu_deframer(start_sequence=START, tail_sequence=TAIL)
+        chunk = (self._make_cltu(self.CODEWORDS[:2]) + bytes([0x00, 0x00])
+                 + self._make_cltu(self.CODEWORDS))
+
+        captured = self._run_and_capture(dut, chunk)
+
+        expected = [bytes(cw) for cw in self.CODEWORDS[:2] + self.CODEWORDS]
+        self.assertEqual(self._payloads(captured), expected)
+        self.assertEqual(self._scramble_resets(captured), [True, False, True, False, False])
+
+    def test_017_tagged_multi_codeword_cltu(self):
+        dut = cltu_deframer(start_sequence=START, tail_sequence=TAIL, input_packed=False,
+                            output_packed=True, tag_name="start")
+        bit_stream = self._bytes_to_bits(self._make_cltu(self.CODEWORDS))
+
+        original_pub = dut.message_port_pub
+        try:
+            first = []
+            dut.message_port_pub = lambda port, msg: first.append((port, msg))
+            dut.test_set_bit_buffer(bit_stream[:16 + 2 * 64], 0)  # tail not yet received
+            dut.test_set_pending_tag(15)
+            dut.process_pending_tag()
+
+            second = []
+            dut.message_port_pub = lambda port, msg: second.append((port, msg))
+            dut.test_set_bit_buffer(bit_stream, 0)
+            dut.process_pending_tag()
+        finally:
+            dut.message_port_pub = original_pub
+
+        self.assertEqual(len(first), 0)
+        self.assertEqual(self._payloads(second), [bytes(cw) for cw in self.CODEWORDS])
+
+    def test_018_missing_tail_is_discarded_after_max_codewords(self):
+        # A start sequence with no tail within max_codewords codewords is not
+        # a CLTU; the search resumes after it and finds the real one.
+        dut = cltu_deframer(start_sequence=START, tail_sequence=TAIL, max_codewords=3)
+        chunk = struct.pack("!H", START) + bytes(8 * 4) + self._make_cltu(self.CODEWORDS[:1])
+
+        captured = self._run_and_capture(dut, chunk)
+
+        self.assertEqual(self._payloads(captured), [bytes(self.CODEWORDS[0])])
+
+    def test_019_cltu_longer_than_max_codewords_is_rejected(self):
+        dut = cltu_deframer(start_sequence=START, tail_sequence=TAIL, max_codewords=2)
+        captured = self._run_and_capture(dut, self._make_cltu(self.CODEWORDS))
+        self.assertEqual(len(captured), 0)
+
+    def test_020_start_directly_followed_by_tail_is_ignored(self):
+        dut = cltu_deframer(start_sequence=START, tail_sequence=TAIL)
+        chunk = self._make_cltu([]) + self._make_cltu(self.CODEWORDS[:1])
+
+        captured = self._run_and_capture(dut, chunk)
+
+        self.assertEqual(self._payloads(captured), [bytes(self.CODEWORDS[0])])
+
+    def test_021_invalid_max_codewords_raises(self):
+        with self.assertRaises(ValueError):
+            cltu_deframer(max_codewords=0)
+
+    def test_022_stream_with_real_tags_through_general_work(self):
+        # The path GNU Radio's scheduler actually uses: a running flowgraph
+        # feeding unpacked bits with "start" tags (as correlate_access_code
+        # _tag_bb places them, on the access code's last bit). The spurious
+        # tag inside the first CLTU must not produce anything.
+        import time
+        from gnuradio import gr, blocks
+
+        noise = bytes([0x00, 0x00, 0x00])
+        first = self._make_cltu(self.CODEWORDS[:2])
+        second = self._make_cltu(self.CODEWORDS[2:])
+        stream = noise + first + noise + second + noise
+        bits = list(self._bytes_to_bits(stream))
+
+        def _tag(offset):
+            tag = gr.tag_t()
+            tag.offset = offset
+            tag.key = pmt.intern("start")
+            tag.value = pmt.PMT_T
+            tag.srcid = pmt.PMT_F
+            return tag
+
+        first_start = len(noise) * 8
+        second_start = (len(noise) + len(first) + len(noise)) * 8
+        tags = [_tag(first_start + 15), _tag(first_start + 16 + 20), _tag(second_start + 15)]
+
+        tb = gr.top_block()
+        src = blocks.vector_source_b(bits, False, 1, tags)
+        dut = cltu_deframer(start_sequence=START, tail_sequence=TAIL, input_packed=False,
+                            output_packed=True, tag_name="start")
+        sink = blocks.message_debug()
+        tb.connect(src, dut)
+        tb.msg_connect(dut, "out", sink, "store")
+
+        tb.start()
+        deadline = time.time() + 5
+        while sink.num_messages() < 3 and time.time() < deadline:
+            time.sleep(0.01)
+        time.sleep(0.1)  # let any unexpected extra message arrive
+        tb.stop()
+        tb.wait()
+
+        payloads = [bytes(pmt.u8vector_elements(pmt.cdr(sink.get_message(i))))
+                    for i in range(sink.num_messages())]
+        self.assertEqual(payloads, [bytes(cw) for cw in self.CODEWORDS])
+
 
 if __name__ == '__main__':
     gr_unittest.run(qa_cltu_deframer)

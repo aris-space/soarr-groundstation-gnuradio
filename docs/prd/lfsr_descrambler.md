@@ -80,15 +80,17 @@ running state.
 entirely separate paths:
 
 1. **Metadata-key path, inside `descramble_msg`** — triggered by either
-   `scramble_reset` (only if its value is truthy) or `filled` (**on
-   presence alone — its value is never inspected**, unlike
-   `scramble_reset`) on an incoming PDU's metadata. Neither key is ever
-   published by anything in this repo (`grep` confirms `scramble_reset`
-   appears only in this file, and `bch_encoder`'s own `filled` key is
-   never wired to this block — see [bch_encoder.md](bch_encoder.md)'s
-   Message ports section for that key's other, disconnected use) — this
-   path is currently unreachable through any wiring that exists in this
-   repo.
+   `scramble_reset` (only if its value is truthy; a present `False`
+   skips the `filled` check) or `filled` (**on presence alone — its value
+   is never inspected**, unlike `scramble_reset`) on an incoming PDU's
+   metadata. `cltu_deframer` sets `scramble_reset` on every codeword it
+   publishes — `True` on each CLTU's first codeword, `False` on the rest —
+   so on the standalone `cltu_deframer → bch_decoder → lfsr_descrambler`
+   path the sequence restarts at every CLTU, as CCSDS de-randomization
+   requires (`qa_lfsr_receive_chain.py::test_005`). `bch_encoder`'s own
+   `filled` key is never wired to this block — see
+   [bch_encoder.md](bch_encoder.md)'s Message ports section for that
+   key's other, disconnected use.
 2. **Direct calls from `ccsds_receiver`, bypassing `descramble_msg`
    entirely** — the block's actual, frequently-exercised reset mechanism
    in the one real caller, tied to frame boundaries rather than PDU
@@ -147,22 +149,24 @@ hand-derived vector alone.
 
 ## Test coverage
 
-- `python/soarr/qa_lfsr_descrambler.py` — 10 test methods (`test_instance`
-  + `test_001`-`test_009`): construction with default and custom
+- `python/soarr/qa_lfsr_descrambler.py` — 11 test methods (`test_instance`
+  + `test_001`-`test_010`): construction with default and custom
   parameters, an independent-source known-answer descramble (see CCSDS
   reference above), PDU metadata identity preserved, output length
   preserved, zero-length payload, a non-u8vector body dropped cleanly, an
-  invalid `register_length` raising at construction, and a mock-forced
+  invalid `register_length` raising at construction, a mock-forced
   publish failure proven to be caught and dropped rather than raised
-  through the real handler.
+  through the real handler, and `scramble_reset=True` restarting the
+  sequence while `False` keeps it running (`test_010`).
 - `python/soarr/qa_lfsrScramberDescrambler.py` — 3 test methods
   (`test_instance` + `test_001`-`test_002`): `lfsr_scrambler` →
   `lfsr_descrambler` round trip recovers the original payload and
   preserves metadata, using a live scrambler instance rather than a fixed
   vector.
-- `python/soarr/qa_lfsr_receive_chain.py::test_001_end_to_end_receive` —
-  the only test in this repo exercising this block as part of the full
-  `cltu_deframer → bch_decoder → lfsr_descrambler` chain (see
+- `python/soarr/qa_lfsr_receive_chain.py::test_001_end_to_end_receive`
+  and `test_005_multi_codeword_frames_round_trip` — this block as part of
+  the full `cltu_deframer → bch_decoder → lfsr_descrambler` chain (see
   [bch_decoder.md](bch_decoder.md)'s Test coverage for this file's other,
-  decoder-specific tests); confirms the final recovered payload matches
-  the original after passing through this block.
+  decoder-specific tests); confirm the recovered payload matches the
+  original, `test_005` for two consecutive multi-codeword CLTUs, which
+  only works because the sequence restarts at each CLTU.

@@ -204,9 +204,74 @@ class qa_lfsr_receive_chain(gr_unittest.TestCase):
                 parity_enc = self.encoder._compute_parity_bits(info_bytes)
                 parity_dec = self.decoder._compute_parity_bits(info_bytes)
                 
-                self.assertEqual(parity_enc, parity_dec, 
+                self.assertEqual(parity_enc, parity_dec,
                     f"Encoder and decoder parity mismatch for {info_bytes.hex()}: "
                     f"encoder={list(parity_enc)}, decoder={list(parity_dec)}")
+
+    def _tx_stream(self, frames):
+        """Run each frame through the TX chain and return the CLTUs
+        concatenated into one byte stream, as sent back to back."""
+        for frame in frames:
+            self._produce_frames(pmt.make_dict(), frame)
+        # One frame in -> exactly one CLTU out, however many codewords
+        self.assertEqual(len(self.frames), len(frames))
+        return b"".join(cltu for _, cltu in self.frames)
+
+    def test_005_multi_codeword_frames_round_trip(self):
+        """Two frames of several codewords each survive TX -> RX over the
+        standalone deframer -> decoder -> descrambler path."""
+        frame_a = bytes(range(0x40, 0x40 + 20))  # 3 codewords
+        frame_b = bytes(range(0x80, 0x80 + 9))   # 2 codewords
+        stream = self._tx_stream([frame_a, frame_b])
+
+        original_pubs = (self.deframer.message_port_pub, self.decoder.message_port_pub,
+                         self.descrambler.message_port_pub)
+        self.deframer.message_port_pub = lambda port, msg: self.decoder.error_correction_mode(msg)
+        self.decoder.message_port_pub = lambda port, msg: self.descrambler.descramble_msg(msg)
+        self.descrambler.message_port_pub = lambda port, msg: self.recovered.append(
+            bytes(pmt.u8vector_elements(pmt.cdr(msg))))
+        try:
+            self.deframer.process_bytes(stream)
+        finally:
+            (self.deframer.message_port_pub, self.decoder.message_port_pub,
+             self.descrambler.message_port_pub) = original_pubs
+
+        # 7 information bytes per codeword; the last one of each frame
+        # carries fill bits after the frame's own bytes.
+        self.assertEqual(len(self.recovered), 3 + 2)
+        self.assertEqual(b"".join(self.recovered[:3])[:len(frame_a)], frame_a)
+        self.assertEqual(b"".join(self.recovered[3:])[:len(frame_b)], frame_b)
+
+    def test_006_tc_frames_round_trip_through_ccsds_receiver(self):
+        """Two TC transfer frames of different lengths survive TX -> RX
+        over the canonical cltu_deframer -> ccsds_receiver path."""
+        from gnuradio.soarr import ccsds_receiver
+
+        receiver = ccsds_receiver()
+
+        def _tc_frame(data, fsn):
+            header = receiver.tc_header().build(dict(
+                tfvn=0, bypass_flag=0, control_flag=0, reserve=0, scid=0x155,
+                vcid=0x12, frame_length=5 + len(data) - 1, frame_sequence_number=fsn))
+            return header + data
+
+        frame_a = _tc_frame(bytes(range(25)), fsn=1)          # 30 bytes -> 5 codewords
+        frame_b = _tc_frame(bytes(range(100, 112)), fsn=2)    # 17 bytes -> 3 codewords
+        stream = self._tx_stream([frame_a, frame_b])
+
+        received = []
+        original_deframer_pub = self.deframer.message_port_pub
+        original_receiver_pub = receiver.message_port_pub
+        self.deframer.message_port_pub = lambda port, msg: receiver.receiver(msg)
+        receiver.message_port_pub = lambda port, msg: received.append(
+            bytes(pmt.u8vector_elements(pmt.cdr(msg))))
+        try:
+            self.deframer.process_bytes(stream)
+        finally:
+            self.deframer.message_port_pub = original_deframer_pub
+            receiver.message_port_pub = original_receiver_pub
+
+        self.assertEqual(received, [frame_a, frame_b])
 
 
 if __name__ == '__main__':

@@ -12,7 +12,7 @@ import pmt
 from gnuradio import gr
 
 
-PAYLOAD_SIZE_BYTES = 8  # one BCH codeword per CLTU frame, per bch_encoder's output
+CODEWORD_SIZE_BYTES = 8  # one BCH (63,56) codeword incl. its filler bit
 
 START_SEQUENCE_MIN = 0x0000  # 16 bits, struct '!H'
 START_SEQUENCE_MAX = 0xFFFF
@@ -22,11 +22,12 @@ TAIL_SEQUENCE_MAX = 0xFFFFFFFFFFFFFFFF
 
 class cltu_framer(gr.basic_block):
     """
-    Frame an 8-byte BCH codeword PDU into a CLTU (CCSDS 231.0-B-4):
-    prepend a start sequence, append a tail sequence.
+    Frame a PDU of BCH codewords into one CLTU (CCSDS 231.0-B-4
+    Figure 5-1): prepend a start sequence, append a tail sequence.
 
     Flow:
-    - Receive a PDU on `in`, payload must be exactly 8 bytes
+    - Receive a PDU on `in`: all codewords of one transfer frame, as
+      bch_encoder publishes them (a non-zero multiple of 8 bytes)
     - Prepend `start_sequence`, append `tail_sequence` (both re-packed
       fresh on every message, so runtime reassignment takes effect
       immediately)
@@ -75,18 +76,17 @@ class cltu_framer(gr.basic_block):
         """
         Args:
             msg (pmt_pair): PDU with metadata dict and u8vector payload,
-                exactly 8 bytes (one BCH codeword). No metadata keys are
-                required; "filled", if present, only affects logging.
+                one or more whole 8-byte BCH codewords. No metadata keys
+                are read or required.
 
         Publishes:
-            "out" (pmt_pair): PDU with `start_sequence` prepended and
-                `tail_sequence` appended to the 8-byte payload (18 bytes
-                total); metadata unchanged.
+            "out" (pmt_pair): one CLTU: `start_sequence` (2 bytes) + the
+                codewords + `tail_sequence` (8 bytes); metadata unchanged.
 
         Drops when:
             - msg is not a PDU pair (error - malformed input at the TX boundary, not raw RF noise)
             - payload is not a u8vector (error - same)
-            - payload is not exactly 8 bytes (error - same)
+            - payload is empty or not a multiple of 8 bytes (error - same)
             - packing the sequences or publishing fails (error - same; covers a bad start_sequence/tail_sequence value reassigned after construction, which bypasses __init__'s validation)
         """
         # Full body wrapped in catch-log-drop, including the final
@@ -109,9 +109,12 @@ class cltu_framer(gr.basic_block):
             # Convert body to bytes for easy concatenation
             payload_bytes = bytes(pmt.u8vector_elements(body_pmt))
 
-            # Check payload size
-            if len(payload_bytes) != PAYLOAD_SIZE_BYTES:
-                self.logger.error(f"Payload size is {len(payload_bytes)} bytes, expected {PAYLOAD_SIZE_BYTES} bytes")
+            # Check payload size: a whole number of codewords
+            if len(payload_bytes) == 0 or len(payload_bytes) % CODEWORD_SIZE_BYTES != 0:
+                self.logger.error(
+                    f"Payload size is {len(payload_bytes)} bytes, expected a non-zero multiple of "
+                    f"{CODEWORD_SIZE_BYTES} bytes (whole BCH codewords)"
+                )
                 return
 
             # CCSDS 231.0-B-4 start/tail sequences.
@@ -126,11 +129,7 @@ class cltu_framer(gr.basic_block):
             out_msg = pmt.cons(meta, pmt.init_u8vector(len(full_cltu), list(full_cltu)))
             self.logger.trace(f"CLTU got framed with size {len(full_cltu)} bytes")
             self.message_port_pub(pmt.intern("out"), out_msg)
-            self.logger.debug("OK")
-
-            # finds last codeword of an message => Message is done
-            if pmt.dict_has_key(meta, pmt.intern("filled")):
-                self.logger.info("OK\n")
+            self.logger.info("OK")
         except Exception as exc:
             self.logger.error(f"Failed to frame or publish message: {exc}")
             return

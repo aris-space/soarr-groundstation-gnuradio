@@ -6,17 +6,6 @@ log or a session snapshot (see git history for that).
 
 ## Known bugs
 
-- [cltu_framer](prd/cltu_framer.md) — multi-codeword messages are framed
-  as multiple separate CLTUs instead of one. CCSDS 231.0-B-4 defines one
-  CLTU as one start sequence + *all* of a frame's BCH codewords + one
-  tail sequence, but `cltu_framer` has no buffering: it wraps every
-  incoming 8-byte codeword in its own start/tail sequence immediately,
-  producing `START cw1 TAIL START cw2 TAIL ...` instead of `START cw1
-  cw2 ... TAIL`. Fixing it means buffering codewords until `filled` (the
-  flag `bch_encoder` already sets on the last one) and emitting one
-  combined PDU — a real 1-in-1-out to N-in-1-out contract change. No
-  test in the repo proves or disproves multi-codeword framing either
-  way.
 - [sdls_encryption](prd/sdls_encryption.md) — no (nonce, counter) reuse
   protection. If `db_client`'s `auto_reset_counters=True` is ever set on
   an instance used with real key material, the counter wraps and
@@ -29,13 +18,12 @@ log or a session snapshot (see git history for that).
   to reassign at runtime, unlike `cltu_framer`'s `start_sequence`/
   `tail_sequence`, which are public and re-read fresh on every message.
   Whether this block should match that pattern is undecided.
-- [cltu_deframer](prd/cltu_deframer.md) — two independent, duplicated
-  frame-detection code paths (`process_bytes`, kept "for backward
-  compatibility with tests", and `general_work`, what GNU Radio's
-  scheduler actually calls) share mutable state; `general_work`, the
-  real production path, has zero test coverage. Whether to delete
-  `process_bytes`, keep it as a real fallback, or give `general_work`
-  real test coverage is undecided.
+- [cltu_deframer](prd/cltu_deframer.md) — two ways to locate CLTUs:
+  tag-based `general_work` (what GNU Radio's scheduler calls) and the
+  untagged `process_bytes` search. Both share one CLTU parser and both
+  are tested, but `process_bytes` is only used by tests and has no
+  production caller. Whether to keep it as a public fallback or make it
+  test-only is undecided.
 
 ## Cross-block architectural debt
 

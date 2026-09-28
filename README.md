@@ -160,10 +160,12 @@ encrypt/decrypt, authenticate/verify round trips.
 
 ## Known issues
 
-- `cltu_framer` frames each BCH codeword as its own CLTU rather than one
-  CLTU per transfer frame.
+- `db_client`'s `auto_reset_counters` option (in-memory test mode) wraps
+  the SDLS counter back to 0, which reuses AES-CTR counters under the
+  same key. Never enable it with real key material.
 
-The full list, with details, is in [docs/to-do.md](docs/to-do.md).
+Open design questions and test-coverage gaps are listed in
+[docs/to-do.md](docs/to-do.md).
 
 ## Documentation
 

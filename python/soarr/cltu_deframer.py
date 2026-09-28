@@ -14,14 +14,32 @@ import numpy as np
 import pmt
 from gnuradio import gr
 
+# A TC transfer frame is at most 1024 bytes = ceil(1024 * 8 / 56) BCH codewords.
+DEFAULT_MAX_CODEWORDS = 147
+
+# _scan_cltu results
+_INCOMPLETE = "incomplete"  # more input is needed to decide
+_NO_START = "no_start"      # start sequence doesn't match within threshold
+_NO_TAIL = "no_tail"        # no tail sequence within max_codewords codewords
+_EMPTY = "empty"            # tail directly follows the start sequence
+_OK = "ok"                  # a complete CLTU
+
 
 class cltu_deframer(gr.basic_block):
     """
-    Find CLTU frames using GNU Radio's Correlated Access Code Tags.
-    
-    When a tag is found, expects: 2 Bytes Start sequence, N Bytes data, 8 Bytes tail sequence.
-    Validates start and tail sequences against expected values and warns if correlation 
-    errors exceed threshold.
+    Find CLTUs (CCSDS 231.0-B-4) in a byte or bit stream and publish their
+    codewords.
+
+    A CLTU is a start sequence, one or more codewords, and a tail sequence
+    (Figure 5-1). After a start sequence, codewords are read one by one
+    until a block matches the tail sequence; the CLTU's codewords are
+    published only once its tail is found, each as its own PDU (the form
+    ccsds_receiver and bch_decoder expect). Start and tail sequences are
+    accepted with up to `threshold` bit errors.
+
+    CLTU starts are located either by GNU Radio's Correlate Access Code -
+    Tag stream tags (general_work, the scheduler's path) or by searching the
+    buffer directly (process_bytes).
 
         input_packed:
             - Yes: stream items are bytes (8 bits packed into one byte).
@@ -37,14 +55,16 @@ class cltu_deframer(gr.basic_block):
 
     def __init__(self, start_sequence:int=0xEB90, tail_sequence:int=0xC5C5C5C5C5C5C579,
                  payload_bytes:int=8, threshold:int=2, input_packed:bool=True,
-                 output_packed:bool=True, tag_name:str="start"):
+                 output_packed:bool=True, tag_name:str="start",
+                 max_codewords:int=DEFAULT_MAX_CODEWORDS):
         """
         Args:
             start_sequence (int): CCSDS 231.0-B-4 CLTU start sequence (16 bits).
             tail_sequence (int): CCSDS 231.0-B-4 CLTU tail sequence (64 bits).
-            payload_bytes (int): expected payload width in bytes.
+            payload_bytes (int): codeword length in bytes (8 for the
+                BCH (63,56) code, including its filler bit).
             threshold (int): max bit errors tolerated in the start or
-                tail sequence for a frame to still be accepted.
+                tail sequence for a CLTU to still be accepted.
             input_packed (bool): True if stream items are bytes (8 bits
                 packed per item); False if stream items are individual
                 bits (one bit per item, values 0/1).
@@ -52,14 +72,21 @@ class cltu_deframer(gr.basic_block):
                 False to publish it as individual bits.
             tag_name (str): stream tag key the tag-based detection path
                 (general_work) looks for.
+            max_codewords (int): most codewords one CLTU may hold. A start
+                sequence with no tail within this many codewords is
+                discarded as a false detection. Default 147: a maximum-size
+                1024-byte TC transfer frame.
 
         Raises:
-            ValueError: payload_bytes isn't positive, or threshold is negative.
+            ValueError: payload_bytes or max_codewords isn't positive, or
+                threshold is negative.
         """
         if payload_bytes <= 0:
             raise ValueError("payload_bytes must be positive")
         if threshold < 0:
             raise ValueError("threshold must be non-negative")
+        if max_codewords <= 0:
+            raise ValueError("max_codewords must be positive")
 
         gr.basic_block.__init__(self, name="cltu_deframer", in_sig=[np.uint8], out_sig=None)
 
@@ -72,27 +99,21 @@ class cltu_deframer(gr.basic_block):
         self.input_packed = input_packed
         self.output_packed = output_packed
         self.tag_name = tag_name
+        self.max_codewords = max_codewords
         self.tag_offset_bits = -15
 
         self._buffer = bytearray()
         self._bit_buffer = []
-        # partial byte state when input_packed == False
-        self._partial_byte = 0
-        self._partial_count = 0
         self._start_bytes = struct.pack("!H", self.start_sequence & 0xFFFF)
         self._tail_bytes = struct.pack("!Q", self.tail_sequence & 0xFFFFFFFFFFFFFFFF)
-        self._frame_length = len(self._start_bytes) + self.data_length + len(self._tail_bytes)
-        self._frame_length_bits = self._frame_length * 8
-        self._frame_length_items = self._frame_length if self.input_packed else self._frame_length_bits
         self._start_bits = self._bytes_to_bits(self._start_bytes)
         self._tail_bits = self._bytes_to_bits(self._tail_bytes)
+        self._codeword_bits = self.data_length * 8
         self._buffer_abs_start = 0
         self._pending_tags = deque()
-        self._last_accepted_tag_abs = None
-
-    def _bit_errors(self, left, right):
-        """Calculate number of bit errors between two byte sequences."""
-        return sum((l ^ r).bit_count() for l, r in zip(left, right))
+        # absolute item index just past the last accepted CLTU; tags before
+        # it (e.g. a start-like pattern inside a codeword) are ignored
+        self._last_accepted_end_abs = None
 
     def _bytes_to_bits(self, data):
         bits = []
@@ -117,38 +138,52 @@ class cltu_deframer(gr.basic_block):
             packed.append(current)
         return bytes(packed)
 
-    def _bit_error_positions(self, left, right):
-        """Return bit indices that differ between two byte sequences."""
-        positions = []
-        for byte_index, (l, r) in enumerate(zip(left, right)):
-            diff = l ^ r
-            if diff == 0:
-                continue
-            for bit in range(7, -1, -1):
-                if diff & (1 << bit):
-                    positions.append(byte_index * 8 + (7 - bit))
-        return positions
+    def _count_errors(self, bits, expected):
+        return sum(1 for a, b in zip(bits, expected) if a != b)
 
-    def _bits_to_string(self, bits):
-        return "".join("1" if b else "0" for b in bits)
-
-    def _validate_frame_bits(self, frame_bits):
+    def _scan_cltu(self, bits, start):
         """
-        Validate frame start and tail sequences at bit level.
+        Walk a candidate CLTU whose start sequence begins at `bits[start]`.
 
-        Returns: (is_valid, start_errors, tail_errors)
+        Args:
+            bits (list[int]): bit buffer, one 0/1 per element.
+            start (int): index where the start sequence is expected.
+
+        Returns:
+            tuple: (status, codewords, end, start_errors, tail_errors).
+                status is one of _INCOMPLETE, _NO_START, _NO_TAIL, _EMPTY,
+                _OK. For _OK, codewords is the list of codewords (each a
+                list of bits) and end is the index just past the tail
+                sequence; otherwise codewords and end are None.
         """
-        if len(frame_bits) != self._frame_length_bits:
-            return False, -1, -1
+        start_end = start + len(self._start_bits)
+        if start_end > len(bits):
+            return _INCOMPLETE, None, None, None, None
 
-        start_errors = sum(1 for a, b in zip(frame_bits[:16], self._start_bits) if a != b)
-        tail_errors = sum(1 for a, b in zip(frame_bits[-64:], self._tail_bits) if a != b)
+        start_errors = self._count_errors(bits[start:start_end], self._start_bits)
+        if start_errors > self.threshold:
+            return _NO_START, None, None, start_errors, None
 
-        is_valid = start_errors <= self.threshold and tail_errors <= self.threshold
+        codewords = []
+        pos = start_end
+        tail_len = len(self._tail_bits)
+        while True:
+            if pos + tail_len > len(bits):
+                return _INCOMPLETE, None, None, start_errors, None
+            tail_errors = self._count_errors(bits[pos:pos + tail_len], self._tail_bits)
+            if tail_errors <= self.threshold:
+                if not codewords:
+                    return _EMPTY, None, None, start_errors, tail_errors
+                return _OK, codewords, pos + tail_len, start_errors, tail_errors
+            if len(codewords) >= self.max_codewords:
+                return _NO_TAIL, None, None, start_errors, None
+            if pos + self._codeword_bits > len(bits):
+                return _INCOMPLETE, None, None, start_errors, None
+            codewords.append(bits[pos:pos + self._codeword_bits])
+            pos += self._codeword_bits
 
-        return is_valid, start_errors, tail_errors
-
-    def _publish_payload(self, payload_bytes=None, payload_bits=None, start_errors=0, tail_errors=0):
+    def _publish_payload(self, payload_bytes=None, payload_bits=None, start_errors=0, tail_errors=0,
+                         scramble_reset=True):
         """
         Args:
             payload_bytes (bytes | None): payload as bytes; ignored if
@@ -159,11 +194,14 @@ class cltu_deframer(gr.basic_block):
                 start sequence, written into the output metadata.
             tail_errors (int): bit-error count against the expected
                 tail sequence, written into the output metadata.
+            scramble_reset (bool): written into the output metadata; True
+                for a CLTU's first codeword, where CCSDS de-randomization
+                restarts (lfsr_descrambler honors this key).
 
         Publishes:
-            "out" (pmt_pair): PDU with `corr_start_errors`/`corr_tail_errors`
-                metadata and the payload, packed as bytes or left as
-                individual bits per `output_packed`.
+            "out" (pmt_pair): PDU with `corr_start_errors`/`corr_tail_errors`/
+                `scramble_reset` metadata and the payload, packed as bytes
+                or left as individual bits per `output_packed`.
 
         Returns:
             pmt_pair: the same PDU published on "out".
@@ -182,155 +220,75 @@ class cltu_deframer(gr.basic_block):
                     unpacked.append((value >> shift) & 1)
             payload_bytes = bytes(unpacked)
 
-        try:
-            hex_str = payload_bytes.hex()
-        except Exception:
-            hex_str = repr(payload_bytes)
-        
-        self.logger.trace(f"Publishing payload: {hex_str} (start_err={start_errors}, tail_err={tail_errors})")
-        
-        # Create metadata dict with correlation error info
+        self.logger.trace(f"Publishing payload: {payload_bytes.hex()} (start_err={start_errors}, tail_err={tail_errors})")
+
         meta = pmt.make_dict()
         meta = pmt.dict_add(meta, pmt.intern("corr_start_errors"), pmt.from_long(start_errors))
         meta = pmt.dict_add(meta, pmt.intern("corr_tail_errors"), pmt.from_long(tail_errors))
-        
+        meta = pmt.dict_add(meta, pmt.intern("scramble_reset"), pmt.from_bool(scramble_reset))
+
         out_msg = pmt.cons(meta, pmt.init_u8vector(len(payload_bytes), list(payload_bytes)))
         self.message_port_pub(pmt.intern("out"), out_msg)
-        self.logger.debug(f"OK")
         return out_msg
 
-    def _process_tag(self, frame_start):
+    def _publish_cltu(self, codewords, start_errors, tail_errors):
         """
-        Process a frame detected by a correlated access code tag.
-        
         Args:
-            frame_start: The byte offset in the internal buffer where the frame starts
-        """
-        if self.input_packed:
-            frame_end = frame_start + self._frame_length
-            if frame_end > len(self._buffer):
-                # Not enough data yet
-                return False
-            frame_bytes = bytes(self._buffer[frame_start:frame_end])
-            frame_bits = self._bytes_to_bits(frame_bytes)
-        else:
-            frame_end = frame_start + self._frame_length_bits
-            if frame_end > len(self._bit_buffer):
-                # Not enough data yet
-                return False
-            frame_bits = self._bit_buffer[frame_start:frame_end]
+            codewords (list[list[int]]): the CLTU's codewords, each a list of bits.
+            start_errors (int): start-sequence bit errors, for metadata.
+            tail_errors (int): tail-sequence bit errors, for metadata.
 
-        is_valid, start_errors, tail_errors = self._validate_frame_bits(frame_bits)
-        
-        if not is_valid:
-            # Log warning about correlation errors
-            start_positions = [i for i, (a, b) in enumerate(zip(frame_bits[:16], self._start_bits)) if a != b]
-            tail_positions = [i for i, (a, b) in enumerate(zip(frame_bits[-64:], self._tail_bits)) if a != b]
-            start_seen = self._bits_to_string(frame_bits[:16])
-            tail_seen = self._bits_to_string(frame_bits[-64:])
-            start_expected = self._bits_to_string(self._start_bits)
-            tail_expected = self._bits_to_string(self._tail_bits)
-            self.logger.warn(
-                f"Frame correlation errors exceed threshold: "
-                f"start_errors={start_errors} (threshold={self.threshold}), "
-                f"tail_errors={tail_errors} (threshold={self.threshold}) "
-                f"start_bits={start_positions} tail_bits={tail_positions}"
-            )
-            self.logger.warn(
-                f"Start bits seen={start_seen} expected={start_expected}"
-            )
-            self.logger.warn(
-                f"Tail bits seen={tail_seen} expected={tail_expected}"
-            )
-            return False
-        
-        # Extract and publish payload
-        payload_start = 16
-        payload_end = payload_start + (self.data_length * 8)
-        payload_bits = frame_bits[payload_start:payload_end]
-        payload = self._pack_bits_to_bytes(payload_bits)
-        try:
-            payload_hex = payload.hex()
-        except Exception:
-            payload_hex = repr(payload)
+        Publishes:
+            "out" (pmt_pair): one PDU per codeword, in order (see
+                _publish_payload); only the first has scramble_reset True.
+        """
         self.logger.info(
-            f"Frame accepted (start_err={start_errors}, tail_err={tail_errors}) payload={payload_hex}"
+            f"CLTU accepted: {len(codewords)} codeword(s), start_err={start_errors}, tail_err={tail_errors}"
         )
-        self._publish_payload(payload_bits=payload_bits, start_errors=start_errors, tail_errors=tail_errors)
-        
-        return True
+        for index, codeword in enumerate(codewords):
+            self._publish_payload(payload_bits=codeword, start_errors=start_errors,
+                                  tail_errors=tail_errors, scramble_reset=(index == 0))
 
     def process_bytes(self, incoming):
         """
-        Process bytes without tags (for backward compatibility with tests).
-        Searches for valid frames in a buffer.
+        Search incoming data for CLTUs without stream tags and publish
+        every complete one found. Data after the last complete CLTU is kept
+        for the next call, so a CLTU may arrive split across calls. In
+        packed mode, CLTUs are searched at byte boundaries only.
+
+        Args:
+            incoming: bytes (input_packed) or 0/1 bit values (not packed).
         """
         if not incoming:
             return
 
         if self.input_packed:
             self._buffer.extend(incoming)
+            bits = self._bytes_to_bits(self._buffer)
+            step = 8
         else:
-            # incoming is a sequence of bits (0/1) as uint8 values
             for b in incoming:
                 self._bit_buffer.append(int(b) & 1)
+            bits = self._bit_buffer
+            step = 1
 
-        # Extract frames by searching for valid patterns
+        offset = 0
+        while offset + len(self._start_bits) <= len(bits):
+            status, codewords, end, start_errors, tail_errors = self._scan_cltu(bits, offset)
+            if status == _INCOMPLETE:
+                break
+            if status == _OK:
+                self._publish_cltu(codewords, start_errors, tail_errors)
+                offset = end
+                continue
+            if status == _NO_TAIL:
+                self.logger.debug(f"Start sequence at bit {offset} has no tail within {self.max_codewords} codewords")
+            offset += step
+
         if self.input_packed:
-            while len(self._buffer) >= self._frame_length:
-                frame_start = None
-                limit = len(self._buffer) - self._frame_length + 1
-
-                for offset in range(limit):
-                    candidate_bytes = bytes(self._buffer[offset:offset + self._frame_length])
-                    candidate_bits = self._bytes_to_bits(candidate_bytes)
-                    is_valid, start_errors, tail_errors = self._validate_frame_bits(candidate_bits)
-                    if is_valid:
-                        frame_start = offset
-                        break
-
-                if frame_start is None:
-                    # No valid frame found; keep last frame_length-1 bytes for next chunk
-                    keep = self._frame_length - 1
-                    if len(self._buffer) > keep:
-                        del self._buffer[:-keep]
-                    return
-
-                frame_end = frame_start + self._frame_length
-                payload_start = frame_start + len(self._start_bytes)
-                payload_end = payload_start + self.data_length
-                payload = bytes(self._buffer[payload_start:payload_end])
-                candidate_bits = self._bytes_to_bits(bytes(self._buffer[frame_start:frame_end]))
-                is_valid, start_errors, tail_errors = self._validate_frame_bits(candidate_bits)
-                self._publish_payload(payload_bytes=payload, start_errors=start_errors, tail_errors=tail_errors)
-                del self._buffer[:frame_end]
+            del self._buffer[:offset // 8]
         else:
-            while len(self._bit_buffer) >= self._frame_length_bits:
-                frame_start = None
-                limit = len(self._bit_buffer) - self._frame_length_bits + 1
-
-                for offset in range(limit):
-                    candidate_bits = self._bit_buffer[offset:offset + self._frame_length_bits]
-                    is_valid, start_errors, tail_errors = self._validate_frame_bits(candidate_bits)
-                    if is_valid:
-                        frame_start = offset
-                        break
-
-                if frame_start is None:
-                    keep = self._frame_length_bits - 1
-                    if len(self._bit_buffer) > keep:
-                        del self._bit_buffer[:-keep]
-                    return
-
-                frame_end = frame_start + self._frame_length_bits
-                payload_start = 16
-                payload_end = payload_start + (self.data_length * 8)
-                candidate_bits = self._bit_buffer[frame_start:frame_end]
-                is_valid, start_errors, tail_errors = self._validate_frame_bits(candidate_bits)
-                payload_bits = candidate_bits[payload_start:payload_end]
-                self._publish_payload(payload_bits=payload_bits, start_errors=start_errors, tail_errors=tail_errors)
-                del self._bit_buffer[:frame_end]
-
+            del self._bit_buffer[:offset]
 
     def general_work(self, input_items, output_items):
         """
@@ -378,94 +336,86 @@ class cltu_deframer(gr.basic_block):
 
             if tag_key == self.tag_name:
                 tag_abs = int(tag.offset)
-                if self._last_accepted_tag_abs is not None:
-                    if tag_abs < self._last_accepted_tag_abs + self._frame_length_items:
-                        continue
+                if self._last_accepted_end_abs is not None and tag_abs < self._last_accepted_end_abs:
+                    continue
                 bit_offset = int(tag.offset) * (8 if self.input_packed else 1)
                 self.logger.debug(f"Tag '{self.tag_name}' found at bit offset {bit_offset}")
                 if not self._pending_tags or self._pending_tags[-1] != tag_abs:
                     self._pending_tags.append(tag_abs)
-                    if not self.input_packed:
-                        self.logger.trace(
-                            f"bit_buffer_len={len(self._bit_buffer)} buffer_abs_start={self._buffer_abs_start}"
-                        )
-                        end_pos = tag_abs - self._buffer_abs_start
-                        start_pos = end_pos - 15
-                        if start_pos >= 0 and end_pos < len(self._bit_buffer):
-                            window_bits = self._bit_buffer[start_pos:end_pos + 1]
-                            window_str = self._bits_to_string(window_bits)
-                            self.logger.trace(
-                                f"Access code window @tag (len=16): {window_str}"
-                            )
         self._try_process_pending_tag()
+        self._trim_untagged_buffer()
 
         self.consume_each(items_processed)
         return 0
 
+    def _trim_untagged_buffer(self):
+        """With no tag pending, keep only the few items a tag arriving in
+        the next chunk could still need (its start sequence may begin up to
+        16 bits before it), so an untagged stream doesn't grow the buffer
+        forever."""
+        if self._pending_tags:
+            return
+        if self.input_packed:
+            keep = 3
+            drop = max(0, len(self._buffer) - keep)
+            del self._buffer[:drop]
+        else:
+            keep = len(self._start_bits) + 8
+            drop = max(0, len(self._bit_buffer) - keep)
+            del self._bit_buffer[:drop]
+        self._buffer_abs_start += drop
+
     def _try_process_pending_tag(self):
-        """Process a pending tag if the full frame is buffered (helper for tests)."""
+        """Process pending tags in order, while each one's CLTU can be decided
+        from the buffered data (helper for tests)."""
         while self._pending_tags:
             tag_abs = self._pending_tags[0]
 
             if self.input_packed:
                 frame_start = (tag_abs - self._buffer_abs_start) + (self.tag_offset_bits // 8)
-                frame_end = frame_start + self._frame_length
                 if frame_start < 0:
                     self._pending_tags.popleft()
                     continue
-                if frame_end > len(self._buffer):
-                    return
-                if self._process_tag(frame_start):
-                    del self._buffer[:frame_end]
-                    self._buffer_abs_start = self._buffer_abs_start + frame_end
-                    self._last_accepted_tag_abs = tag_abs
-                else:
-                    drop = min(frame_start + 1, len(self._buffer))
-                    del self._buffer[:drop]
-                    self._buffer_abs_start += drop
-                self._pending_tags.popleft()
+                bits = self._bytes_to_bits(self._buffer[frame_start:])
+                candidates = [0]
             else:
                 frame_start = (tag_abs - self._buffer_abs_start) + self.tag_offset_bits
-                frame_end = frame_start + self._frame_length_bits
                 if frame_start < 0:
                     self._pending_tags.popleft()
                     continue
-                if frame_end > len(self._bit_buffer):
-                    return
+                bits = self._bit_buffer
+                # the correlator's tag may be off by one bit
+                candidates = [c for c in (frame_start, frame_start - 1, frame_start + 1) if c >= 0]
 
-                candidates = [frame_start, frame_start - 1, frame_start + 1]
-                accepted = False
-                for candidate_start in candidates:
-                    if candidate_start < 0:
-                        continue
-                    candidate_end = candidate_start + self._frame_length_bits
-                    if candidate_end > len(self._bit_buffer):
-                        continue
-                    frame_bits = self._bit_buffer[candidate_start:candidate_end]
-                    is_valid, start_errors, tail_errors = self._validate_frame_bits(frame_bits)
-                    if not is_valid:
-                        continue
-                    payload_start = 16
-                    payload_end = payload_start + (self.data_length * 8)
-                    payload_bits = frame_bits[payload_start:payload_end]
-                    self._publish_payload(payload_bits=payload_bits, start_errors=start_errors, tail_errors=tail_errors)
-                    del self._bit_buffer[:candidate_end]
-                    self._buffer_abs_start = self._buffer_abs_start + candidate_end
-                    self._last_accepted_tag_abs = tag_abs
-                    accepted = True
-                    break
+            results = [(c, self._scan_cltu(bits, c)) for c in candidates]
+            accepted = next(((c, r) for c, r in results if r[0] == _OK), None)
+            if accepted is None and any(r[0] == _INCOMPLETE for _, r in results):
+                return  # wait for more data
 
-                if not accepted:
-                    if self._process_tag(frame_start):
-                        del self._bit_buffer[:frame_end]
-                        self._buffer_abs_start = self._buffer_abs_start + frame_end
-                        self._last_accepted_tag_abs = tag_abs
-                    else:
-                        drop = min(frame_start + 1, len(self._bit_buffer))
-                        del self._bit_buffer[:drop]
-                        self._buffer_abs_start += drop
+            if accepted is not None:
+                _, (_, codewords, end, start_errors, tail_errors) = accepted
+                self._publish_cltu(codewords, start_errors, tail_errors)
+                if self.input_packed:
+                    consumed = frame_start + end // 8
+                    del self._buffer[:consumed]
+                else:
+                    consumed = end
+                    del self._bit_buffer[:consumed]
+                self._buffer_abs_start += consumed
+                self._last_accepted_end_abs = self._buffer_abs_start
+            else:
+                status, _, _, start_errors, tail_errors = results[0][1]
+                self.logger.warn(
+                    f"CLTU rejected at tag offset {tag_abs}: {status} "
+                    f"(start_errors={start_errors}, tail_errors={tail_errors}, threshold={self.threshold}, "
+                    f"max_codewords={self.max_codewords})"
+                )
+                buffer = self._buffer if self.input_packed else self._bit_buffer
+                drop = min(frame_start + 1, len(buffer))
+                del buffer[:drop]
+                self._buffer_abs_start += drop
 
-                self._pending_tags.popleft()
+            self._pending_tags.popleft()
 
             while self._pending_tags and self._pending_tags[0] < self._buffer_abs_start:
                 self._pending_tags.popleft()
@@ -482,4 +432,3 @@ class cltu_deframer(gr.basic_block):
     def test_set_pending_tag(self, tag_offset):
         """Public helper to set pending tag for unit tests."""
         self._pending_tags = deque([int(tag_offset)])
-

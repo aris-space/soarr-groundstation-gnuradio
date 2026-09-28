@@ -321,6 +321,22 @@ class qa_cltu_framer(gr_unittest.TestCase):
 
         self.assertEqual(len(captured), 0)
 
+    # CCSDS 231.0-B-4 Figure 5-1: one CLTU is one start sequence, all of a
+    # frame's codewords, and one tail sequence - not one CLTU per codeword.
+    def test_018_multi_codeword_payload_framed_as_one_cltu(self):
+        dut = cltu_framer(start_sequence=START, tail_sequence=END)
+        input_data = list(range(24))  # 3 codewords
+        captured = self._run_and_capture(dut, self._make_pdu(input_data))
+
+        expected = struct.pack("!H", START) + bytes(input_data) + struct.pack("!Q", END)
+        self._assert_single_output_payload(captured, expected)
+
+    def test_019_payload_not_a_whole_number_of_codewords_is_rejected(self):
+        dut = cltu_framer(start_sequence=START, tail_sequence=END)
+        for size in (12, 17, 23):
+            captured = self._run_and_capture(dut, self._make_pdu(list(range(size))))
+            self.assertEqual(len(captured), 0, f"{size}-byte payload should be rejected")
+
 
 if __name__ == "__main__":
     gr_unittest.run(qa_cltu_framer)

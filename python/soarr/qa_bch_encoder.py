@@ -39,21 +39,6 @@ class qa_bch_encoder(gr_unittest.TestCase):
         finally:
             self.encoder.message_port_pub = original_pub
 
-        # If the encoder emitted multiple PDUs (one per codeword), merge their
-        # payload bodies into a single synthetic PDU so existing tests that
-        # expect a single output continue to work. Preserve the metadata from
-        # the first emitted PDU.
-        if len(self.captured_output) > 1:
-            merged_bytes = bytearray()
-            first_port = self.captured_output[0][0]
-            merged_meta = pmt.car(self.captured_output[0][1])
-            for _, msg in self.captured_output:
-                body = pmt.cdr(msg)
-                merged_bytes.extend(pmt.u8vector_elements(body))
-
-            merged_pdu = pmt.cons(merged_meta, pmt.init_u8vector(len(merged_bytes), list(merged_bytes)))
-            self.captured_output = [(first_port, merged_pdu)]
-
     def test_instance(self):
         """Test that encoder can be instantiated."""
         instance = bch_encoder()
@@ -193,7 +178,7 @@ class qa_bch_encoder(gr_unittest.TestCase):
         _, out_msg = self.captured_output[0]
         out_meta = pmt.car(out_msg)
 
-        # Gets added by the bch encoder to the last codeword of an message
+        # Added by the encoder: whether fill bits were needed (none for 7 bytes)
         meta = pmt.dict_add(meta, pmt.intern("filled"), pmt.from_bool(False))
         self.assertTrue(pmt.equal(out_meta, meta))
 
@@ -511,6 +496,25 @@ class qa_bch_encoder(gr_unittest.TestCase):
             self.encoder.encode_bch(msg)  # must not raise
         finally:
             self.encoder.message_port_pub = original_pub
+
+    # One input frame becomes one PDU holding all of its codewords, so
+    # cltu_framer can wrap the whole frame in a single CLTU (CCSDS
+    # 231.0-B-4 Figure 5-1). "filled" says whether fill bits were added.
+    def test_030_all_codewords_of_a_frame_in_one_pdu(self):
+        input_data = bytes(range(10))  # 80 bits -> 32 fill bits -> 2 codewords
+        payload = pmt.init_u8vector(len(input_data), list(input_data))
+        self._encode_and_capture(pmt.make_dict(), payload)
+
+        self.assertEqual(len(self.captured_output), 1)
+        port, out_msg = self.captured_output[0]
+        self.assertTrue(pmt.eqv(port, pmt.intern("codewords")))
+        self.assertEqual(len(pmt.u8vector_elements(pmt.cdr(out_msg))), 16)
+        self.assertTrue(pmt.to_bool(pmt.dict_ref(pmt.car(out_msg), pmt.intern("filled"), pmt.PMT_NIL)))
+
+        exact = bytes(range(14))  # 112 bits -> exactly 2 codewords, no fill
+        self._encode_and_capture(pmt.make_dict(), pmt.init_u8vector(len(exact), list(exact)))
+        self.assertEqual(len(self.captured_output), 1)
+        self.assertFalse(pmt.to_bool(pmt.dict_ref(pmt.car(self.captured_output[0][1]), pmt.intern("filled"), pmt.PMT_NIL)))
 
 
 if __name__ == '__main__':

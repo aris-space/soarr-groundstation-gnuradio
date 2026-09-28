@@ -6,7 +6,8 @@ Applies CCSDS 231.0-B-4 (63,56) BCH forward-error-correction encoding to
 a PDU's payload: splits it into 56-bit information chunks (padding the
 last chunk with a fixed fill pattern if needed), computes 7 complemented
 parity bits per chunk, and appends a filler bit — producing one 8-byte
-BCH codeword per chunk. See [architecture.md](../architecture.md).
+BCH codeword per chunk, published together as one PDU. See
+[architecture.md](../architecture.md).
 
 ## Pipeline position
 
@@ -25,21 +26,14 @@ wiring.
 | Port | Direction | PMT shape | Example |
 |---|---|---|---|
 | `message` | input | PDU: `(metadata_dict . payload_u8vector)`. No required metadata keys. Payload of any length ≥ 1 byte. | `pmt.cons({}, u8vector(payload))` |
-| `codewords` | output | PDU: `(metadata_dict . codeword_u8vector)`, always exactly 8 bytes (7 info + 1 parity/filler byte). **One `codewords` PDU is published per 56-bit chunk the input payload splits into** — a single input PDU spanning multiple codewords produces multiple output PDUs, not one. The metadata dict is reused across all of a message's codewords, with `filled` (bool) added only to the last one. | `pmt.cons({}, u8vector(8 bytes))`, possibly repeated |
+| `codewords` | output | PDU: `(metadata_dict . codewords_u8vector)` — **one PDU per input PDU**, holding every codeword of the payload back to back: 8 bytes (7 info + 1 parity/filler byte) per 56-bit chunk. The input metadata plus `filled` (bool, whether fill bits were added). | `pmt.cons({filled: True}, u8vector(N × 8 bytes))` |
 
-This multi-publish-per-input behavior differs from every other TX block
-in this pipeline (all 1-input-PDU-in → 1-PDU-out) — it matches
-`cltu_framer`'s own contract, which requires exactly 8 bytes per
-input PDU (`cltu_framer.py:54-56`, rejects anything else) and checks for
-the `filled` key (`cltu_framer.py:68`) purely to emit a distinct `"OK\n"`
-log line marking the end of a multi-codeword message — no control-flow
-effect downstream of *this* block. The same key name is reused with real
-control-flow weight elsewhere in the codebase, on the RX side:
-`lfsr_descrambler.py:103-105` triggers a sequence reset when `filled` is
-present in its own (unrelated) input metadata. The two are structurally
-disconnected — nothing wires `bch_encoder`'s output metadata into
-`lfsr_descrambler` — but it's the same key name doing two different jobs
-in two different blocks, worth knowing before reusing it a third time.
+Keeping a frame's codewords in one PDU is what lets `cltu_framer` wrap
+them in a single CLTU, as CCSDS 231.0-B-4 requires (see
+[cltu_framer.md](cltu_framer.md)). The same key name `filled` also
+appears on the RX side, where `lfsr_descrambler` resets its sequence
+when `filled` is present in its own (unrelated) input metadata; nothing
+wires `bch_encoder`'s output metadata into `lfsr_descrambler`.
 
 ## Parameters
 
@@ -55,24 +49,21 @@ fill pattern (packs to `0x55` bytes) if not already aligned, then each
 56-bit chunk is: converted back to 7 bytes, divided (GF(2) polynomial
 long division) by `polynomial` to get a 7-bit remainder, complemented,
 and packed as `[7 parity bits][1 filler bit, always 0]` into an 8th byte
-appended to the chunk's 7 information bytes — an 8-byte codeword,
-published immediately as its own PDU.
+appended to the chunk's 7 information bytes — an 8-byte codeword. All
+codewords are concatenated in order and published as one PDU.
 
 **Empty payload**: rejected before any processing (`len(payload_bytes) ==
 0` → logged, no publish) — the one input-shape condition this block
 explicitly rejects.
 
-**`filled` metadata**: added (`True`/`False`, whether padding was needed)
-only to the metadata dict of the *last* codeword's PDU in a message;
-earlier codewords' PDUs carry the original metadata unchanged, without
-the key at all — consumed downstream only by `cltu_framer`'s cosmetic
-log line (see Pipeline position above).
+**`filled` metadata**: added to the output PDU's metadata (`True`/
+`False`, whether padding was needed). No TX block downstream reads it.
 
 **Error handling** (compliant with
 [coding-standards.md](../coding-standards.md),
 [ADR-0003](../adr/0003-message-handler-error-policy.md)): `encode_bch`'s
 full body — the pair/u8vector shape checks, payload extraction, the
-empty-payload check, the encoding loop, PDU construction, and every
+empty-payload check, the encoding loop, PDU construction, and the
 `message_port_pub` call — is wrapped in catch-log-drop (`except
 Exception`), all logged at `error` (this TX-side block isn't in the
 raw-RF `warn` list). The handler name, `encode_bch`, matches every
@@ -107,8 +98,8 @@ block.
 
 ## Test coverage
 
-- `python/soarr/qa_bch_encoder.py` — 30 test methods (`test_instance` +
-  `test_001`–`test_029`): construction with default and a genuinely
+- `python/soarr/qa_bch_encoder.py` — 31 test methods (`test_instance` +
+  `test_001`–`test_030`): construction with default and a genuinely
   different custom polynomial, single- and multi-codeword encoding across
   a wide range of boundary sizes (exactly 1/2/3/4/7/8 codewords, with and
   without fill bits), fill-pattern correctness (`0x55` bytes), parity-bit
@@ -116,12 +107,16 @@ block.
   complemented code (`test_010`, a structural correctness check, not a
   hand-derived known-answer case), single-bit-flip changing the parity
   (error-detection property), PDU metadata preserved with `filled` added
-  only to the last codeword (`test_012`), a non-u8vector body dropped
+  (`test_012`), a non-u8vector body dropped
   cleanly (`test_015`), an invalid `polynomial` raising at construction
   (`test_026`), a non-pair input dropped cleanly instead of crashing the
   handler (`test_027`), an empty payload dropped cleanly (`test_028`),
-  and a mock-forced publish failure proven to be caught and dropped
-  rather than raised through the real handler (`test_029`).
+  a mock-forced publish failure proven to be caught and dropped
+  rather than raised through the real handler (`test_029`), and a
+  multi-codeword payload published as exactly one PDU with `filled`
+  set correctly with and without fill bits (`test_030`). Every
+  multi-codeword test checks the encoder's real output directly — one
+  PDU of N × 8 bytes.
 - `python/soarr/qa_layoutTest.py::test_010_bch_encoder_real_handler` —
   same pattern as the other TX blocks' "real handler" tests: builds a
   fresh, standalone instance and calls `encode_bch` directly, checking the

@@ -603,16 +603,13 @@ class qa_layoutTest(gr_unittest.TestCase):
         chain unchanged (confirmed directly: tc_primary_header only
         deletes a top-level vcid_counter key, and inject_db never writes
         one there - only nested), so it's read from cltu_framer's real
-        captured output as-is, with no patching. bch_encoder splits the
-        encoded frame into 7-byte blocks, so cltu_framer publishes one
-        CLTU per block for a single injected packet; every chunk's
-        payload bytes are concatenated into one combined blob before
-        being handed to handle_received, since system_tester tracks one
-        payload per packet and isn't chunk-aware. There is no RX/decode
-        chain in this test file, so the received blob is the fully
-        encoded transmission unit, not a byte match for the original
-        payload - this test verifies packet tracking through the real
-        chain, not round-trip byte equality.
+        captured output as-is, with no patching. bch_encoder encodes the
+        frame into one PDU of codewords, so cltu_framer publishes exactly
+        one CLTU for a single injected packet, handed to handle_received
+        as-is. There is no RX/decode chain in this test file, so the
+        received payload is the fully encoded transmission unit, not a
+        byte match for the original payload - this test verifies packet
+        tracking through the real chain, not round-trip byte equality.
         """
         VCID_COUNTER = 0
         PAYLOAD_BYTES = bytes([0xAA, 0xBB, 0xCC, 0xDD])
@@ -643,12 +640,12 @@ class qa_layoutTest(gr_unittest.TestCase):
         self.tb.start()
         self.tb.inject_db.to_basic_block()._post(pmt.intern("in"), query_pdu)
 
-        # Wait for the chunk count to go quiet. A generous quiet window
-        # (200ms) guards against declaring done while a chunk is still
+        # Wait for the output count to go quiet. A generous quiet window
+        # (200ms) guards against declaring done while a message is still
         # mid-flight through the chain's 9 message-passing hops - the
-        # exact count is then checked below against EXPECTED_CHUNK_COUNT,
-        # so an early exit here fails loudly instead of silently scoring
-        # a partial capture as a complete packet.
+        # exact count and length are then checked below, so an early exit
+        # here fails loudly instead of silently scoring a partial capture
+        # as a complete packet.
         last_len = -1
         stable_checks = 0
         for _ in range(1000):
@@ -670,18 +667,16 @@ class qa_layoutTest(gr_unittest.TestCase):
         # (sdls_authentication's CMAC tag) +4 (sdls_header's 2-byte SPI +
         # iv_length_bytes=2 counter) +5 (tc_primary_header) +2
         # (crc_append's 16-bit FECF) - sdls_encryption/lfsr_scrambler
-        # don't change length. bch_encoder then splits the result into
-        # 7-byte blocks, and cltu_framer wraps each into one 18-byte
-        # frame (2-byte start + 8-byte codeword + 8-byte tail), so it
-        # publishes ceil(encoded_length / 7) messages for this packet.
+        # don't change length. bch_encoder then encodes it into
+        # ceil(encoded_length / 7) 8-byte codewords, and cltu_framer wraps
+        # all of them into one CLTU (2-byte start + codewords + 8-byte
+        # tail, CCSDS 231.0-B-4 Figure 5-1).
         ENCODED_FRAME_LENGTH = len(PAYLOAD_BYTES) + 2 + 16 + 4 + 5 + 2
-        EXPECTED_CHUNK_COUNT = -(-ENCODED_FRAME_LENGTH // 7)
-        self.assertEqual(len(captured), EXPECTED_CHUNK_COUNT)
+        EXPECTED_CODEWORDS = -(-ENCODED_FRAME_LENGTH // 7)
+        self.assertEqual(len(captured), 1)
+        self.assertEqual(len(pmt.u8vector_elements(pmt.cdr(captured[0]))), 2 + 8 * EXPECTED_CODEWORDS + 8)
 
-        received_meta = pmt.car(captured[0])
-        combined_payload = b"".join(bytes(pmt.u8vector_elements(pmt.cdr(msg))) for msg in captured)
-        received_pdu = pmt.cons(received_meta, pmt.init_u8vector(len(combined_payload), list(combined_payload)))
-        self.tb.system_tester.handle_received(received_pdu)
+        self.tb.system_tester.handle_received(captured[0])
 
         stats = self.tb.system_tester.get_stats()
         self.assertEqual(stats["generated_packets"], 1)

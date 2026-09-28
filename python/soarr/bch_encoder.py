@@ -115,12 +115,14 @@ class bch_encoder(gr.basic_block):
                 at least 1 byte. No metadata keys are read or required.
 
         Publishes:
-            "codewords" (pmt_pair): one PDU per 56-bit chunk of the
-                payload (padded with CCSDS fill bits if not aligned),
-                each an 8-byte BCH codeword (7 info bytes + 1 parity/
-                filler byte). The metadata dict is reused across all of
-                a message's codewords; "filled" (bool) is added only to
-                the last one.
+            "codewords" (pmt_pair): one PDU per input message, holding
+                every codeword of the payload back to back: one 8-byte
+                BCH codeword (7 info bytes + 1 parity/filler byte) per
+                56-bit chunk, the last chunk padded with CCSDS fill bits
+                if not aligned. Keeping a frame's codewords together lets
+                cltu_framer wrap them in a single CLTU. Metadata is the
+                input's, plus "filled" (bool): whether fill bits were
+                added.
 
         Drops when:
             - msg is not a PDU pair (error - malformed input at the TX boundary, not raw RF noise)
@@ -158,6 +160,7 @@ class bch_encoder(gr.basic_block):
             if fill_count > 0:
                 self.logger.debug(f"Applied {fill_count} fill bits to complete BCH codeword boundary.")
 
+            output_data = bytearray()
             for bit_start in range(0, len(stuffed_bits), INPUT_SIZE):
                 info_bits = stuffed_bits[bit_start:bit_start + INPUT_SIZE]
                 info_bytes = self._bits_to_bytes(info_bits)
@@ -167,23 +170,14 @@ class bch_encoder(gr.basic_block):
                 # Pack parity bits (7 bits) + trailing filler bit (1 bit) per codeword.
                 parity_byte = self._bits_to_bytes(list(parity_bits) + [0] * FILLER_BITS)[0]
 
-                output_data = bytearray()
                 output_data.extend(info_bytes)
                 output_data.append(parity_byte)
 
-                # sets filled flag in the dictionary to the last codeword of an message
-                if bit_start + INPUT_SIZE >= len(stuffed_bits):
-                    meta = pmt.dict_add(meta, pmt.intern("filled"), pmt.from_bool(fill_count > 0))
-                
-                
-                # Create output PDU with encoded data (PMT expects a sequence of ints)
-                encoded_pdu = pmt.cons(meta, pmt.init_u8vector(len(output_data), list(output_data)))
-                
-                self.logger.debug(f"Encoded PDU: {len(output_data)} bytes")
-                
-                # Send the encoded PDU out
-                self.message_port_pub(pmt.intern("codewords"), encoded_pdu)
-            
+            meta = pmt.dict_add(meta, pmt.intern("filled"), pmt.from_bool(fill_count > 0))
+            encoded_pdu = pmt.cons(meta, pmt.init_u8vector(len(output_data), list(output_data)))
+            self.logger.debug(f"Encoded {len(output_data) // 8} codewords ({len(output_data)} bytes)")
+            self.message_port_pub(pmt.intern("codewords"), encoded_pdu)
+
             self.logger.info("OK")
 
         except Exception as exc:
