@@ -69,9 +69,8 @@ docs/
 - Block naming (in coding-standards.md, decided by
   [ADR-0001](adr/0001-block-naming-convention.md)) is snake_case — applied;
   every block's file, class, and GRC block-id now match. The
-  docstring/PMT-shape convention (ADR-0004) is applied throughout. Message-
-  handler error handling (ADR-0003) is applied to most blocks but not
-  all — see [to-do.md](to-do.md) for the specific remaining gap.
+  docstring/PMT-shape convention (ADR-0004) and message-handler error
+  handling (ADR-0003) are applied throughout as well.
 - PRDs carry no verification-status marker (no "Draft"/"Reviewed" field) —
   like ADRs and the root docs before them, a PRD is only committed after
   being reviewed and signed off in the same interview process that writes

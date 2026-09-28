@@ -4,12 +4,9 @@ The current, practical rules for writing code in gr-soarr — naming, error
 handling, and docstrings. This is "what to do"; each linked ADR is "why we
 decided it."
 
-**Naming is applied; error handling and docstrings are not yet.** All 20
-blocks use the snake_case naming below. Message-handler error handling
-still uses each block's original mixed raise/log-and-drop style, and
-docstrings are still `gr_modtool`'s placeholders — those two rules are the
-target for each block's future cleanup pass (Step 4 of the parent plan,
-driven per-block by `docs/prd/<block>.md`).
+All three rules below — snake_case naming, catch-log-drop message
+handlers, and the docstring/PMT-shape convention — are applied across all
+20 blocks. Per-block detail lives in [prd/](prd/).
 
 ## Block naming
 

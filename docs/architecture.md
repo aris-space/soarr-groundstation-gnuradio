@@ -1,12 +1,12 @@
 # Architecture
 
 Pipeline diagrams and block roles for gr-soarr. Domain terms (TC, CLTU, BCH,
-SDLS, SPI, IV, etc.) follow their CCSDS definitions.
+SDLS, SPI, IV, etc.) follow their CCSDS definitions. Per-block detail
+(message ports, PDU shapes, parameters, edge cases) lives in
+[prd/](prd/), one file per block.
 
 **Naming note:** every block below uses its current snake_case name, per
 [coding-standards.md](coding-standards.md) ([ADR-0001](adr/0001-block-naming-convention.md)).
-Message-handler error handling and docstrings are separate, still-pending
-cleanup passes — see coding-standards.md's status note.
 
 ## Legend
 
@@ -155,8 +155,3 @@ as confirmed-in-practice but not yet self-verifying from this repo alone.
   intended to become an in-repo example — it currently uses pre-rename
   `sage_*` block IDs *and* pre-ADR-0001 camelCase block names, so it needs
   updating on both counts before it can be added.
-- No `LICENSE` file; `MANIFEST.yml` has blank `license`/`repo`/`website`
-  fields — a real pre-public-release blocker, noted here but not resolved
-  as part of this documentation step.
-- Per-block detail (message port PDU shapes, parameters, edge cases) lives
-  in `docs/prd/<block>.md` — not yet written (Step 4 of the parent plan).
