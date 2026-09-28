@@ -32,6 +32,7 @@ gr_python_install(FILES __init__.py
     sdls_header.py
     encapsulation_header.py
     encapsulation_packet.py
+    encapsulation_parser.py
     ccsds_reader.py
     data_creator.py
     bch_decoder.py
@@ -91,6 +92,7 @@ GR_ADD_TEST(qa_sdls_header ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_s
 # Test the encapsulation header block
 GR_ADD_TEST(qa_encapsulation_header ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_encapsulation_header.py)
 GR_ADD_TEST(qa_encapsulation_packet ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_encapsulation_packet.py)
+GR_ADD_TEST(qa_encapsulation_parser ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_encapsulation_parser.py)
 
 # System layout tests
 GR_ADD_TEST(qa_tx_chain ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tx_chain.py)

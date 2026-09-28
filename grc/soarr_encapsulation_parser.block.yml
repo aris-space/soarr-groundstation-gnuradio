@@ -1,0 +1,28 @@
+id: soarr_encapsulation_parser
+label: Encapsulation Parser
+category: '[soarr]/Encapsulation'
+
+templates:
+  imports: from gnuradio import soarr
+  make: soarr.encapsulation_parser()
+
+inputs:
+- label: in
+  domain: message
+  optional: 0
+
+outputs:
+- label: out
+  domain: message
+  optional: 0
+
+documentation: |-
+  Splits CCSDS 133.1-B encapsulation packets and strips their headers - the RX counterpart of Encapsulation Header. The header fields go into the metadata as encapsulation_header.
+
+  Ports:
+  - in: one or more encapsulation packets back to back, from sdls_decryption.
+  - out: one PDU per data packet with the header removed. Idle packets produce no output.
+
+  Place it after SDLS decryption: with encryption on, the encapsulation header is encrypted until then.
+
+file_format: 1

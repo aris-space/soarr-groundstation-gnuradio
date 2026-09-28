@@ -5,7 +5,7 @@ CCSDS Telecommand (TC) uplink for ARIS's SOARR mission: encode, secure,
 frame, and transmit a telecommand on TX, and detect, correct, verify, and
 decrypt it again on RX.
 
-All 20 blocks are pure Python and appear in GNU Radio Companion under the
+All 21 blocks are pure Python and appear in GNU Radio Companion under the
 **[soarr]** category.
 
 ## Features
@@ -71,6 +71,7 @@ for the full pipeline description.
 | `ccsds_reader` | Reception | Parses a reassembled frame into its header fields and payload |
 | `sdls_authentication_verify` | SDLS | Verifies and strips the AES-CMAC tag |
 | `sdls_decryption` | SDLS | Decrypts the payload with AES-256-CTR |
+| `encapsulation_parser` | Encapsulation | Strips the encapsulation packet header after decryption, header fields into the metadata |
 | `bch_decoder` | CLTU | Standalone BCH (63,56) decoder (corrects up to 2 bit errors) |
 | `lfsr_descrambler` | LFSR | Standalone de-randomizer |
 | `data_creator` | Testing | Generates test payloads |

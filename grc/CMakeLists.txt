@@ -17,6 +17,7 @@ install(FILES
     soarr_inject_db.block.yml
     soarr_sdls_header.block.yml
     soarr_encapsulation_header.block.yml
+    soarr_encapsulation_parser.block.yml
     soarr_ccsds_reader.block.yml
     soarr_data_creator.block.yml
     soarr_bch_decoder.block.yml

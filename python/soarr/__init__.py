@@ -41,6 +41,7 @@ from .sdls_encryption import sdls_encryption
 from .inject_db import inject_db
 from .sdls_header import sdls_header
 from .encapsulation_header import encapsulation_header
+from .encapsulation_parser import encapsulation_parser
 from .ccsds_reader import ccsds_reader
 from .data_creator import data_creator
 from .bch_decoder import bch_decoder

@@ -16,7 +16,7 @@ development setup, and the decision records and PRDs that back them.
    - [0004 — Docstring and PMT shape convention](adr/0004-docstring-and-pmt-shape-convention.md)
    - [0005 — RX path canonical block](adr/0005-rx-path-canonical-block.md)
    - [0006 — Rename gr-sage to gr-soarr](adr/0006-rename-sage-to-soarr.md)
-5. `prd/` — one requirements doc per block (20 total, written in
+5. `prd/` — one requirements doc per block (21 total, written in
    signal-flow order):
    - [encapsulation_header](prd/encapsulation_header.md)
    - [sdls_encryption](prd/sdls_encryption.md)
@@ -37,6 +37,7 @@ development setup, and the decision records and PRDs that back them.
    - [ccsds_reader](prd/ccsds_reader.md)
    - [sdls_authentication_verify](prd/sdls_authentication_verify.md)
    - [sdls_decryption](prd/sdls_decryption.md)
+   - [encapsulation_parser](prd/encapsulation_parser.md)
    - [system_tester](prd/system_tester.md)
 6. [to-do.md](to-do.md) — outstanding, currently-postponed items
    (repo-level gaps, deferred per-block design questions)
@@ -51,7 +52,7 @@ docs/
 ├── coding-standards.md
 ├── to-do.md              outstanding/postponed items
 ├── adr/                 six accepted ADRs
-├── prd/                 one per block, 20 total
+├── prd/                 one per block, 21 total
 ├── doxygen/             gr_modtool Doxygen setup (C++ API docs)
 ├── CMakeLists.txt       builds doxygen/ when ENABLE_DOXYGEN is on
 └── README.soarr         gr_modtool-generated module readme
