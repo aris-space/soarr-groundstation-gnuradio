@@ -12,7 +12,7 @@ import pmt
 from Crypto.Hash import CMAC
 from Crypto.Cipher import AES
 
-from soarr.sdls_authentication import COUNTER_MAX, COUNTER_MIN, NONCE_LEN
+from .sdls_authentication import COUNTER_MAX, COUNTER_MIN, NONCE_LEN
 
 
 TAG_LEN = 16
