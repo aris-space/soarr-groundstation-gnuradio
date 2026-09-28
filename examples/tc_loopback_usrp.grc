@@ -1059,6 +1059,7 @@ blocks:
     alias: ''
     comment: ''
     input_packed: 'False'
+    max_codewords: '147'
     maxoutbuf: '0'
     minoutbuf: '0'
     output_packed: 'True'
@@ -2235,9 +2236,9 @@ blocks:
     type: int
     num_opts: '2'
     option0: '1'
-    label0: PLOP-1 (bursts)
+    label0: '"PLOP-1 (bursts)"'
     option1: '2'
-    label1: PLOP-2 (continuous carrier)
+    label1: '"PLOP-2 (continuous carrier)"'
     value: '1'
     widget: radio_buttons
     orient: Qt.QHBoxLayout

@@ -500,6 +500,7 @@ blocks:
     alias: ''
     comment: ''
     input_packed: 'False'
+    max_codewords: '147'
     maxoutbuf: '0'
     minoutbuf: '0'
     output_packed: 'True'
