@@ -12,7 +12,8 @@ metadata enrichment, not signal processing. See
 
 ## Pipeline position
 
-Used as two separate instances, one per chain:
+Used as two separate instances, one per chain — `role="tx"` and
+`role="rx"` respectively (see Parameters):
 
 ```
 TX: (caller: inject_db/data_creator's PDU source) → inject_db.in
@@ -40,11 +41,13 @@ RX chain diagram only — not independently wired or tested in this repo.
 | `in` | input | PDU: `(metadata_dict . payload_u8vector)`. Metadata must include `scid`/`spi` (int) and `bypass`/`control` (bool) — each checked at the top level first, falling back to the nested `telecommand.tc_header`/`sdls.security_header` path (see Behavior). | `pmt.cons({scid: 0x155, ...}, u8vector(payload))` |
 | `db_call` | output | The PDU received on `in`, with `db_request_id` (uint64, unique per request) added to its metadata, forwarded to `db_client` as a query. | `pmt.cons({scid: 0x155, ..., db_request_id: 7}, u8vector(payload))` |
 | `db_callback` | input | PDU: `(metadata_dict . payload_or_PMT_NIL)` — `db_client`'s query response, carrying the query's `db_request_id` back. The payload need not be a u8vector as long as a pending request supplies one instead (see Behavior) — e.g. `db_client(forward_body=False)`'s `PMT_NIL` payload. Metadata must include everything `in` requires, plus `auth_key`/`crypt_key` (symbol hex string or `PMT_NIL`) and `vcid`/`vcid_counter`/`sdls_counter` (int). | `pmt.cons({auth_key: "...", ...}, u8vector(payload))` |
-| `out` | output | The `db_callback` PDU's metadata, merged with the metadata of the `in` PDU it answers (`in`'s keys win — see Behavior), paired with that *original* `in` PDU's payload (not `db_callback`'s). `db_request_id` is removed. | `pmt.cons({merged}, u8vector(original_payload))` |
+| `out` | output | The `db_callback` PDU's metadata, merged with the metadata of the `in` PDU it answers (`in`'s keys win, except the counters in the TX role — see Behavior), paired with that *original* `in` PDU's payload (not `db_callback`'s). `db_request_id` is removed. | `pmt.cons({merged}, u8vector(original_payload))` |
 
 ## Parameters
 
-None.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `role` | str: `"tx"` \| `"rx"` | `"tx"` | Who owns the per-frame counters (`sdls_counter`, `vcid_counter`). `"tx"`: the database assigns them and its values replace any the `in` PDU carries. `"rx"`: the `in` PDU's counters (read from the received frame) are kept and the database's are ignored. Any other value raises `ValueError`. The role is logged at `info` on startup. |
 
 ## Behavior / edge cases / current error handling
 
@@ -87,7 +90,16 @@ values keep their original PMT type — nothing round-trips through a
 Python conversion), merges it into the pending metadata **only if that
 key is genuinely absent everywhere** (checked via `_resolve_key`, which
 itself checks both the top level and the relevant nested path) — an
-existing top-level or nested value always wins over the callback's.
+existing top-level or nested value wins over the callback's.
+
+The exception is the counters (`DB_OWNED_KEYS`: `sdls_counter`,
+`vcid_counter`) in the TX role: the database's value is always written
+to the nested path, and a top-level copy in the `in` metadata is
+removed, so a frame source's fixed placeholders (e.g. `data_creator`'s,
+default 0) never reach the wire and no counter repeats. In the RX role
+the counters follow the normal rule: the values `ccsds_reader` read from
+the received frame are kept, so the RX database's own counters (which
+don't know about lost frames) can't put SDLS authentication out of step.
 `scid`/`vcid`/`bypass`→`bypass_flag`/`control`→`control_flag`/
 `vcid_counter` are merged under `telecommand.tc_header`; `spi`/
 `sdls_counter` under `sdls.security_header`. This exact logic is the
@@ -138,8 +150,8 @@ None currently.
 
 ## Test coverage
 
-- `python/soarr/qa_inject_db.py` — 27 test methods (`test_instance` +
-  `test_001`–`test_026`): a valid `in` PDU (with nested `telecommand`/
+- `python/soarr/qa_inject_db.py` — 31 test methods (`test_instance` +
+  `test_001`–`test_030`): a valid `in` PDU (with nested `telecommand`/
   `sdls` metadata) emitting a `db_call`, a missing required key and a
   non-integer `scid` each emitting nothing, a `db_callback` with valid
   symbol-hex `auth_key`/`crypt_key` emitting `out`, a genuinely nil
@@ -149,10 +161,10 @@ None currently.
   required field rejected, a non-u8vector payload rejected, integer
   `0`/`1` accepted in place of real PMT booleans for `bypass`/`control`,
   a missing `spi` rejected, a `db_callback` filling in keys absent from
-  the original `in` metadata (`test_012`), confirming the merge never
-  overwrites a key the original `in` metadata already had — including
-  confirming a genuinely nil `auth_key`/`crypt_key` survives the merge as
-  real `PMT_NIL`, not some other value (`test_013`), `auth_key`/
+  the original `in` metadata (`test_012`), confirming the merge keeps
+  every other key the original `in` metadata already had — including a
+  genuinely nil `auth_key`/`crypt_key` surviving as real `PMT_NIL` — while
+  the TX role takes the database's counters (`test_013`), `auth_key`/
   `crypt_key` genuinely absent (not merely nil) also accepted
   (`test_014`), and a mock-forced publish failure proven to be caught
   and dropped rather than raised through the real handler, for both
@@ -171,3 +183,8 @@ None currently.
   bounded at `MAX_PENDING_REQUESTS` with the oldest evicted (`test_025`),
   and two in-flight requests against a real `db_client`, answered in
   reverse order, each receiving its own entry's counter (`test_026`).
+  Counter ownership: top-level counters in the `in` metadata removed in
+  favour of the database's nested ones (`test_027`), the `in` counters
+  kept when the database sends none (`test_028`), `role="rx"` keeping the
+  frame's counters over the database's (`test_029`), and an invalid role
+  raising `ValueError` (`test_030`).

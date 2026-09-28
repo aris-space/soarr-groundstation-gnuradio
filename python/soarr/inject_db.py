@@ -18,6 +18,13 @@ NULLABLE_TYPES = frozenset({"int_or_nil", "secret_or_nil"})
 # db_callback so each response is paired with its own request.
 REQUEST_ID_KEY = "db_request_id"
 
+# Per-frame counters. On TX the database assigns and increments them, so its
+# values replace the request's (a counter reused under the same key would
+# break AES-CTR, and a repeated frame sequence number is rejected on board).
+# On RX they were read from the received frame and must be kept.
+DB_OWNED_KEYS = frozenset({"sdls_counter", "vcid_counter"})
+ROLES = ("tx", "rx")
+
 
 class inject_db(gr.basic_block):
     """
@@ -32,7 +39,8 @@ class inject_db(gr.basic_block):
     - Receive the query response on `db_callback`, look up the pending
       request by the echoed `db_request_id` (a response without one is
       paired with the oldest pending request), merge it with that
-      request's metadata (the request's own keys always win), validate the
+      request's metadata (the request's own keys win; with role "tx" the
+      database's sdls_counter/vcid_counter replace the request's), validate the
       merged result has every field downstream blocks need, publish on
       `out` paired with the request's original payload
 
@@ -43,10 +51,23 @@ class inject_db(gr.basic_block):
 
     MAX_PENDING_REQUESTS = 256
 
-    def __init__(self):
+    def __init__(self, role:str="tx"):
         """
-        Args: none.
+        Args:
+            role (str): where this instance sits, which decides who owns the
+                per-frame counters (sdls_counter, vcid_counter):
+                "tx" - the database assigns them; its values replace any
+                    the request carries (e.g. data_creator's fixed ones).
+                "rx" - they were read from the received frame (IV, frame
+                    sequence number) and are kept; the database's are
+                    ignored, so a lost frame can't shift them.
+
+        Raises:
+            ValueError: role is not "tx" or "rx".
         """
+        if role not in ROLES:
+            raise ValueError(f"role must be 'tx' or 'rx', got {role!r}.")
+        self.role = role
         gr.basic_block.__init__(self,
             name="Inject DB",
             in_sig=None,
@@ -67,6 +88,10 @@ class inject_db(gr.basic_block):
         # request id -> (metadata dict, payload), oldest first
         self._pending = OrderedDict()
         self._next_request_id = 0
+        self.logger.info(
+            "role tx: counters from the database" if role == "tx"
+            else "role rx: counters from the received frame"
+        )
 
     def _is_integer_pmt(self, value) -> bool:
         """
@@ -217,7 +242,9 @@ class inject_db(gr.basic_block):
             primary (pmt_dict): metadata dict whose existing keys always win.
             secondary (pmt_dict): metadata dict to merge keys from - only
                 keys genuinely absent from primary (top level and, where
-                applicable, the nested path) are merged in.
+                applicable, the nested path) are merged in, except the
+                DB_OWNED_KEYS counters with role "tx": those always
+                replace primary's (a top-level copy in primary is removed).
 
         Returns:
             pmt_dict: primary, with secondary's absent keys merged into
@@ -237,6 +264,14 @@ class inject_db(gr.basic_block):
             key = pmt.car(item)
             value = pmt.cdr(item)
             key_str = pmt.symbol_to_string(key) if pmt.is_symbol(key) else None
+            if key_str in DB_OWNED_KEYS and self.role == "tx":
+                # Drop a top-level copy from the request, which downstream
+                # blocks would read before the nested value set below.
+                if pmt.dict_has_key(merged, key):
+                    merged = pmt.dict_delete(merged, key)
+                merged = self._merge_key_into_nested(merged, key_str, value)
+                merged_keys.append(key_str)
+                continue
             if key_str is None or not self._should_merge_key(merged, key_str):
                 continue
             merged = self._merge_key_into_nested(merged, key_str, value)
@@ -417,7 +452,7 @@ class inject_db(gr.basic_block):
         Publishes:
             "out" (pmt_pair): this PDU's metadata merged with the metadata
                 of the pending request it answers (the request's own keys
-                always win - see _merge_metadata), paired with that
+                win, except the counters - see _merge_metadata), paired with that
                 request's original payload. The request is the one whose id
                 matches this PDU's `db_request_id`, or the oldest pending
                 one if `db_request_id` is absent. If no request is pending,

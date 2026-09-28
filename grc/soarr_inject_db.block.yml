@@ -4,9 +4,15 @@ category: '[soarr]/Database'
 
 templates:
   imports: from gnuradio import soarr
-  make: soarr.inject_db()
+  make: soarr.inject_db(${role})
 
-parameters: []
+parameters:
+- id: role
+  label: Role
+  dtype: enum
+  options: ['"tx"', '"rx"']
+  option_labels: ['TX (database assigns counters)', 'RX (counters from the frame)']
+  default: '"tx"'
 
 inputs:
 - label: in
@@ -26,6 +32,11 @@ outputs:
 
 documentation: |-
   Looks up the keys and counters for each frame in db_client and merges them into the PDU's metadata.
+
+  Role decides who owns the per-frame counters (SDLS counter, frame sequence number):
+  - TX: the database assigns them and its values replace any the frame source set (e.g. Data Creator's fixed ones), so no counter repeats.
+  - RX: they were read from the received frame and are kept; the RX database's own counters are ignored, so a lost frame can't put them out of step.
+  Use TX for the instance before Encapsulation Header and RX for the one after CCSDS Reader.
 
   Ports:
   - in: frames needing key material (metadata: scid, spi, bypass, control).

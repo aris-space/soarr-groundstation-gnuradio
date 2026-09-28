@@ -376,7 +376,11 @@ class qa_inject_db(gr_unittest.TestCase):
         self.assertTrue(pmt.is_integer(tc_vcid_counter) and int(pmt.to_long(tc_vcid_counter)) == 7)
         self.assertTrue(pmt.is_integer(sdls_counter) and int(pmt.to_long(sdls_counter)) == 9)
 
-    def test_013_db_merge_does_not_overwrite_existing(self):
+    # The request's own keys win, except the counters: sdls_counter and
+    # vcid_counter are owned by the database, which assigns and increments
+    # them, so its values replace whatever the request (e.g. data_creator)
+    # carried.
+    def test_013_db_merge_keeps_request_keys_but_takes_db_counters(self):
         block = inject_db()
         original_pub, published = self._capture_pub(block)
         try:
@@ -415,8 +419,8 @@ class qa_inject_db(gr_unittest.TestCase):
         tc_vcid_counter = self._get_nested_value(out_meta, ["telecommand", "tc_header", "vcid_counter"])
         sdls_counter = self._get_nested_value(out_meta, ["sdls", "security_header", "sdls_counter"])
         self.assertTrue(pmt.is_integer(tc_vcid) and int(pmt.to_long(tc_vcid)) == 0x44)
-        self.assertTrue(pmt.is_integer(tc_vcid_counter) and int(pmt.to_long(tc_vcid_counter)) == 3)
-        self.assertTrue(pmt.is_integer(sdls_counter) and int(pmt.to_long(sdls_counter)) == 5)
+        self.assertTrue(pmt.is_integer(tc_vcid_counter) and int(pmt.to_long(tc_vcid_counter)) == 99)
+        self.assertTrue(pmt.is_integer(sdls_counter) and int(pmt.to_long(sdls_counter)) == 77)
 
         # A genuinely nil auth_key/crypt_key must survive the merge as
         # PMT_NIL, not get corrupted into some other PMT value.
@@ -755,6 +759,76 @@ entries:
             self._restore_pub(client, original_client_pub)
 
         self.assertEqual(self._outputs(published), [(bytes([0xB]), 200), (bytes([0xA]), 100)])
+
+
+    def test_027_top_level_request_counters_replaced_by_db(self):
+        # Counters the request carries at the top level would shadow the
+        # nested ones downstream (blocks check the top level first), so
+        # they are removed and the database's values go to the nested path.
+        block = inject_db()
+        original_pub, published = self._capture_pub(block)
+        try:
+            meta = self._mk_meta({"scid": 0x155, "spi": 1, "bypass": False, "control": True,
+                                  "vcid_counter": 3, "sdls_counter": 5})
+            block.send_db_call(pmt.cons(meta, pmt.init_u8vector(1, [1])))
+            (call,) = self._db_calls(published)
+            block.send_msg_out(self._mk_response(self._request_id(call), 77))
+        finally:
+            self._restore_pub(block, original_pub)
+
+        (out,) = [m for p, m in published if pmt.eqv(p, pmt.intern("out"))]
+        out_meta = pmt.car(out)
+        self.assertFalse(pmt.dict_has_key(out_meta, pmt.intern("sdls_counter")))
+        self.assertFalse(pmt.dict_has_key(out_meta, pmt.intern("vcid_counter")))
+        self.assertEqual(pmt.to_long(self._get_nested_value(out_meta, ["sdls", "security_header", "sdls_counter"])), 77)
+        self.assertEqual(pmt.to_long(self._get_nested_value(out_meta, ["telecommand", "tc_header", "vcid_counter"])), 1)
+
+    def test_028_request_counters_kept_when_db_sends_none(self):
+        # A database that doesn't supply counters leaves the request's own.
+        block = inject_db()
+        original_pub, published = self._capture_pub(block)
+        try:
+            meta = self._mk_meta({"scid": 0x155, "spi": 1, "bypass": False, "control": True,
+                                  "vcid": 0x12, "vcid_counter": 3, "sdls_counter": 5})
+            block.send_db_call(pmt.cons(meta, pmt.init_u8vector(1, [1])))
+            (call,) = self._db_calls(published)
+            db_meta = self._mk_meta({"auth_key": pmt.intern(self.AUTH_KEY), "crypt_key": pmt.intern(self.CRYPT_KEY)})
+            db_meta = pmt.dict_add(db_meta, pmt.intern("db_request_id"), self._request_id(call))
+            block.send_msg_out(pmt.cons(db_meta, pmt.PMT_NIL))
+        finally:
+            self._restore_pub(block, original_pub)
+
+        (out,) = [m for p, m in published if pmt.eqv(p, pmt.intern("out"))]
+        self.assertEqual(pmt.to_long(pmt.dict_ref(pmt.car(out), pmt.intern("sdls_counter"), pmt.PMT_NIL)), 5)
+        self.assertEqual(pmt.to_long(pmt.dict_ref(pmt.car(out), pmt.intern("vcid_counter"), pmt.PMT_NIL)), 3)
+
+
+    def test_029_rx_role_keeps_the_frames_counters(self):
+        # On RX the counters in the metadata were read from the received
+        # frame (IV, frame sequence number); verification and decryption need
+        # exactly those. A lost frame puts the RX database's own counter out
+        # of step, so it must never replace them.
+        block = inject_db(role="rx")
+        original_pub, published = self._capture_pub(block)
+        try:
+            meta = pmt.make_dict()
+            meta = pmt.dict_add(meta, pmt.intern("telecommand"), self._mk_nested_tc({
+                "scid": 0x155, "vcid_counter": 8, "bypass_flag": False, "control_flag": True}))
+            meta = pmt.dict_add(meta, pmt.intern("sdls"), self._mk_nested_sdls({"spi": 1, "sdls_counter": 8}))
+            block.send_db_call(pmt.cons(meta, pmt.init_u8vector(1, [1])))
+            (call,) = self._db_calls(published)
+            block.send_msg_out(self._mk_response(self._request_id(call), 7))  # RX DB one behind
+        finally:
+            self._restore_pub(block, original_pub)
+
+        (out,) = [m for p, m in published if pmt.eqv(p, pmt.intern("out"))]
+        out_meta = pmt.car(out)
+        self.assertEqual(pmt.to_long(self._get_nested_value(out_meta, ["sdls", "security_header", "sdls_counter"])), 8)
+        self.assertEqual(pmt.to_long(self._get_nested_value(out_meta, ["telecommand", "tc_header", "vcid_counter"])), 8)
+
+    def test_030_invalid_role_raises(self):
+        with self.assertRaises(ValueError):
+            inject_db(role="both")
 
 
 if __name__ == '__main__':

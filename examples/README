@@ -56,7 +56,8 @@ db_client_example.yaml
 Example key/counter database for the db_client block's local-file mode.
 db_client answers inject_db's lookups (keyed by SCID and SPI) with the
 matching entry's VCID, encryption key, authentication key, SDLS counter,
-and VCID counter.
+and VCID counter. The TX Inject DB (role TX) puts those counters into each
+frame; the RX Inject DB (role RX) keeps the counters read from the frame.
 
 To use it in GNU Radio Companion, set the db_client block's parameters to:
 

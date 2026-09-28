@@ -58,7 +58,9 @@ already has `scid`/`spi`, this block's echoed values are normally
 *discarded* by that merge, not nested — a different relationship to
 `inject_db`'s merge logic than `vcid`/`vcid_counter`/`sdls_counter`
 (which `db_client` genuinely does originate fresh, and which do end up
-nested, per `inject_db.py`'s PRD).
+nested, per `inject_db.py`'s PRD). In `inject_db`'s TX role the two
+counters are always taken from this block, even when the query already
+carried some; in its RX role the frame's counters win.
 
 **Counter model**: each dummy/YAML entry is a persistent, mutable dict
 stored in `self._db` — `sdls_counter`/`vcid_counter` are served, then

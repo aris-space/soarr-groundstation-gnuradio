@@ -60,7 +60,9 @@ flowchart LR
 
 `db_client` is a query/response side-channel off `inject_db` (`db_call`/
 `db_callback` ports) — not a parallel input into the main chain. Only
-`inject_db`'s `out` port feeds `encapsulation_header`.
+`inject_db`'s `out` port feeds `encapsulation_header`. This instance runs
+with `role="tx"`: the database assigns the SDLS counter and frame sequence
+number, replacing any the payload source set.
 
 Order is encrypt-then-authenticate (`sdls_encryption` before
 `sdls_authentication`) — confirmed, not open.
@@ -154,9 +156,10 @@ only output — not a diagnostic-only tap (confirmed: it's wired onward to
 the next block in the working flowgraph, not just to a debug sink).
 
 A second `inject_db`/`db_client` pair sits between `ccsds_reader` and
-`sdls_authentication_verify`, mirroring the TX-side key lookup —
-presumably fetching the SDLS key material needed for verification and
-decryption.
+`sdls_authentication_verify`, mirroring the TX-side key lookup and
+fetching the SDLS key material needed for verification and decryption.
+It runs with `role="rx"`: the counters read from the received frame are
+kept, not replaced by the RX database's.
 
 The dashed `cltu_deframer → bch_decoder → lfsr_descrambler` path (bottom)
 is a separate, standalone GRC-wireable chain, exercised only by

@@ -1152,6 +1152,7 @@ blocks:
     comment: ''
     maxoutbuf: '0'
     minoutbuf: '0'
+    role: '"tx"'
   states:
     bus_sink: false
     bus_source: false
@@ -1169,6 +1170,7 @@ blocks:
     comment: ''
     maxoutbuf: '0'
     minoutbuf: '0'
+    role: '"rx"'
   states:
     bus_sink: false
     bus_source: false

@@ -36,7 +36,7 @@ only test coverage is standalone, via its own qa file.
 | `mode` | int | `0` | Only `0` is implemented. Any other value is dropped and logged at `error` (no publish). |
 | `data` | int \| bytes \| bytearray \| array-like \| `None` | `None` | Explicit payload. An int is left-padded big-endian to `data_length_bytes` (or its own minimal byte width if `data_length_bytes` is `None`) — the one combination of `data`+`data_length_bytes` that's allowed together, since it's the only one with a single unambiguous meaning. For bytes/bytearray/array-like `data`, `data_length_bytes` must either be omitted or match the data's actual length exactly (raises `ValueError` otherwise). |
 | `data_length_bytes` | int \| `None` | `None` | Required if `data` is `None` (length of the randomly generated payload). |
-| `scid`, `spi`, `bypass`, `control`, `vcid`, `vcid_counter`, `sdls_counter` | int, int, bool, bool, int, int, int | all `0`/`False` | Written into the output metadata's nested `tc_header`/`security_header` (see Message ports). All seven are exposed as GRC parameters and passed through the `make:` template. |
+| `scid`, `spi`, `bypass`, `control`, `vcid`, `vcid_counter`, `sdls_counter` | int, int, bool, bool, int, int, int | all `0`/`False` | Written into the output metadata's nested `tc_header`/`security_header` (see Message ports). All seven are exposed as GRC parameters and passed through the `make:` template. `vcid_counter`/`sdls_counter` are placeholders when this block feeds `inject_db(role="tx")`, which replaces them with `db_client`'s counters. |
 
 ## Behavior / edge cases / current error handling
 
