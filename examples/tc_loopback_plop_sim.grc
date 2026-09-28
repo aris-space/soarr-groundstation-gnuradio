@@ -34,28 +34,6 @@ options:
     rotation: 0
     state: enabled
 blocks:
-- name: CCSDS_BPSK
-  id: variable_constellation
-  parameters:
-    comment: ''
-    const_points: '[-1-1j, -1+1j, 1+1j, 1-1j]'
-    dims: '1'
-    normalization: digital.constellation.AMPLITUDE_NORMALIZATION
-    npwr: '1.0'
-    precision: '8'
-    rot_sym: '4'
-    soft_dec_lut: None
-    sym_map: '[0, 1, 3, 2]'
-    type: bpsk
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1488
-    - 652.0
-    rotation: 0
-    state: enabled
 - name: SCID
   id: variable
   parameters:
@@ -243,20 +221,6 @@ blocks:
     - 396.0
     rotation: 0
     state: enabled
-- name: samp_rate_0
-  id: variable
-  parameters:
-    comment: ''
-    value: 400e3
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 120
-    - 764.0
-    rotation: 0
-    state: disabled
 - name: sps_sync
   id: variable
   parameters:
@@ -271,29 +235,6 @@ blocks:
     - 964.0
     rotation: 0
     state: enabled
-- name: tx_power_normal
-  id: variable_qtgui_range
-  parameters:
-    comment: ''
-    gui_hint: ''
-    label: Normalized Tx Gain
-    min_len: '200'
-    orient: QtCore.Qt.Horizontal
-    rangeType: float
-    start: '0.01'
-    step: '0.01'
-    stop: '1'
-    value: '0.05'
-    widget: counter_slider
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1760
-    - 764.0
-    rotation: 0
-    state: enabled
 - name: uhf_bandwidth
   id: variable
   parameters:
@@ -306,20 +247,6 @@ blocks:
     coordinate:
     - 1760
     - 396.0
-    rotation: 0
-    state: enabled
-- name: uhf_center
-  id: variable
-  parameters:
-    comment: ''
-    value: 437.065e6
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 2064
-    - 692.0
     rotation: 0
     state: enabled
 - name: analog_agc_xx_0
@@ -357,27 +284,10 @@ blocks:
     bus_source: false
     bus_structure: null
     coordinate:
-    - 1992
+    - 2080
     - 1328.0
     rotation: 0
     state: enabled
-- name: blocks_message_debug_0_0_0
-  id: blocks_message_debug
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    en_uvec: 'True'
-    log_level: debug
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1128
-    - 1536.0
-    rotation: 0
-    state: disabled
 - name: blocks_message_strobe_0
   id: blocks_message_strobe
   parameters:
@@ -628,100 +538,6 @@ blocks:
     - 492.0
     rotation: 0
     state: enabled
-- name: qtgui_const_sink_x_0
-  id: qtgui_const_sink_x
-  parameters:
-    affinity: ''
-    alias: ''
-    alpha1: '1.0'
-    alpha10: '1.0'
-    alpha2: '1.0'
-    alpha3: '1.0'
-    alpha4: '1.0'
-    alpha5: '1.0'
-    alpha6: '1.0'
-    alpha7: '1.0'
-    alpha8: '1.0'
-    alpha9: '1.0'
-    autoscale: 'False'
-    axislabels: 'True'
-    color1: '"blue"'
-    color10: '"dark blue"'
-    color2: '"red"'
-    color3: '"green"'
-    color4: '"black"'
-    color5: '"cyan"'
-    color6: '"magenta"'
-    color7: '"yellow"'
-    color8: '"dark red"'
-    color9: '"dark green"'
-    comment: ''
-    grid: 'False'
-    gui_hint: ''
-    label1: Trasmitted
-    label10: ''
-    label2: Received
-    label3: ''
-    label4: ''
-    label5: ''
-    label6: ''
-    label7: ''
-    label8: ''
-    label9: ''
-    legend: 'True'
-    marker1: '0'
-    marker10: '0'
-    marker2: '0'
-    marker3: '0'
-    marker4: '0'
-    marker5: '0'
-    marker6: '0'
-    marker7: '0'
-    marker8: '0'
-    marker9: '0'
-    name: '""'
-    nconnections: '2'
-    size: '256'
-    style1: '0'
-    style10: '0'
-    style2: '0'
-    style3: '0'
-    style4: '0'
-    style5: '0'
-    style6: '0'
-    style7: '0'
-    style8: '0'
-    style9: '0'
-    tr_chan: '0'
-    tr_level: '0.0'
-    tr_mode: qtgui.TRIG_MODE_FREE
-    tr_slope: qtgui.TRIG_SLOPE_POS
-    tr_tag: '""'
-    type: complex
-    update_time: '0.10'
-    width1: '1'
-    width10: '1'
-    width2: '1'
-    width3: '1'
-    width4: '1'
-    width5: '1'
-    width6: '1'
-    width7: '1'
-    width8: '1'
-    width9: '1'
-    xmax: '2'
-    xmin: '-2'
-    ymax: '2'
-    ymin: '-2'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1880
-    - 984.0
-    rotation: 0
-    state: disabled
 - name: qtgui_eye_sink_x_0
   id: qtgui_eye_sink_x
   parameters:
@@ -1012,7 +828,7 @@ blocks:
     bus_structure: null
     coordinate:
     - 488
-    - 1324.0
+    - 1316.0
     rotation: 0
     state: enabled
 - name: soarr_cltu_framer_0
@@ -1090,8 +906,8 @@ blocks:
     bus_source: false
     bus_structure: null
     coordinate:
-    - 768
-    - 228.0
+    - 832
+    - 220.0
     rotation: 0
     state: enabled
 - name: soarr_db_client_0_0
@@ -1122,8 +938,8 @@ blocks:
     bus_source: false
     bus_structure: null
     coordinate:
-    - 1336
-    - 1460.0
+    - 1384
+    - 1436.0
     rotation: 0
     state: enabled
 - name: soarr_encapsulation_header_0
@@ -1176,7 +992,7 @@ blocks:
     bus_source: false
     bus_structure: null
     coordinate:
-    - 1400
+    - 1384
     - 1360.0
     rotation: 0
     state: enabled
@@ -1233,7 +1049,7 @@ blocks:
     bus_source: false
     bus_structure: null
     coordinate:
-    - 1536
+    - 1632
     - 1348.0
     rotation: 0
     state: enabled
@@ -1252,7 +1068,7 @@ blocks:
     bus_source: false
     bus_structure: null
     coordinate:
-    - 1768
+    - 1856
     - 1348.0
     rotation: 0
     state: enabled
@@ -1357,21 +1173,6 @@ blocks:
     - 140.0
     rotation: 0
     state: enabled
-- name: virtual_sink_3
-  id: virtual_sink
-  parameters:
-    alias: ''
-    comment: ''
-    stream_id: virtual_channel
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1232
-    - 452.0
-    rotation: 0
-    state: disabled
 - name: virtual_source_0
   id: virtual_source
   parameters:
@@ -1539,7 +1340,7 @@ blocks:
     bus_source: false
     bus_structure: null
     coordinate:
-    - 2018
+    - 2106
     - 1348.0
     rotation: 0
     state: enabled
@@ -1570,10 +1371,6 @@ connections:
   - '0'
 - - digital_costas_loop_cc_0
   - '0'
-  - qtgui_const_sink_x_0
-  - '1'
-- - digital_costas_loop_cc_0
-  - '0'
   - qtgui_eye_sink_x_0
   - '0'
 - - digital_costas_loop_cc_0
@@ -1584,10 +1381,6 @@ connections:
   - out
   - virtual_sink_0
   - '0'
-- - digital_crc_check_0
-  - fail
-  - blocks_message_debug_0_0_0
-  - log
 - - digital_crc_check_0
   - ok
   - soarr_ccsds_reader_0
@@ -1624,10 +1417,6 @@ connections:
   - out
   - digital_crc_check_0
   - in
-- - soarr_cltu_deframer_0
-  - out
-  - blocks_message_debug_0_0_0
-  - log
 - - soarr_cltu_deframer_0
   - out
   - soarr_ccsds_receiver_0

@@ -34,28 +34,6 @@ options:
     rotation: 0
     state: enabled
 blocks:
-- name: CCSDS_BPSK
-  id: variable_constellation
-  parameters:
-    comment: ''
-    const_points: '[-1-1j, -1+1j, 1+1j, 1-1j]'
-    dims: '1'
-    normalization: digital.constellation.AMPLITUDE_NORMALIZATION
-    npwr: '1.0'
-    precision: '8'
-    rot_sym: '4'
-    soft_dec_lut: None
-    sym_map: '[0, 1, 3, 2]'
-    type: bpsk
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1536
-    - 1332.0
-    rotation: 0
-    state: enabled
 - name: SCID
   id: variable
   parameters:
@@ -179,20 +157,6 @@ blocks:
     - 1076.0
     rotation: 0
     state: enabled
-- name: samp_rate_0
-  id: variable
-  parameters:
-    comment: ''
-    value: 400e3
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 2344
-    - 1132.0
-    rotation: 0
-    state: disabled
 - name: tx_power_normal
   id: variable_qtgui_range
   parameters:
@@ -230,39 +194,6 @@ blocks:
     - 1076.0
     rotation: 0
     state: enabled
-- name: uhf_center
-  id: variable
-  parameters:
-    comment: ''
-    value: 437.065e6
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 2112
-    - 1372.0
-    rotation: 0
-    state: enabled
-- name: blocks_message_strobe_0
-  id: blocks_message_strobe
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    msg: pmt.intern("start")
-    period: '500'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 328
-    - 476.0
-    rotation: 0
-    state: disabled
 - name: digital_crc_append_0
   id: digital_crc_append
   parameters:
@@ -911,21 +842,6 @@ blocks:
     - 404.0
     rotation: 0
     state: enabled
-- name: virtual_sink_3
-  id: virtual_sink
-  parameters:
-    alias: ''
-    comment: ''
-    stream_id: virtual_channel
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1280
-    - 1132.0
-    rotation: 0
-    state: disabled
 - name: virtual_source_0
   id: virtual_source
   parameters:
@@ -1020,10 +936,6 @@ blocks:
     rotation: 0
     state: enabled
 connections:
-- - blocks_message_strobe_0
-  - strobe
-  - soarr_data_creator_0
-  - ping
 - - digital_crc_append_0
   - out
   - virtual_sink_0
