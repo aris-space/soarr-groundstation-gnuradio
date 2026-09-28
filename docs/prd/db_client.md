@@ -65,11 +65,11 @@ stored in `self._db` — `sdls_counter`/`vcid_counter` are served, then
 incremented in place (`entry["sdls_counter"] = ...`), so counters
 genuinely persist and monotonically increase across calls for the
 lifetime of the block instance (not reset per-call). `sdls_counter` is
-modeled as **32-bit** (`SDLS_COUNTER_MAX = 0xFFFFFFFF`); `vcid_counter`
-as **8-bit** (`VCID_COUNTER_MAX = 0xFF`). This 32-bit `sdls_counter`
-ceiling is the actual origin of the 32-bit-vs-16-bit mismatch documented
-in `sdls_encryption`'s and `sdls_authentication`'s PRDs (those blocks
-each cap `sdls_counter` at 16 bits internally).
+modeled as **16-bit** (`SDLS_COUNTER_MAX = 0xFFFF`) — it is transmitted
+as the 2-byte IV in `sdls_header`'s Security Header, and every SDLS block
+accepts exactly `0`–`65535`. `vcid_counter` is **8-bit**
+(`VCID_COUNTER_MAX = 0xFF`). A stored counter outside its range is
+rejected per request (logged at `error`, no publish).
 
 **Counter overflow**: `_checked_increment` raises `OverflowError` if a
 counter is already at its max; caught separately for `sdls_counter` and
@@ -78,6 +78,14 @@ counter is already at its max; caught separately for `sdls_counter` and
 Overflow is checked *after* publishing the current (pre-increment)
 value, so the query that pushes a counter to its max still gets a valid
 response — only the *next* query at that SCID/SPI is affected.
+
+**`sdls_counter` exhaustion**: without auto-reset, an `sdls_counter`
+overflow marks the entry `sdls_counter_exhausted`, and every later query
+for that SCID/SPI is refused (logged at `error`, no publish) instead of
+re-serving the max value — re-serving it would reuse a (key, counter)
+pair, which breaks AES-CTR confidentiality. Other entries are unaffected.
+The entry stays refused until the block is restarted with a new key.
+`vcid_counter` has no such guard; at its max it keeps being re-served.
 
 **`forward_body=False` (or a non-u8vector query payload)**: the
 `db_callback` response's payload becomes `PMT_NIL`. This is harmless in
@@ -118,13 +126,13 @@ None — this block is pure key/counter lookup, not a CCSDS-defined layer.
 
 ## Test coverage
 
-- `python/soarr/qa_db_client.py` — 20 test methods (`test_instance` +
-  `test_001`–`test_019`): a dummy-mode lookup returning every expected
+- `python/soarr/qa_db_client.py` — 22 test methods (`test_instance` +
+  `test_001`–`test_021`): a dummy-mode lookup returning every expected
   field and incrementing both counters across two calls, a missing
   `scid`/`spi` and an unknown `scid`/`spi` each emitting nothing, YAML
   mode loading a flat-layout entry and using it (`test_004`), a counter
-  already at max being served correctly with no wraparound
-  (`auto_reset_counters` off), configurable dummy SCID/SPI/VCID,
+  already at max being served once with no wraparound, then refused
+  (`auto_reset_counters` off, `test_005`), configurable dummy SCID/SPI/VCID,
   configurable dummy keys, configurable dummy initial counters,
   configurable dummy key states, every dummy parameter combined in one
   test, `forward_body=True` preserving a u8vector payload,
@@ -140,4 +148,6 @@ None — this block is pure key/counter lookup, not a CCSDS-defined layer.
   `test_004`'s flat layout, with no explicit `SCID`/`SPI` field on the
   inner entries (`test_018`), and a mock-forced publish failure proven to
   be caught and dropped rather than raised through the real handler
-  (`test_019`).
+  (`test_019`), a stored `sdls_counter` above 16 bits refused
+  (`test_020`), and an exhausted entry refused while another entry keeps
+  being served (`test_021`).

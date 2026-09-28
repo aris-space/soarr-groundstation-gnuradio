@@ -66,11 +66,8 @@ always arrives at the nested path: `ccsds_reader`
 populates `sdls.security_header.sdls_counter` directly from the parsed
 SDLS Security Header's `initialization_vector` field
 (`ccsds_reader.py:368`), itself a fixed-width 16-bit wire field — so
-unlike `sdls_encryption.md`'s documented counter-width mismatch with
-`db_client` (which can issue an unbounded, monotonically-incrementing
-32-bit counter on TX), this block's inbound counter is inherently
-bounded to 16 bits by the wire format it was parsed from, not by
-anything `db_client` supplies.
+this block's inbound counter is inherently bounded to 16 bits by the
+wire format it was parsed from.
 
 **Decryption** (`_decrypt_payload`): `AES.new(key, AES.MODE_CTR, nonce=self.nonce, initial_value=counter).decrypt(payload)`
 — AES-CTR is symmetric, so this is the same operation

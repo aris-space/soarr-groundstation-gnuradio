@@ -96,10 +96,6 @@ support for SDLS's other permitted MAC schemes.
 
 ## Known issues / TODOs
 
-- **Same counter-width mismatch with `db_client` as `sdls_encryption`**
-  (see [its PRD](sdls_encryption.md#known-issues--todos) for the full
-  analysis) — this block imports the identical `COUNTER_MAX = 0xFFFF`
-  16-bit ceiling, while `db_client` models `sdls_counter` as 32-bit.
 - **Default `nonce` is all-zero** (`b"\x00" * 14`) unless explicitly
   overridden — same as `sdls_encryption`.
 - **The nested `sdls_counter` fallback lookup path is not an edge case —

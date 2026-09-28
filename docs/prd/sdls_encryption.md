@@ -103,16 +103,6 @@ support for SDLS's other permitted cipher suites.
 
 ## Known issues / TODOs
 
-- **Counter-width mismatch with `db_client`**: `db_client.py` models
-  `sdls_counter` as 32-bit (`SDLS_COUNTER_MAX = 0xFFFFFFFF`) and
-  increments it monotonically per issuance, with no reset unless
-  `auto_reset_counters=True` on a `type=0` (dummy) instance. This block
-  only accepts a 16-bit counter (`0–65535`) and silently drops (logs
-  `error`, no publish) anything larger. Under normal operation — the same
-  key, `db_client` issuing ever-increasing counters, no reset — every
-  message after the 65536th would be silently dropped by this block, well
-  before `db_client`'s own limit. Not exercised by any test in either
-  block.
 - **No (nonce, counter) reuse protection.** This block trusts that
   `sdls_counter` is unique per message for a given key — it has no
   internal state to detect or prevent reuse. Under normal operation

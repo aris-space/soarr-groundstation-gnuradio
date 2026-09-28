@@ -154,13 +154,14 @@ entries:
             "AAAA",
         )
 
-    def test_005_counter_max_no_wraparound(self):
+    def test_005_counter_max_served_once_then_refused(self):
         block = db_client(type=0)
 
         VCID = 0x155
         SPI = 1
 
-        SDLS_COUNTER_MAX = 0xFFFFFFFF
+        # sdls_counter is the 2-byte IV on the wire (sdls_header).
+        SDLS_COUNTER_MAX = 0xFFFF
         VCID_COUNTER_MAX = 0xFF
 
         # Force counters to maximum values.
@@ -170,9 +171,12 @@ entries:
         original_pub, published = self._capture_pub(block)
         try:
             block.make_db_call(self._build_query(VCID, SPI))
+            block.make_db_call(self._build_query(VCID, SPI))
         finally:
             self._restore_pub(block, original_pub)
 
+        # The max value is served exactly once; the second request is
+        # refused so the same (key, sdls_counter) pair is never reused.
         self.assertEqual(len(published), 1)
         out_port, out_msg = published[0]
         self.assertTrue(pmt.eqv(out_port, pmt.intern("db_callback")))
@@ -374,7 +378,7 @@ entries:
         VCID = 0x155
         SPI = 1
 
-        SDLS_COUNTER_MAX = 0xFFFFFFFF
+        SDLS_COUNTER_MAX = 0xFFFF
         VCID_COUNTER_MAX = 0xFF
 
         # Force counters to maximum values.
@@ -401,13 +405,13 @@ entries:
         self.assertEqual(block._db[str(VCID)][str(SPI)]["sdls_counter"], 0)
         self.assertEqual(block._db[str(VCID)][str(SPI)]["vcid_counter"], 0)
 
-    def test_014_auto_reset_disabled_keeps_max(self):
+    def test_014_auto_reset_disabled_keeps_max_and_refuses(self):
         block = db_client(type=0, auto_reset_counters=False)
 
         VCID = 0x155
         SPI = 1
 
-        SDLS_COUNTER_MAX = 0xFFFFFFFF
+        SDLS_COUNTER_MAX = 0xFFFF
         VCID_COUNTER_MAX = 0xFF
 
         # Force counters to maximum values.
@@ -417,9 +421,13 @@ entries:
         original_pub, published = self._capture_pub(block)
         try:
             block.make_db_call(self._build_query(VCID, SPI))
+            block.make_db_call(self._build_query(VCID, SPI))
+            block.make_db_call(self._build_query(VCID, SPI))
         finally:
             self._restore_pub(block, original_pub)
 
+        # Only the first request is answered; the exhausted entry stays
+        # refused for every later request.
         self.assertEqual(len(published), 1)
 
         # Ensure no wrap-around happened after callback publication.
@@ -546,6 +554,61 @@ entries:
             block.make_db_call(self._build_query(0x155, 1))  # must not raise
         finally:
             self._restore_pub(block, original_pub)
+
+    # sdls_counter is carried on the wire as the 2-byte SDLS IV, so a
+    # stored value above 16 bits can never be transmitted and is refused.
+    def test_020_sdls_counter_above_16_bits_is_refused(self):
+        yaml_content = """
+entries:
+  "a":
+    SCID: 341
+    SPI: 1
+    sdls_counter: 65536
+"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            yaml_path = Path(tmp_dir) / "db.yaml"
+            yaml_path.write_text(yaml_content, encoding="utf-8")
+
+            block = db_client(type=1, yaml_path=str(yaml_path))
+            original_pub, published = self._capture_pub(block)
+            try:
+                block.make_db_call(self._build_query(341, 1))
+            finally:
+                self._restore_pub(block, original_pub)
+
+        self.assertEqual(len(published), 0)
+
+    # Exhausting one SCID/SPI entry's sdls_counter refuses only that
+    # entry; other entries keep being served.
+    def test_021_exhausted_entry_does_not_block_other_entries(self):
+        yaml_content = """
+entries:
+  "a":
+    SCID: 341
+    SPI: 1
+    sdls_counter: 65535
+  "b":
+    SCID: 341
+    SPI: 2
+    sdls_counter: 7
+"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            yaml_path = Path(tmp_dir) / "db.yaml"
+            yaml_path.write_text(yaml_content, encoding="utf-8")
+
+            block = db_client(type=1, yaml_path=str(yaml_path))
+            original_pub, published = self._capture_pub(block)
+            try:
+                block.make_db_call(self._build_query(341, 1))  # serves 65535
+                block.make_db_call(self._build_query(341, 1))  # refused
+                block.make_db_call(self._build_query(341, 2))  # served
+            finally:
+                self._restore_pub(block, original_pub)
+
+        self.assertEqual(len(published), 2)
+        self.assertEqual(self._meta_int(pmt.car(published[0][1]), "sdls_counter"), 65535)
+        self.assertEqual(self._meta_int(pmt.car(published[1][1]), "spi"), 2)
+        self.assertEqual(self._meta_int(pmt.car(published[1][1]), "sdls_counter"), 7)
 
 
 if __name__ == '__main__':

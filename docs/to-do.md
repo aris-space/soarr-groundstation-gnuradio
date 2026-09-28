@@ -25,11 +25,6 @@ log or a session snapshot (see git history for that).
   another's metadata. Fixing it means correlating each `db_call`/
   `db_callback` pair (e.g. a request-id or a real queue) — a real
   behavioral/contract change.
-- [sdls_encryption](prd/sdls_encryption.md) — counter-width mismatch
-  with `db_client`: this block only accepts a 16-bit `sdls_counter`
-  (`0`-`65535`), but `db_client` models it as 32-bit and increments
-  monotonically with no reset by default — every message after the
-  65536th would be silently dropped under normal operation.
 - [sdls_encryption](prd/sdls_encryption.md) — no (nonce, counter) reuse
   protection. If `db_client`'s `auto_reset_counters=True` is ever set on
   an instance used with real key material, the counter wraps and

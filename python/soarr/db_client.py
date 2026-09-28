@@ -14,8 +14,9 @@ try:
 except ImportError:
     yaml = None
 
-# SDLS counter is modeled as uint32.
-SDLS_COUNTER_MAX = 0xFFFFFFFF
+# SDLS counter is transmitted as the 2-byte IV in the SDLS security header
+# (sdls_header), so it is modeled as uint16.
+SDLS_COUNTER_MAX = 0xFFFF
 VCID_COUNTER_MAX = 0xFF
 
 class db_client(gr.basic_block):
@@ -495,6 +496,10 @@ class db_client(gr.basic_block):
         Drops when:
             - msg is not a PDU pair, or metadata is not a dict (error - malformed input, not raw RF noise)
             - scid/spi don't resolve to a known DB entry (error - same)
+            - the entry's sdls_counter is exhausted: its max value was
+              already served and auto-reset is off, so serving again
+              would reuse a (key, counter) pair (error - a new key is
+              required)
             - the entry's stored counters are invalid (error - same)
             - an internal failure occurs while building or publishing the response (error - same)
         """
@@ -511,6 +516,13 @@ class db_client(gr.basic_block):
             entry = self._entry_from_scid_spi(meta)
             if entry is None:
                 self.logger.error("DB query missing or unknown SCID/SPI.")
+                return
+
+            if entry.get("sdls_counter_exhausted", False):
+                self.logger.error(
+                    f"sdls_counter exhausted for SCID {entry.get('SCID')} / SPI {entry.get('SPI')}; "
+                    "refusing request to avoid (key, counter) reuse. A new key is required."
+                )
                 return
 
             try:
@@ -543,14 +555,16 @@ class db_client(gr.basic_block):
 
             # Increase counters only after giving out current values.
             # sdls_counter: try to increment; if at max and auto-reset enabled for dummy mode,
-            # reset to 0 instead of raising an error.
+            # reset to 0 instead of raising an error. Otherwise mark the entry exhausted so
+            # the max value is never served twice.
             try:
                 entry["sdls_counter"] = self._checked_increment(sdls_counter, SDLS_COUNTER_MAX, "sdls_counter")
             except OverflowError as exc:
                 if self.type == 0 and self.auto_reset_counters:
                     entry["sdls_counter"] = 0
                 else:
-                    self.logger.error(f"Counter increment aborted: {exc}")
+                    entry["sdls_counter_exhausted"] = True
+                    self.logger.error(f"Counter increment aborted: {exc}; further requests for this entry are refused.")
 
             try:
                 entry["vcid_counter"] = self._checked_increment(vcid_counter, VCID_COUNTER_MAX, "vcid_counter")

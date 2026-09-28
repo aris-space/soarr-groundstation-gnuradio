@@ -163,8 +163,6 @@ encrypt/decrypt, authenticate/verify round trips.
   CLTU per transfer frame.
 - `inject_db` handles one request at a time; overlapping requests can mix
   up metadata.
-- `sdls_encryption` accepts a 16-bit SDLS counter while `db_client` counts
-  up to 32 bits.
 
 The full list, with details, is in [docs/to-do.md](docs/to-do.md).
 
