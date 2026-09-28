@@ -1,10 +1,15 @@
 /*! \mainpage
 
-Welcome to the GNU Radio SOARR Block
+gr-soarr is a GNU Radio out-of-tree module implementing the ground-station
+side of a CCSDS Telecommand (TC) uplink chain for ARIS's SOARR mission:
+encapsulation, SDLS encryption and authentication, TC transfer framing,
+pseudo-randomization, BCH encoding, and CLTU framing on TX, and the
+matching detection, correction, reassembly, verification, and decryption
+on RX.
 
-This is the intro page for the Doxygen manual generated for the SOARR
-block (docs/doxygen/other/main_page.dox). Edit it to add more detailed
-documentation about the new GNU Radio modules contained in this
-project.
+All blocks are implemented in Python (namespace gnuradio.soarr), so this
+Doxygen manual contains no C++ block reference. Block documentation is in
+each block's Python docstring (help(soarr.<block>)) and in docs/prd/ in
+the source tree; the pipeline is described in docs/architecture.md.
 
 */

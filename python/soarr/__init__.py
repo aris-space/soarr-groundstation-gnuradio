@@ -7,8 +7,19 @@
 # The presence of this file turns this directory into a Python package
 
 '''
-This is the GNU Radio SOARR module. Place your Python package
-description here (python/__init__.py).
+gr-soarr: CCSDS Telecommand (TC) uplink blocks for the ARIS SOARR ground
+station.
+
+TX chain: inject_db -> encapsulation_header -> sdls_encryption ->
+sdls_authentication -> sdls_header -> tc_primary_header ->
+(digital.crc_append) -> lfsr_scrambler -> bch_encoder -> cltu_framer ->
+acquisition_idle_sequencer.
+
+RX chain: cltu_deframer -> ccsds_receiver -> (digital.crc_check) ->
+ccsds_reader -> inject_db -> sdls_authentication_verify -> sdls_decryption.
+
+inject_db fetches keys and counters from db_client; data_creator and
+system_tester support loopback testing. See docs/architecture.md.
 '''
 import os
 

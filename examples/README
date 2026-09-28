@@ -1,3 +1,40 @@
-It is considered good practice to add examples in here to demonstrate the
-functionality of your OOT module. Python scripts, GRC flow graphs or other
-code can go here.
+Examples for gr-soarr
+=====================
+
+db_client_example.yaml
+----------------------
+
+Example key/counter database for the db_client block's local-file mode.
+db_client answers inject_db's lookups (keyed by SCID and SPI) with the
+matching entry's VCID, encryption key, authentication key, SDLS counter,
+and VCID counter.
+
+To use it in GNU Radio Companion, set the db_client block's parameters to:
+
+    type      = 1
+    yaml_path = <path to this file>
+
+Each entry needs SCID and SPI; the other fields are:
+
+    VCID                virtual channel the frame is sent on
+    encryption_key      AES-256 key for sdls_encryption, 64 hex characters
+    authentication_key  AES-256 key for sdls_authentication, 64 hex characters
+    sdls_counter        starting SDLS counter (the IV sent in the SDLS header)
+    vcid_counter        starting frame sequence number for the virtual channel
+    key_state           informational only; stored, not used by any block
+
+Counters are served, then incremented in memory for as long as the block
+runs; the file itself is never written back.
+
+Instead of the flat "entries" layout used here, entries may also be
+nested by SCID, then SPI:
+
+    entries:
+      "341":
+        "1": { VCID: 18, encryption_key: ..., authentication_key: ... }
+
+If the file is missing, cannot be parsed, or contains no valid entry,
+db_client logs an error and falls back to its built-in dummy entry.
+
+The keys in this file are well-known test patterns. Never use them with
+a real spacecraft.

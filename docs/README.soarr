@@ -1,11 +1,16 @@
-This is the soarr-write-a-block package meant as a guide to building
-out-of-tree packages. To use the soarr blocks, the Python namespace
-is 'gnuradio.soarr', which is imported as:
+gr-soarr is a GNU Radio out-of-tree module implementing the ground-station
+side of a CCSDS Telecommand (TC) uplink chain for ARIS's SOARR mission. All
+blocks are written in Python. The Python namespace is 'gnuradio.soarr',
+imported as:
 
     from gnuradio import soarr
 
-See the Doxygen documentation for details about the blocks available
-in this package. A quick listing of the details can be found in Python
-after importing by using:
+In GNU Radio Companion the blocks appear under the [soarr] category.
+
+A quick listing of the available blocks and their parameters is available
+in Python after importing, using:
 
     help(soarr)
+
+For the TX/RX pipeline, per-block documentation, and build/test setup, see
+docs/README.md in the source tree.

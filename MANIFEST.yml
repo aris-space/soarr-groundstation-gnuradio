@@ -1,11 +1,14 @@
-title: The SOARR OOT Module
+title: gr-soarr
 version: 1.0
-brief: Short description of gr-soarr
-tags: # Tags are arbitrary, but look at CGRAN what other authors are using
+brief: CCSDS telecommand uplink chain (TX and RX) with SDLS security for the ARIS SOARR ground station
+tags:
   - ccsds
   - space
   - satellite
   - telecommand
+  - sdls
+  - cltu
+  - bch
   - ARIS
   - SOARR
 author:
@@ -14,12 +17,25 @@ copyright_owner:
   - Yannick Kulli
 license: GPL-3.0-or-later
 gr_supported_version:
-  - 3.X
-repo: # Put the URL of the repository here
-website: # If you have a separate project website, put it here
-#icon: # Put a URL to a square image here that will be used as an icon
+  - 3.10
+repo:
+website:
 description: |-
-  A longer, multi-line description of gr-soarr.
-  You may use some *basic* Markdown here.
-  If left empty, it will try to find a README file instead.
+  gr-soarr is a pure-Python GNU Radio out-of-tree module implementing the
+  ground-station side of a CCSDS Telecommand (TC) uplink for ARIS's SOARR
+  mission.
+
+  **TX chain:** CCSDS 133.1-B encapsulation packet, SDLS (CCSDS 355.0-B-1)
+  AES-256-CTR encryption and AES-CMAC authentication, SDLS security header,
+  TC transfer frame primary header, CCSDS 231.0-B pseudo-randomization,
+  BCH (63,56) encoding, CLTU framing, and acquisition/idle sequence
+  insertion for a continuous byte stream to the modulator.
+
+  **RX chain:** CLTU detection, BCH error correction, de-randomization,
+  transfer-frame reassembly, frame parsing, SDLS tag verification, and
+  decryption.
+
+  Key material and counters come from a pluggable lookup block
+  (in-memory or YAML file), and a loopback tester reports bit error rate,
+  message error rate, and lost packets.
 file_format: 1
