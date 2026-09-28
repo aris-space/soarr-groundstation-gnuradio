@@ -186,9 +186,10 @@ entries:
         self.assertEqual(self._meta_int(out_meta, "sdls_counter"), SDLS_COUNTER_MAX)
         self.assertEqual(self._meta_int(out_meta, "vcid_counter"), VCID_COUNTER_MAX)
 
-        # Ensure no wrap-around happened after callback publication.
+        # sdls_counter never wraps (that would reuse an AES-CTR counter);
+        # vcid_counter, the frame sequence number, wraps modulo 256.
         self.assertEqual(block._db[str(VCID)][str(SPI)]["sdls_counter"], SDLS_COUNTER_MAX)
-        self.assertEqual(block._db[str(VCID)][str(SPI)]["vcid_counter"], VCID_COUNTER_MAX)
+        self.assertEqual(block._db[str(VCID)][str(SPI)]["vcid_counter"], 0)
 
     def test_006_dummy_mode_configurable_scid_spi_vcid(self):
         """Test Dummy mode with custom SCID, SPI, VCID parameters."""
@@ -430,9 +431,10 @@ entries:
         # refused for every later request.
         self.assertEqual(len(published), 1)
 
-        # Ensure no wrap-around happened after callback publication.
+        # sdls_counter stays at max (entry exhausted); vcid_counter wraps
+        # regardless of auto_reset_counters.
         self.assertEqual(block._db[str(VCID)][str(SPI)]["sdls_counter"], SDLS_COUNTER_MAX)
-        self.assertEqual(block._db[str(VCID)][str(SPI)]["vcid_counter"], VCID_COUNTER_MAX)
+        self.assertEqual(block._db[str(VCID)][str(SPI)]["vcid_counter"], 0)
 
     # Additional: a non-pair input must not crash the handler - dropped
     # cleanly (logged, no publish) instead of pmt.car raising out of it.
@@ -629,6 +631,31 @@ entries:
         self.assertEqual(len(published), 2)
         self.assertEqual(self._meta_int(pmt.car(published[0][1]), "db_request_id"), 42)
         self.assertFalse(pmt.dict_has_key(pmt.car(published[1][1]), pmt.intern("db_request_id")))
+
+    # vcid_counter becomes the TC frame sequence number N(S), which CCSDS
+    # 232.0-B counts modulo 256: 255 is followed by 0, in every DB mode.
+    def test_023_vcid_counter_wraps_modulo_256(self):
+        yaml_content = """
+entries:
+  "a":
+    SCID: 341
+    SPI: 1
+    vcid_counter: 254
+"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            yaml_path = Path(tmp_dir) / "db.yaml"
+            yaml_path.write_text(yaml_content, encoding="utf-8")
+
+            block = db_client(type=1, yaml_path=str(yaml_path))
+            original_pub, published = self._capture_pub(block)
+            try:
+                for _ in range(4):
+                    block.make_db_call(self._build_query(341, 1))
+            finally:
+                self._restore_pub(block, original_pub)
+
+        served = [self._meta_int(pmt.car(msg), "vcid_counter") for _, msg in published]
+        self.assertEqual(served, [254, 255, 0, 1])
 
 
 if __name__ == '__main__':

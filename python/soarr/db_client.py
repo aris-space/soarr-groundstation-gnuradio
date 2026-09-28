@@ -55,8 +55,10 @@ class db_client(gr.basic_block):
             yaml_path (str): path to the YAML file for type=1.
             forward_body (bool): if True, echo the query's u8vector
                 payload back on db_callback; otherwise PMT_NIL.
-            auto_reset_counters (bool): type=0 only - if True, a counter
-                at its max value resets to 0 after being served.
+            auto_reset_counters (bool): type=0 only - if True,
+                sdls_counter resets to 0 after its max value is served
+                (reusing AES-CTR counters: test use only). vcid_counter
+                always wraps 255 -> 0, independent of this flag.
             scid (int): dummy-mode entry's SCID.
             spi (int): dummy-mode entry's SPI.
             vcid (int): dummy-mode entry's VCID.
@@ -573,13 +575,9 @@ class db_client(gr.basic_block):
                     entry["sdls_counter_exhausted"] = True
                     self.logger.error(f"Counter increment aborted: {exc}; further requests for this entry are refused.")
 
-            try:
-                entry["vcid_counter"] = self._checked_increment(vcid_counter, VCID_COUNTER_MAX, "vcid_counter")
-            except OverflowError as exc:
-                if self.type == 0 and self.auto_reset_counters:
-                    entry["vcid_counter"] = 0
-                else:
-                    self.logger.error(f"Counter increment aborted: {exc}")
+            # vcid_counter is the TC frame sequence number N(S), counted
+            # modulo 256 (CCSDS 232.0-B), so it always wraps 255 -> 0.
+            entry["vcid_counter"] = (vcid_counter + 1) % (VCID_COUNTER_MAX + 1)
         except Exception as exc:
             self.logger.error(f"Failed to build or publish db_callback: {exc}")
 

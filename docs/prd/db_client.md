@@ -38,7 +38,7 @@ Confirmed via `python/soarr/qa_layoutTest.py`'s `msg_connect` wiring
 | `ip`, `port` | str, int | `"127.0.0.1"`, `80` | Reserved for `type=2`'s remote DB mode; unused since that mode isn't implemented. |
 | `yaml_path` | str | `""` | Path to the YAML file for `type=1`. Missing file, missing PyYAML, a parse failure, a non-mapping root, or zero valid entries all fall back to dummy (logged at `error`). |
 | `forward_body` | bool | `True` | If `True` and the query's payload is a u8vector, echoes it back on `db_callback`; otherwise the response payload is `PMT_NIL`. Currently has no real effect on `inject_db`, the only consumer in this repo — it always uses its own independently-tracked pending payload instead (see Behavior). Kept for a future consumer that might not track its own pending payload. |
-| `auto_reset_counters` | bool | `False` | `type=0` only: if `True`, a counter at its max value resets to `0` after being served instead of refusing to increment further. |
+| `auto_reset_counters` | bool | `False` | `type=0` only: if `True`, `sdls_counter` resets to `0` after its max value is served instead of the entry being refused — reusing AES-CTR counters, so for test use only. Has no effect on `vcid_counter`, which always wraps. |
 | `scid`, `spi`, `vcid`, `crypt_key`, `auth_key`, `sdls_counter`, `vcid_counter`, `key_state_enc`, `key_state_auth` | — | see code | The dummy (`type=0`) entry's fields, each independently configurable. |
 
 ## Behavior / edge cases / current error handling
@@ -71,13 +71,18 @@ accepts exactly `0`–`65535`. `vcid_counter` is **8-bit**
 (`VCID_COUNTER_MAX = 0xFF`). A stored counter outside its range is
 rejected per request (logged at `error`, no publish).
 
-**Counter overflow**: `_checked_increment` raises `OverflowError` if a
-counter is already at its max; caught separately for `sdls_counter` and
-`vcid_counter`, each independently either reset to `0`
-(`type=0 and auto_reset_counters`) or left at max with an error logged.
-Overflow is checked *after* publishing the current (pre-increment)
-value, so the query that pushes a counter to its max still gets a valid
-response — only the *next* query at that SCID/SPI is affected.
+**Counter overflow**: counters are incremented *after* publishing the
+current (pre-increment) value, so the query that reaches a counter's max
+still gets a valid response — only the *next* query at that SCID/SPI is
+affected. The two counters overflow differently:
+
+- **`vcid_counter`** is the TC frame sequence number N(S), which CCSDS
+  232.0-B counts modulo 256 — it always wraps `255 → 0`, in every mode,
+  independent of `auto_reset_counters`. It has no security role, so
+  wrapping needs no new key.
+- **`sdls_counter`**: `_checked_increment` raises `OverflowError` at its
+  max; with `type=0 and auto_reset_counters` it resets to `0` (test use
+  only — see below), otherwise the entry is marked exhausted.
 
 **`sdls_counter` exhaustion**: without auto-reset, an `sdls_counter`
 overflow marks the entry `sdls_counter_exhausted`, and every later query
@@ -85,7 +90,6 @@ for that SCID/SPI is refused (logged at `error`, no publish) instead of
 re-serving the max value — re-serving it would reuse a (key, counter)
 pair, which breaks AES-CTR confidentiality. Other entries are unaffected.
 The entry stays refused until the block is restarted with a new key.
-`vcid_counter` has no such guard; at its max it keeps being re-served.
 
 **`forward_body=False` (or a non-u8vector query payload)**: the
 `db_callback` response's payload becomes `PMT_NIL`. This is harmless in
@@ -127,12 +131,12 @@ None — this block is pure key/counter lookup, not a CCSDS-defined layer.
 ## Test coverage
 
 - `python/soarr/qa_db_client.py` — 23 test methods (`test_instance` +
-  `test_001`–`test_022`): a dummy-mode lookup returning every expected
+  `test_001`–`test_023`): a dummy-mode lookup returning every expected
   field and incrementing both counters across two calls, a missing
   `scid`/`spi` and an unknown `scid`/`spi` each emitting nothing, YAML
-  mode loading a flat-layout entry and using it (`test_004`), a counter
-  already at max being served once with no wraparound, then refused
-  (`auto_reset_counters` off, `test_005`), configurable dummy SCID/SPI/VCID,
+  mode loading a flat-layout entry and using it (`test_004`), an
+  `sdls_counter` already at max being served once, then refused, while
+  `vcid_counter` wraps to `0` (`auto_reset_counters` off, `test_005`), configurable dummy SCID/SPI/VCID,
   configurable dummy keys, configurable dummy initial counters,
   configurable dummy key states, every dummy parameter combined in one
   test, `forward_body=True` preserving a u8vector payload,
@@ -150,5 +154,6 @@ None — this block is pure key/counter lookup, not a CCSDS-defined layer.
   be caught and dropped rather than raised through the real handler
   (`test_019`), a stored `sdls_counter` above 16 bits refused
   (`test_020`), an exhausted entry refused while another entry keeps
-  being served (`test_021`), and `db_request_id` echoed back when the
-  query carries one and absent otherwise (`test_022`).
+  being served (`test_021`), `db_request_id` echoed back when the
+  query carries one and absent otherwise (`test_022`), and
+  `vcid_counter` served as `254, 255, 0, 1` in YAML mode (`test_023`).
