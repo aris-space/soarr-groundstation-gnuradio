@@ -34,7 +34,8 @@ class data_creator(gr.basic_block):
                 payload. An int is left-padded to data_length_bytes (or
                 its own minimal byte width if data_length_bytes is None).
             data_length_bytes (int | None): required if data is None
-                (length of the randomly generated payload); optional if
+                (length of the random payload, drawn once here and sent
+                unchanged in every message); optional if
                 data is an int (pad width); must match data's actual
                 length if data is bytes/bytearray/array-like.
             scid, spi (int): written into the output metadata.
@@ -91,7 +92,8 @@ class data_creator(gr.basic_block):
             elif not isinstance(self.data, np.ndarray):
                 self.data = np.array(self.data, dtype=np.uint8)
         else:
-            # data not provided: create a random vector of the specified length
+            # data not provided: draw one random payload of the specified
+            # length, sent unchanged in every message
             self.data = np.random.randint(0, 256, size=self.data_length_bytes, dtype=np.uint8)
 
         # If length is not provided, use the length of the data

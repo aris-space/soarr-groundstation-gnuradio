@@ -221,6 +221,22 @@ class qa_data_creator(gr_unittest.TestCase):
         self.assertEqual(instance.scid, 100)
         self.assertEqual(instance.spi, 50)
 
+    # The random payload is drawn once and repeated: every message of a run
+    # carries the same bytes.
+    def test_017_random_payload_is_the_same_in_every_message(self):
+        instance = data_creator(mode=0, data=None, data_length_bytes=16)
+        captured = []
+        original_pub = self._capture_specific_port(instance, "out", captured)
+        try:
+            for _ in range(3):
+                instance._choose_mode(pmt.PMT_NIL)
+        finally:
+            self._restore_port(instance, original_pub)
+
+        payloads = {bytes(pmt.u8vector_elements(pmt.cdr(msg))) for msg in captured}
+        self.assertEqual(len(captured), 3)
+        self.assertEqual(len(payloads), 1)
+
 
 if __name__ == '__main__':
     gr_unittest.run(qa_data_creator)

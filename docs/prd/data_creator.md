@@ -35,7 +35,7 @@ directly; its unit tests are standalone, via its own qa file.
 |---|---|---|---|
 | `mode` | int | `0` | Only `0` is implemented. Any other value is dropped and logged at `error` (no publish). |
 | `data` | int \| bytes \| bytearray \| array-like \| `None` | `None` | Explicit payload. An int is left-padded big-endian to `data_length_bytes` (or its own minimal byte width if `data_length_bytes` is `None`) — the one combination of `data`+`data_length_bytes` that's allowed together, since it's the only one with a single unambiguous meaning. For bytes/bytearray/array-like `data`, `data_length_bytes` must either be omitted or match the data's actual length exactly (raises `ValueError` otherwise). |
-| `data_length_bytes` | int \| `None` | `None` | Required if `data` is `None` (length of the randomly generated payload). |
+| `data_length_bytes` | int \| `None` | `None` | Required if `data` is `None`: the length of the random payload, which is drawn once in `__init__` and sent unchanged in every message, so every packet of a run carries the same bytes. |
 | `scid`, `spi`, `bypass`, `control`, `vcid`, `vcid_counter`, `sdls_counter` | int, int, bool, bool, int, int, int | all `0`/`False` | Written into the output metadata's nested `tc_header`/`security_header` (see Message ports). All seven are exposed as GRC parameters and passed through the `make:` template. `vcid_counter`/`sdls_counter` are placeholders when this block feeds `inject_db(role="tx")`, which replaces them with `db_client`'s counters. |
 
 ## Behavior / edge cases / current error handling
@@ -87,8 +87,8 @@ implementation.
 
 ## Test coverage
 
-- `python/soarr/qa_data_creator.py` — 17 test methods (`test_instance` +
-  `test_001`–`test_016`): manual-data generation with a real
+- `python/soarr/qa_data_creator.py` — 18 test methods (`test_instance` +
+  `test_001`–`test_017`): manual-data generation with a real
   `pmt.u8vector` output check, mode-0 random-payload generation via
   `_choose_mode` with a length check, mismatched explicit data and
   `data_length_bytes` raising `ValueError` (`test_003`), an unsupported
@@ -101,4 +101,5 @@ implementation.
   `data_length_bytes` succeeding (`test_014`), `vcid`/`vcid_counter`/
   `sdls_counter` present in the published metadata (`test_015`), and a
   mock-forced publish failure proven to be caught and dropped rather
-  than raised through the real handler (`test_016`).
+  than raised through the real handler (`test_016`), and the random
+  payload repeated unchanged across messages (`test_017`).
