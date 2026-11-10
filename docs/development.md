@@ -246,6 +246,32 @@ only on `testing` or `main`.
 Open bugs, design questions, and test gaps are tracked as
 [GitHub issues](https://github.com/aris-space/soarr-groundstation-gnuradio/issues).
 
+## Releases
+
+Commits and pushes to `dev` never change the version. The version changes
+once per release, following [Semantic Versioning](https://semver.org/):
+
+| Since the last release | Next version |
+|---|---|
+| Bug fixes only | `X.Y.Z+1` (patch) |
+| New blocks or features, nothing breaks | `X.Y+1.0` (minor) |
+| Something that worked before stops working: a renamed or removed GRC parameter or public method, a configuration now refused | `X+1.0.0` (major) |
+
+The version lives only in the top-level `CMakeLists.txt`. A tag `vX.Y.Z`
+maps to `VERSION_MAJOR=X`, `VERSION_API=Y`, `VERSION_PATCH=Z`;
+`VERSION_ABI` stays `0`, since this module has no compiled library.
+
+To release:
+
+1. On `dev`, bump the version in one commit, e.g.
+   `build: bump version to 2.0.0`.
+2. Open a pull request `dev` → `testing` and validate that state in the
+   lab (USRP, both PLOP modes). Fixes go to `dev` and are promoted again.
+3. Open a pull request `testing` → `main` and merge it.
+4. Tag the merge commit on `main` as `vX.Y.Z` and publish a GitHub
+   release for the tag. Its notes list the commits since the previous
+   tag, grouped by type (`feat`, `fix`, …), with breaking changes first.
+
 ## Commit message hook
 
 Commit messages follow the Conventional Commits structure documented in
