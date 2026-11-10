@@ -222,6 +222,7 @@ Open bugs, design questions, and test-coverage gaps are tracked as
 | [docs/coding-standards.md](docs/coding-standards.md) | Naming, error handling, docstring, and commit rules |
 | [docs/adr/](docs/adr/) | Architecture decision records |
 | [docs/prd/](docs/prd/) | One requirements document per block |
+| [SECURITY.md](SECURITY.md) | How to report a vulnerability privately |
 
 ## License
 
