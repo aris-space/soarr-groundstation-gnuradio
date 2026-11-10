@@ -206,10 +206,9 @@ encrypt/decrypt, authenticate/verify round trips.
 
 ## Known issues
 
-- `db_client` does not persist SDLS counters: after a restart it serves
-  them again from the YAML file's starting value, reusing AES-CTR
-  counters under the same key. Load a new key or raise the stored
-  counters before each run with real key material.
+- `db_client`'s dummy and YAML modes don't persist SDLS counters across
+  restarts. Keeping counters unique over time is the job of the
+  external key database that `db_client` will connect to.
 
 Open bugs, design questions, and test-coverage gaps are tracked as
 [GitHub issues](https://github.com/aris-space/soarr-groundstation-gnuradio/issues).

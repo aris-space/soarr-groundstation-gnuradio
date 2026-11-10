@@ -108,10 +108,10 @@ support for SDLS's other permitted cipher suites.
   internal state to detect or prevent reuse. Within one run,
   `db_client` never re-serves a counter under a real key: its only
   reset path, `auto_reset_counters`, is refused unless the keys are the
-  built-in test keys. Across restarts it can: `db_client` does not
-  persist counters, so a restarted flowgraph serves counters again from
-  the YAML file's (or dummy parameters') starting value under the same
-  key — reusing a (nonce, counter) pair under AES-CTR, which breaks
+  built-in test keys. Across restarts, `db_client`'s dummy and YAML
+  modes don't persist counters; keeping them unique over time is the
+  job of the external key database that `db_client` will connect to.
+  Reusing a (nonce, counter) pair under AES-CTR with the same key breaks
   confidentiality for both messages involved.
 - **Default `nonce` is all-zero** (`b"\x00" * 14`) unless explicitly
   overridden by the caller/GRC flowgraph.
