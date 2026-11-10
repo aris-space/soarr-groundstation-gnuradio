@@ -13,6 +13,7 @@ from gnuradio import gr, gr_unittest
 import pmt
 
 from gnuradio.soarr import db_client
+from gnuradio.soarr.db_client import TEST_CRYPT_KEY
 
 class qa_db_client(gr_unittest.TestCase):
 
@@ -670,6 +671,33 @@ entries:
         custom_key = "AB" * 32
         block = db_client(type=0, auto_reset_counters=False, crypt_key=custom_key, auth_key=custom_key)
         self.assertEqual(block._db["341"]["1"]["crypt_key"], custom_key)
+
+    # An RX lookup (db_role "rx") only needs the keys - RX reads its
+    # counters from the received frame - so it neither advances the
+    # counters nor is refused once they are exhausted.
+    def test_026_rx_lookup_does_not_count(self):
+        block = db_client(type=0)
+        entry = block._db["341"]["1"]
+        entry["sdls_counter"] = 0xFFFF
+
+        rx_query = self._build_query(341, 1)
+        rx_query = pmt.cons(pmt.dict_add(pmt.car(rx_query), pmt.intern("db_role"), pmt.intern("rx")),
+                            pmt.cdr(rx_query))
+
+        original_pub, published = self._capture_pub(block)
+        try:
+            block.make_db_call(self._build_query(341, 1))  # TX: serves the max, exhausts the entry
+            block.make_db_call(self._build_query(341, 1))  # TX: refused
+            block.make_db_call(rx_query)
+            block.make_db_call(rx_query)
+        finally:
+            self._restore_pub(block, original_pub)
+
+        self.assertEqual(len(published), 3)  # one TX answer, two RX answers
+        self.assertEqual(entry["sdls_counter"], 0xFFFF)
+        self.assertEqual(entry["vcid_counter"], 1)  # only the TX lookup advanced it
+        crypt_key = pmt.dict_ref(pmt.car(published[2][1]), pmt.intern("crypt_key"), pmt.PMT_NIL)
+        self.assertEqual(pmt.symbol_to_string(crypt_key), TEST_CRYPT_KEY)
 
 
 if __name__ == '__main__':

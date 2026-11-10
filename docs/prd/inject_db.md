@@ -39,7 +39,7 @@ RX chain diagram only — not independently wired or tested in this repo.
 | Port | Direction | PMT shape | Example |
 |---|---|---|---|
 | `in` | input | PDU: `(metadata_dict . payload_u8vector)`. Metadata must include `scid`/`spi` (int) and `bypass`/`control` (bool) — each checked at the top level first, falling back to the nested `telecommand.tc_header`/`sdls.security_header` path (see Behavior). | `pmt.cons({scid: 0x155, ...}, u8vector(payload))` |
-| `db_call` | output | The PDU received on `in`, with `db_request_id` (uint64, unique per request) added to its metadata, forwarded to `db_client` as a query. | `pmt.cons({scid: 0x155, ..., db_request_id: 7}, u8vector(payload))` |
+| `db_call` | output | The PDU received on `in`, with `db_request_id` (uint64, unique per request) and `db_role` (symbol, this block's `role`) added to its metadata, forwarded to `db_client` as a query. `db_client` doesn't count an `"rx"` lookup. | `pmt.cons({scid: 0x155, ..., db_request_id: 7}, u8vector(payload))` |
 | `db_callback` | input | PDU: `(metadata_dict . payload_or_PMT_NIL)` — `db_client`'s query response, carrying the query's `db_request_id` back. The payload need not be a u8vector as long as a pending request supplies one instead (see Behavior) — e.g. `db_client(forward_body=False)`'s `PMT_NIL` payload. Metadata must include everything `in` requires, plus `auth_key`/`crypt_key` (symbol hex string or `PMT_NIL`) and `vcid`/`vcid_counter`/`sdls_counter` (int). | `pmt.cons({auth_key: "...", ...}, u8vector(payload))` |
 | `out` | output | The `db_callback` PDU's metadata, merged with the metadata of the `in` PDU it answers (`in`'s keys win, except the counters in the TX role — see Behavior), paired with that *original* `in` PDU's payload (not `db_callback`'s). `db_request_id` is removed. | `pmt.cons({merged}, u8vector(original_payload))` |
 
@@ -54,7 +54,7 @@ RX chain diagram only — not independently wired or tested in this repo.
 **Two-phase flow, correlated by request id**: `send_db_call` (the `in`
 handler) validates the incoming PDU (requiring a u8vector payload),
 assigns it the next request id, publishes it on `db_call` with that id
-added as `db_request_id`, and stores the unmodified metadata and payload
+added as `db_request_id` and its role as `db_role`, and stores the unmodified metadata and payload
 in `self._pending` (an ordered id → request map). Any number of requests
 may be in flight at once. `send_msg_out` (the `db_callback` handler)
 validates the callback PDU's shape (metadata dict required, but its own
@@ -150,8 +150,8 @@ None currently.
 
 ## Test coverage
 
-- `python/soarr/qa_inject_db.py` — 31 test methods (`test_instance` +
-  `test_001`–`test_030`): a valid `in` PDU (with nested `telecommand`/
+- `python/soarr/qa_inject_db.py` — 33 test methods (`test_instance` +
+  `test_001`–`test_032`): a valid `in` PDU (with nested `telecommand`/
   `sdls` metadata) emitting a `db_call`, a missing required key and a
   non-integer `scid` each emitting nothing, a `db_callback` with valid
   symbol-hex `auth_key`/`crypt_key` emitting `out`, a genuinely nil
@@ -186,5 +186,8 @@ None currently.
   Counter ownership: top-level counters in the `in` metadata removed in
   favour of the database's nested ones (`test_027`), the `in` counters
   kept when the database sends none (`test_028`), `role="rx"` keeping the
-  frame's counters over the database's (`test_029`), and an invalid role
-  raising `ValueError` (`test_030`).
+  frame's counters over the database's (`test_029`), an invalid role
+  raising `ValueError` (`test_030`), every `db_call` carrying the role
+  as `db_role` without it reaching `out` (`test_031`), and RX lookups
+  against a real `db_client` continuing past its 16-bit counter limit
+  (`test_032`).

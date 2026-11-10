@@ -109,10 +109,13 @@ class qa_inject_db(gr_unittest.TestCase):
         out_port, out_msg = published[0]
         self.assertTrue(pmt.eqv(out_port, pmt.intern("db_call")))
         # The query is the input PDU plus a db_request_id for correlating
-        # the response; every original key and the payload are unchanged.
+        # the response and the db_role of the asking side; every original
+        # key and the payload are unchanged.
         out_meta = pmt.car(out_msg)
         self.assertTrue(pmt.dict_has_key(out_meta, pmt.intern("db_request_id")))
-        self.assertTrue(pmt.equal(pmt.dict_delete(out_meta, pmt.intern("db_request_id")), meta))
+        self.assertTrue(pmt.dict_has_key(out_meta, pmt.intern("db_role")))
+        query_keys_removed = pmt.dict_delete(pmt.dict_delete(out_meta, pmt.intern("db_request_id")), pmt.intern("db_role"))
+        self.assertTrue(pmt.equal(query_keys_removed, meta))
         self.assertTrue(pmt.equal(pmt.cdr(out_msg), pmt.cdr(msg)))
 
     def test_002_in_missing_required_key_emits_nothing(self):
@@ -829,6 +832,53 @@ entries:
     def test_030_invalid_role_raises(self):
         with self.assertRaises(ValueError):
             inject_db(role="both")
+
+    # The query tells db_client which side asks, so an RX lookup doesn't
+    # consume TX counters. The tag stays on the query only.
+    def test_031_db_call_carries_the_role(self):
+        for role in ("tx", "rx"):
+            block = inject_db(role=role)
+            original_pub, published = self._capture_pub(block)
+            try:
+                block.send_db_call(self._mk_request(1, [0xA]))
+                (call,) = self._db_calls(published)
+                block.send_msg_out(self._mk_response(self._request_id(call), 5))
+            finally:
+                self._restore_pub(block, original_pub)
+
+            tag = pmt.dict_ref(pmt.car(call), pmt.intern("db_role"), pmt.PMT_NIL)
+            self.assertEqual(pmt.symbol_to_string(tag), role)
+            (out,) = [m for p, m in published if pmt.eqv(p, pmt.intern("out"))]
+            self.assertFalse(pmt.dict_has_key(pmt.car(out), pmt.intern("db_role")))
+
+    # RX takes its counters from the received frame, so its lookups must
+    # keep working past the 16-bit counter limit of the RX database.
+    def test_032_rx_lookups_continue_past_the_counter_limit(self):
+        from gnuradio.soarr import db_client
+
+        client = db_client(type=0)
+        client._db["341"]["1"]["sdls_counter"] = 0xFFFE
+        block = inject_db(role="rx")
+        original_pub, published = self._capture_pub(block)
+        original_client_pub, client_published = self._capture_pub(client)
+        try:
+            for iv in (100, 101, 102):
+                meta = pmt.make_dict()
+                meta = pmt.dict_add(meta, pmt.intern("telecommand"), self._mk_nested_tc({
+                    "scid": 0x155, "vcid": 0x12, "vcid_counter": iv % 256,
+                    "bypass_flag": False, "control_flag": False}))
+                meta = pmt.dict_add(meta, pmt.intern("sdls"), self._mk_nested_sdls({"spi": 1, "sdls_counter": iv}))
+                block.send_db_call(pmt.cons(meta, pmt.init_u8vector(1, [iv])))
+                for call in self._db_calls(published):
+                    client.make_db_call(call)
+                published[:] = [(p, m) for p, m in published if not pmt.eqv(p, pmt.intern("db_call"))]
+                while client_published:
+                    block.send_msg_out(client_published.pop(0)[1])
+        finally:
+            self._restore_pub(block, original_pub)
+            self._restore_pub(client, original_client_pub)
+
+        self.assertEqual(self._outputs(published), [(bytes([100]), 100), (bytes([101]), 101), (bytes([102]), 102)])
 
 
 if __name__ == '__main__':

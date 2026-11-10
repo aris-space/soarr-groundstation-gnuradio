@@ -27,7 +27,7 @@ Confirmed via `python/soarr/qa_tx_chain.py`'s `msg_connect` wiring
 
 | Port | Direction | PMT shape | Example |
 |---|---|---|---|
-| `db_call` | input | PDU: `(metadata_dict . payload_u8vector_or_PMT_NIL)`. Metadata must include `scid`/`spi` (int), each checked at the top level first, falling back to `telecommand.tc_header.scid`/`sdls.security_header.spi` (see Behavior). | `pmt.cons({scid: 0x155, spi: 1}, u8vector(payload))` |
+| `db_call` | input | PDU: `(metadata_dict . payload_u8vector_or_PMT_NIL)`. Metadata must include `scid`/`spi` (int), each checked at the top level first, falling back to `telecommand.tc_header.scid`/`sdls.security_header.spi` (see Behavior). Optional `db_role` (symbol): `"rx"` marks an RX lookup, which doesn't count (see Behavior); `inject_db` always sets it. | `pmt.cons({scid: 0x155, spi: 1}, u8vector(payload))` |
 | `db_callback` | output | PDU: `(metadata_dict . payload_or_PMT_NIL)`. Metadata carries the looked-up `scid`/`spi`/`bypass`/`control` (echoed from the query), plus `vcid`/`crypt_key`/`auth_key`/`sdls_counter`/`vcid_counter` (looked up), plus the query's `db_request_id` if it has one — `inject_db` uses it to pair the response with its request. Payload is the query's own payload if `forward_body=True` and it's a u8vector; otherwise `PMT_NIL`. | `pmt.cons({vcid: 0x12, crypt_key: "...", ...}, u8vector(payload))` |
 
 ## Parameters
@@ -93,6 +93,13 @@ re-serving the max value — re-serving it would reuse a (key, counter)
 pair, which breaks AES-CTR confidentiality. Other entries are unaffected.
 The entry stays refused until the block is restarted with a new key.
 
+**RX lookups don't count**: a query with `db_role` `"rx"` (from
+`inject_db(role="rx")`) is served without advancing either counter and
+is answered even for an exhausted entry. RX reads its counters from the
+received frame and needs only the keys from the database; counting its
+lookups would exhaust the RX database after 65,536 received frames. Any
+other (or missing) `db_role` counts as a TX lookup.
+
 **`forward_body=False` (or a non-u8vector query payload)**: the
 `db_callback` response's payload becomes `PMT_NIL`. This is harmless in
 the real pipeline: `inject_db.send_msg_out` (see
@@ -132,8 +139,8 @@ None — this block is pure key/counter lookup, not a CCSDS-defined layer.
 
 ## Test coverage
 
-- `python/soarr/qa_db_client.py` — 25 test methods (`test_instance` +
-  `test_001`–`test_025`): a dummy-mode lookup returning every expected
+- `python/soarr/qa_db_client.py` — 27 test methods (`test_instance` +
+  `test_001`–`test_026`): a dummy-mode lookup returning every expected
   field and incrementing both counters across two calls, a missing
   `scid`/`spi` and an unknown `scid`/`spi` each emitting nothing, YAML
   mode loading a flat-layout entry and using it (`test_004`), an
@@ -160,5 +167,6 @@ None — this block is pure key/counter lookup, not a CCSDS-defined layer.
   query carries one and absent otherwise (`test_022`),
   `vcid_counter` served as `254, 255, 0, 1` in YAML mode (`test_023`),
   `auto_reset_counters` refused with a non-test `crypt_key` or
-  `auth_key` (`test_024`), and custom keys accepted with it off
-  (`test_025`).
+  `auth_key` (`test_024`), custom keys accepted with it off
+  (`test_025`), and an RX lookup served without counting, even for an
+  exhausted entry (`test_026`).

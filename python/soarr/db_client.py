@@ -510,7 +510,9 @@ class db_client(gr.basic_block):
                 Metadata must resolve `scid`/`spi` to a known DB entry
                 (see _resolve_scid_spi); `bypass`/`control` are optional,
                 echoed back from the query if present (see
-                _resolve_bypass_control).
+                _resolve_bypass_control). `db_role` (symbol, optional):
+                "rx" serves the entry without advancing its counters
+                (inject_db sets it); anything else counts as TX.
 
         Publishes:
             "db_callback" (pmt_pair): metadata with the query's
@@ -528,7 +530,7 @@ class db_client(gr.basic_block):
             - the entry's sdls_counter is exhausted: its max value was
               already served and auto-reset is off, so serving again
               would reuse a (key, counter) pair (error - a new key is
-              required)
+              required). Not for an RX lookup (`db_role` "rx").
             - the entry's stored counters are invalid (error - same)
             - an internal failure occurs while building or publishing the response (error - same)
         """
@@ -547,7 +549,13 @@ class db_client(gr.basic_block):
                 self.logger.error("DB query missing or unknown SCID/SPI.")
                 return
 
-            if entry.get("sdls_counter_exhausted", False):
+            # An RX lookup only needs the keys: RX reads its counters from
+            # the received frame, so it neither consumes nor is limited by
+            # the counters, which protect TX against (key, counter) reuse.
+            role = pmt.dict_ref(meta, pmt.intern("db_role"), pmt.PMT_NIL)
+            counts = not (pmt.is_symbol(role) and pmt.symbol_to_string(role) == "rx")
+
+            if counts and entry.get("sdls_counter_exhausted", False):
                 self.logger.error(
                     f"sdls_counter exhausted for SCID {entry.get('SCID')} / SPI {entry.get('SPI')}; "
                     "refusing request to avoid (key, counter) reuse. A new key is required."
@@ -586,6 +594,8 @@ class db_client(gr.basic_block):
             if self.forward_body and pmt.is_u8vector(in_body):
                 body_to_forward = in_body
             self._publish("db_callback", response_meta, body_to_forward)
+            if not counts:
+                return
 
             # Increase counters only after giving out current values.
             # sdls_counter: try to increment; if at max and auto-reset enabled for dummy mode,
