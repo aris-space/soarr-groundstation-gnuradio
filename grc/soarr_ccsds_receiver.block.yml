@@ -59,10 +59,11 @@ asserts:
 - ${ field_type != '1' } # Not implemented yet
 - ${ fixed_byte_length >= 0}
 - ${ fixed_byte_length < 2**10 }
+- ${ message_type != '2' or fixed_byte_length > 0 } # Fixed Length mode needs a length
 - ${ scid >= 0}
 - ${ scid < 2**10}
 - ${ vcid >= 0}
-- ${ vcid < 2**8}
+- ${ vcid < 2**6}
 
 inputs:
 - label: in

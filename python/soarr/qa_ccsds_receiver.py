@@ -251,6 +251,22 @@ class qa_ccsds_receiver(gr_unittest.TestCase):
         with self.assertRaises(ValueError):
             ccsds_receiver(fixed_byte_length=1024)
 
+    # A fixed frame length of 0 would publish an empty frame per codeword
+    # and discard its data; only Fixed Length mode uses the length.
+    def test_013_fixed_mode_requires_a_nonzero_length(self):
+        with self.assertRaises(ValueError):
+            ccsds_receiver(message_type=2, fixed_byte_length=0)
+        ccsds_receiver(message_type=2, fixed_byte_length=1)
+        ccsds_receiver(message_type=0, fixed_byte_length=0)
+
+    # SCID is 10 bits and VCID 6 bits in the TFPH; a filter value outside
+    # that range could never match a frame.
+    def test_014_scid_and_vcid_must_fit_their_fields(self):
+        for kwargs in ({"vcid": 64}, {"vcid": -1}, {"scid": 1024}, {"scid": -1}):
+            with self.assertRaises(ValueError, msg=str(kwargs)):
+                ccsds_receiver(**kwargs)
+        ccsds_receiver(scid=1023, vcid=63, scid_filter_enable=True, vcid_filter_enable=True)
+
     def _codewords(self, data):
         """Scramble data from a fresh LFSR sequence and BCH-encode it, as the
         TX chain does for one frame; return its 8-byte codewords."""

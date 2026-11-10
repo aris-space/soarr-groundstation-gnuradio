@@ -22,6 +22,9 @@ MESSAGE_TYPE_FIXED = 2
 LENGTH_TYPE_TC_FIELD = 0
 LENGTH_TYPE_ENCAPSULATION_FIELD = 1
 
+SCID_MAX = 0x3FF  # 10-bit TFPH field
+VCID_MAX = 0x3F   # 6-bit TFPH field
+
 DESCRAMBLING_ACTIVE = True
 
 
@@ -51,7 +54,10 @@ class ccsds_receiver(gr.basic_block):
 
         Raises:
             ValueError: message_type is outside 0-2, field_type is
-                outside 0-1, or fixed_byte_length is outside 0-1023.
+                outside 0-1, fixed_byte_length is outside 0-1023 (or 0
+                with message_type=2, where a 0-byte frame would discard
+                every codeword), scid is outside 0-1023 (10 bits), or
+                vcid is outside 0-63 (6 bits).
         """
         gr.basic_block.__init__(self,
             name="ccsds_receiver",
@@ -69,6 +75,13 @@ class ccsds_receiver(gr.basic_block):
         # Matches the GRC yaml's own asserts (0 <= fixed_byte_length < 1024).
         if fixed_byte_length < 0 or fixed_byte_length >= 1024:
             raise ValueError(f"Invalid fixed byte length: {fixed_byte_length}. Must be between 0 and 1023.")
+        if message_type == MESSAGE_TYPE_FIXED and fixed_byte_length == 0:
+            raise ValueError("Fixed Length mode needs a fixed_byte_length of at least 1.")
+        # TFPH field widths: a filter value outside them could never match.
+        if not (0 <= scid <= SCID_MAX):
+            raise ValueError(f"Invalid scid: {scid}. Must be between 0 and {SCID_MAX} (10 bits).")
+        if not (0 <= vcid <= VCID_MAX):
+            raise ValueError(f"Invalid vcid: {vcid}. Must be between 0 and {VCID_MAX} (6 bits).")
 
         self.message_type = message_type
         self.field_type = field_type
