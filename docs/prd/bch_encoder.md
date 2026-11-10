@@ -29,10 +29,7 @@ Confirmed via `python/soarr/qa_tx_chain.py`'s `msg_connect` wiring.
 
 Keeping a frame's codewords in one PDU is what lets `cltu_framer` wrap
 them in a single CLTU, as CCSDS 231.0-B-4 requires (see
-[cltu_framer.md](cltu_framer.md)). The same key name `filled` also
-appears on the RX side, where `lfsr_descrambler` resets its sequence
-when `filled` is present in its own (unrelated) input metadata; nothing
-wires `bch_encoder`'s output metadata into `lfsr_descrambler`.
+[cltu_framer.md](cltu_framer.md)).
 
 ## Parameters
 
@@ -91,9 +88,7 @@ matching the algorithm's zero-dividend case), not just self-consistency.
 
 ## Known issues / TODOs
 
-`filled`'s reuse with different semantics in `lfsr_descrambler` (Message
-ports above) is a naming overlap to be aware of, not a bug in this
-block.
+None currently.
 
 ## Test coverage
 

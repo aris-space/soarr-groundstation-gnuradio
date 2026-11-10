@@ -121,9 +121,6 @@ class lfsr_descrambler(gr.basic_block):
                 Metadata keys:
                     scramble_reset (bool, optional): if truthy, reseeds
                         the running LFSR sequence before descrambling.
-                    filled (any, optional): if present at all (its value
-                        is not inspected), reseeds the running LFSR
-                        sequence before descrambling.
 
         Publishes:
             "out" (pmt_pair): PDU with the same metadata dict and the
@@ -149,12 +146,11 @@ class lfsr_descrambler(gr.basic_block):
         try:
             pdu_data = pmt.u8vector_elements(body)
 
+            # cltu_deframer marks each CLTU's first codeword; CCSDS restarts
+            # de-randomization there.
             if pmt.dict_has_key(meta, pmt.intern("scramble_reset")):
                 if pmt.to_bool(pmt.dict_ref(meta, pmt.intern("scramble_reset"), pmt.PMT_F)):
                     self.reset_sequence()
-            elif pmt.dict_has_key(meta, pmt.intern("filled")):
-                # Presence of 'filled' marks end-of-message in this chain.
-                self.reset_sequence()
 
             descrambled_data = self.apply_descrambling(pdu_data)
 
