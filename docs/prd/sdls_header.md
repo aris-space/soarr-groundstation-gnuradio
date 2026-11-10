@@ -34,7 +34,7 @@ consume it but never remove it.
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `iv_length_bytes` | int | `2` | Fixed byte width `sdls_counter` is padded/validated to. Must be `2` — `sdls_encryption`/`sdls_decryption`'s AES-CTR counter width and `sdls_authentication`/`sdls_authentication_verify`'s CMAC counter width are both fixed at exactly 2 bytes, so any other value would desync the wire-transmitted field width from what TX/RX actually use cryptographically. Validated in `__init__` (raises `ValueError` if not `2`); not GRC-exposed (hardcoded to `2` in the `make` template, matching `bch_decoder`'s fixed `mode` parameter). |
+| `iv_length_bytes` | int | `2` | Fixed byte width `sdls_counter` is padded/validated to. Must be `2` (`sdls_constants.SDLS_COUNTER_BYTES`) — the same constant sets the AES counter block width in `sdls_encryption`/`sdls_decryption` and `sdls_authentication`/`sdls_authentication_verify`, so any other value would desync the wire-transmitted field width from what TX/RX actually use cryptographically. Validated in `__init__` (raises `ValueError` if not `2`); not GRC-exposed (hardcoded to `2` in the `make` template, matching `bch_decoder`'s fixed `mode` parameter). |
 
 ## Behavior / edge cases / current error handling
 

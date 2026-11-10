@@ -14,9 +14,7 @@ from Crypto.Hash import CMAC
 from Crypto.Cipher import AES
 
 
-COUNTER_MIN = 0
-COUNTER_MAX = 0xFFFF  # 2-byte counter max value
-NONCE_LEN = 14
+from .sdls_constants import NONCE_LEN, SDLS_COUNTER_BYTES, SDLS_COUNTER_MAX as COUNTER_MAX, SDLS_COUNTER_MIN as COUNTER_MIN
 
 class sdls_authentication(gr.basic_block):
     """
@@ -56,7 +54,7 @@ class sdls_authentication(gr.basic_block):
         if not isinstance(nonce, (bytes, bytearray)):
             raise TypeError("nonce must be bytes-like")
         if len(nonce) != NONCE_LEN:
-            raise ValueError("nonce must be exactly 14 bytes")
+            raise ValueError(f"nonce must be exactly {NONCE_LEN} bytes")
 
         self.nonce = bytes(nonce)
 
@@ -144,7 +142,7 @@ class sdls_authentication(gr.basic_block):
 
         # Validate counter range
         if counter < COUNTER_MIN or counter > COUNTER_MAX:
-            self.logger.error(f"sdls_counter exceeds 2-byte range (0..65535); aborting message processing. Value: {counter}")
+            self.logger.error(f"sdls_counter exceeds its range ({COUNTER_MIN}..{COUNTER_MAX}); aborting message processing. Value: {counter}")
             return None
 
         return counter
@@ -159,7 +157,7 @@ class sdls_authentication(gr.basic_block):
                 big-endian 2-byte sequence number.
         """
         # CTR-style block: nonce (14 bytes) + sequence number (2 bytes).
-        return self.nonce + counter.to_bytes(2, byteorder="big", signed=False)
+        return self.nonce + counter.to_bytes(SDLS_COUNTER_BYTES, byteorder="big", signed=False)
 
     def _get_authentication_tag(self, secret:bytes, counter:int, payload_u8vector) -> bytes:
         """
@@ -178,9 +176,9 @@ class sdls_authentication(gr.basic_block):
         # Defensive re-check, mirroring sdls_encryption._encrypt_payload -
         # both are already validated by the caller before this runs.
         if len(self.nonce) != NONCE_LEN:
-            raise ValueError("nonce must be exactly 14 bytes")
+            raise ValueError(f"nonce must be exactly {NONCE_LEN} bytes")
         if counter < COUNTER_MIN or counter > COUNTER_MAX:
-            raise ValueError("sdls_counter must be in range 0..65535")
+            raise ValueError(f"sdls_counter must be in range {COUNTER_MIN}..{COUNTER_MAX}")
 
         # Convert payload from PMT u8vector to bytes
         payload_bytes = bytes(pmt.u8vector_elements(payload_u8vector))

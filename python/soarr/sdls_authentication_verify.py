@@ -13,7 +13,7 @@ from Crypto.Hash import CMAC
 from Crypto.Cipher import AES
 
 from . import encapsulation_packet
-from .sdls_authentication import COUNTER_MAX, COUNTER_MIN, NONCE_LEN
+from .sdls_constants import NONCE_LEN, SDLS_COUNTER_BYTES, SDLS_COUNTER_MAX as COUNTER_MAX, SDLS_COUNTER_MIN as COUNTER_MIN
 
 
 TAG_LEN = 16
@@ -53,7 +53,7 @@ class sdls_authentication_verify(gr.basic_block):
         if not isinstance(nonce, (bytes, bytearray)):
             raise TypeError("nonce must be bytes-like")
         if len(nonce) != NONCE_LEN:
-            raise ValueError("nonce must be exactly 14 bytes")
+            raise ValueError(f"nonce must be exactly {NONCE_LEN} bytes")
         self.nonce = bytes(nonce)
 
         # Register message ports
@@ -135,14 +135,14 @@ class sdls_authentication_verify(gr.basic_block):
 
         if counter < COUNTER_MIN or counter > COUNTER_MAX:
             self.logger.error(
-                f"sdls_counter exceeds 2-byte range (0..65535); aborting message processing. Value: {counter}"
+                f"sdls_counter exceeds its range ({COUNTER_MIN}..{COUNTER_MAX}); aborting message processing. Value: {counter}"
             )
             return None
 
         return counter
 
     def _build_ctr_counter_block(self, counter: int) -> bytes:
-        return self.nonce + counter.to_bytes(2, byteorder="big", signed=False)
+        return self.nonce + counter.to_bytes(SDLS_COUNTER_BYTES, byteorder="big", signed=False)
 
     def _split_payload_tag(self, payload_bytes: bytes) -> tuple[bytes, bytes] | None:
         if len(payload_bytes) < TAG_LEN:

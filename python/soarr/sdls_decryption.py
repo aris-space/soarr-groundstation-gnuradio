@@ -12,10 +12,7 @@ import pmt
 from Crypto.Cipher import AES
 
 
-COUNTER_MIN = 0
-COUNTER_MAX = 0xFFFF  # 2-byte counter max value
-COUNTER_SIZE = 2  # 2 bytes for the counter
-NONCE_LEN = 14
+from .sdls_constants import NONCE_LEN, SDLS_COUNTER_MAX as COUNTER_MAX, SDLS_COUNTER_MIN as COUNTER_MIN
 
 class sdls_decryption(gr.basic_block):
     """
@@ -50,7 +47,7 @@ class sdls_decryption(gr.basic_block):
         if not isinstance(nonce, (bytes, bytearray)):
             raise TypeError("nonce must be bytes-like")
         if len(nonce) != NONCE_LEN:
-            raise ValueError("nonce must be exactly 14 bytes")
+            raise ValueError(f"nonce must be exactly {NONCE_LEN} bytes")
         self.nonce = bytes(nonce)
 
         # Register message ports
@@ -136,7 +133,7 @@ class sdls_decryption(gr.basic_block):
 
         if counter < COUNTER_MIN or counter > COUNTER_MAX:
             self.logger.error(
-                f"sdls_counter exceeds 2-byte range (0..65535); aborting message processing. Value: {counter}"
+                f"sdls_counter exceeds its range ({COUNTER_MIN}..{COUNTER_MAX}); aborting message processing. Value: {counter}"
             )
             return None
 
@@ -157,10 +154,10 @@ class sdls_decryption(gr.basic_block):
                 - both are already validated before this is called).
         """
         if len(self.nonce) != NONCE_LEN:
-            raise ValueError("nonce must be exactly 14 bytes")
+            raise ValueError(f"nonce must be exactly {NONCE_LEN} bytes")
 
         if counter < COUNTER_MIN or counter > COUNTER_MAX:
-            raise ValueError("sdls_counter must be in range 0..65535")
+            raise ValueError(f"sdls_counter must be in range {COUNTER_MIN}..{COUNTER_MAX}")
 
         cipher = AES.new(key, AES.MODE_CTR, nonce=self.nonce, initial_value=counter)
         plaintext = cipher.decrypt(payload)

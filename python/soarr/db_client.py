@@ -9,14 +9,15 @@ from pathlib import Path
 from gnuradio import gr
 import pmt
 
+# SDLS counter is transmitted as the IV in the SDLS security header
+# (sdls_header), so its range is the shared SDLS counter width.
+from .sdls_constants import SDLS_COUNTER_MAX
+
 try:
     import yaml
 except ImportError:
     yaml = None
 
-# SDLS counter is transmitted as the 2-byte IV in the SDLS security header
-# (sdls_header), so it is modeled as uint16.
-SDLS_COUNTER_MAX = 0xFFFF
 VCID_COUNTER_MAX = 0xFF
 
 # Built-in dummy-mode keys. They are public (in this repo), so they protect
