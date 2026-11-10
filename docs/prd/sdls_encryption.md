@@ -105,13 +105,14 @@ support for SDLS's other permitted cipher suites.
 
 - **No (nonce, counter) reuse protection.** This block trusts that
   `sdls_counter` is unique per message for a given key — it has no
-  internal state to detect or prevent reuse. Under normal operation
-  (`db_client` issuing a monotonically-incrementing counter, no reset)
-  this holds; if `db_client`'s `auto_reset_counters=True` is ever set on
-  an instance actually used with real key material (not just dummy/test
-  payloads), the counter would wrap and repeat, and — combined with this
-  block's fixed `nonce` — reusing a (nonce, counter) pair under AES-CTR
-  with the same key breaks confidentiality for both messages involved.
+  internal state to detect or prevent reuse. Within one run,
+  `db_client` never re-serves a counter under a real key: its only
+  reset path, `auto_reset_counters`, is refused unless the keys are the
+  built-in test keys. Across restarts it can: `db_client` does not
+  persist counters, so a restarted flowgraph serves counters again from
+  the YAML file's (or dummy parameters') starting value under the same
+  key — reusing a (nonce, counter) pair under AES-CTR, which breaks
+  confidentiality for both messages involved.
 - **Default `nonce` is all-zero** (`b"\x00" * 14`) unless explicitly
   overridden by the caller/GRC flowgraph.
 - **The nested `sdls_counter` fallback lookup path

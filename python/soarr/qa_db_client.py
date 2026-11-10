@@ -657,6 +657,20 @@ entries:
         served = [self._meta_int(pmt.car(msg), "vcid_counter") for _, msg in published]
         self.assertEqual(served, [254, 255, 0, 1])
 
+    # Auto-reset reuses (key, counter) pairs, so it is only allowed with
+    # the public built-in test keys - never with real key material.
+    def test_024_auto_reset_with_custom_key_is_refused(self):
+        custom_key = "AB" * 32
+        with self.assertRaises(ValueError):
+            db_client(type=0, auto_reset_counters=True, crypt_key=custom_key)
+        with self.assertRaises(ValueError):
+            db_client(type=0, auto_reset_counters=True, auth_key=custom_key)
+
+    def test_025_custom_key_without_auto_reset_is_accepted(self):
+        custom_key = "AB" * 32
+        block = db_client(type=0, auto_reset_counters=False, crypt_key=custom_key, auth_key=custom_key)
+        self.assertEqual(block._db["341"]["1"]["crypt_key"], custom_key)
+
 
 if __name__ == '__main__':
     gr_unittest.run(qa_db_client)

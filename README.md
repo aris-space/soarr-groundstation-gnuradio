@@ -206,10 +206,10 @@ encrypt/decrypt, authenticate/verify round trips.
 
 ## Known issues
 
-- `db_client`'s `auto_reset_counters` option (in-memory test mode) wraps
-  the SDLS counter back to 0, which reuses AES-CTR counters under the
-  same key. Never enable it with real key material
-  ([#1](https://github.com/aris-space/soarr-groundstation-gnuradio/issues/1)).
+- `db_client` does not persist SDLS counters: after a restart it serves
+  them again from the YAML file's starting value, reusing AES-CTR
+  counters under the same key. Load a new key or raise the stored
+  counters before each run with real key material.
 
 Open bugs, design questions, and test-coverage gaps are tracked as
 [GitHub issues](https://github.com/aris-space/soarr-groundstation-gnuradio/issues).

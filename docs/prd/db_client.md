@@ -38,7 +38,7 @@ Confirmed via `python/soarr/qa_tx_chain.py`'s `msg_connect` wiring
 | `ip`, `port` | str, int | `"127.0.0.1"`, `80` | Reserved for `type=2`'s remote DB mode; unused since that mode isn't implemented. |
 | `yaml_path` | str | `""` | Path to the YAML file for `type=1`. Missing file, missing PyYAML, a parse failure, a non-mapping root, or zero valid entries all fall back to dummy (logged at `error`). |
 | `forward_body` | bool | `True` | If `True` and the query's payload is a u8vector, echoes it back on `db_callback`; otherwise the response payload is `PMT_NIL`. Currently has no real effect on `inject_db`, the only consumer in this repo — it always uses its own independently-tracked pending payload instead (see Behavior). Kept for a future consumer that might not track its own pending payload. |
-| `auto_reset_counters` | bool | `False` | `type=0` only: if `True`, `sdls_counter` resets to `0` after its max value is served instead of the entry being refused — reusing AES-CTR counters, so for test use only. Has no effect on `vcid_counter`, which always wraps. |
+| `auto_reset_counters` | bool | `False` | `type=0` only: if `True`, `sdls_counter` resets to `0` after its max value is served instead of the entry being refused — reusing AES-CTR counters, for long test runs. Only allowed with the built-in test keys (`TEST_CRYPT_KEY`/`TEST_AUTH_KEY`, the `crypt_key`/`auth_key` defaults); with any other key the constructor raises `ValueError`. Has no effect on `vcid_counter`, which always wraps. |
 | `scid`, `spi`, `vcid`, `crypt_key`, `auth_key`, `sdls_counter`, `vcid_counter`, `key_state_enc`, `key_state_auth` | — | see code | The dummy (`type=0`) entry's fields, each independently configurable. |
 
 ## Behavior / edge cases / current error handling
@@ -83,8 +83,8 @@ affected. The two counters overflow differently:
   independent of `auto_reset_counters`. It has no security role, so
   wrapping needs no new key.
 - **`sdls_counter`**: `_checked_increment` raises `OverflowError` at its
-  max; with `type=0 and auto_reset_counters` it resets to `0` (test use
-  only — see below), otherwise the entry is marked exhausted.
+  max; with `type=0 and auto_reset_counters` it resets to `0` (test keys
+  only — see Parameters), otherwise the entry is marked exhausted.
 
 **`sdls_counter` exhaustion**: without auto-reset, an `sdls_counter`
 overflow marks the entry `sdls_counter_exhausted`, and every later query
@@ -132,8 +132,8 @@ None — this block is pure key/counter lookup, not a CCSDS-defined layer.
 
 ## Test coverage
 
-- `python/soarr/qa_db_client.py` — 23 test methods (`test_instance` +
-  `test_001`–`test_023`): a dummy-mode lookup returning every expected
+- `python/soarr/qa_db_client.py` — 25 test methods (`test_instance` +
+  `test_001`–`test_025`): a dummy-mode lookup returning every expected
   field and incrementing both counters across two calls, a missing
   `scid`/`spi` and an unknown `scid`/`spi` each emitting nothing, YAML
   mode loading a flat-layout entry and using it (`test_004`), an
@@ -157,5 +157,8 @@ None — this block is pure key/counter lookup, not a CCSDS-defined layer.
   (`test_019`), a stored `sdls_counter` above 16 bits refused
   (`test_020`), an exhausted entry refused while another entry keeps
   being served (`test_021`), `db_request_id` echoed back when the
-  query carries one and absent otherwise (`test_022`), and
-  `vcid_counter` served as `254, 255, 0, 1` in YAML mode (`test_023`).
+  query carries one and absent otherwise (`test_022`),
+  `vcid_counter` served as `254, 255, 0, 1` in YAML mode (`test_023`),
+  `auto_reset_counters` refused with a non-test `crypt_key` or
+  `auth_key` (`test_024`), and custom keys accepted with it off
+  (`test_025`).
