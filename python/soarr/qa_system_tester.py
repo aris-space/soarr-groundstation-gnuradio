@@ -140,6 +140,46 @@ class qa_system_tester(gr_unittest.TestCase):
         # Should not raise.
         instance.handle_start(pmt.PMT_NIL)
 
+    # A packet is scored once: a repeated received for a completed packet
+    # is dropped, not counted again.
+    def test_006_duplicate_received_is_not_counted_twice(self):
+        instance = system_tester(timeout_s=0, stats_path=None)
+        instance.handle_start(pmt.PMT_NIL)
+        payload = bytes([1, 2, 3])
+        instance.handle_original(self._make_pdu(payload, vcid_counter=0))
+        instance.handle_received(self._make_pdu(payload, vcid_counter=0))
+        instance.handle_received(self._make_pdu(bytes([0xFF, 2, 3]), vcid_counter=0))
+
+        stats = instance.get_stats()
+        self.assertEqual(stats["received_packets"], 1)
+        self.assertEqual(stats["message_errors"], 0)
+        self.assertEqual(stats["bit_errors"], 0)
+
+    # A packet that timed out stays lost: a received arriving afterwards
+    # doesn't also count it as received.
+    def test_007_received_after_timeout_is_not_counted(self):
+        instance = system_tester(timeout_s=0, stats_path=None)
+        instance.handle_start(pmt.PMT_NIL)
+        payload = bytes([1, 2, 3])
+        instance.handle_original(self._make_pdu(payload, vcid_counter=0))
+        instance._timeout_packet(0)
+        instance.handle_received(self._make_pdu(payload, vcid_counter=0))
+
+        stats = instance.get_stats()
+        self.assertEqual(stats["lost_packets"], 1)
+        self.assertEqual(stats["received_packets"], 0)
+
+    # A received with no reference payload counts as lost once and
+    # completes the packet, so its timeout doesn't count it lost again.
+    def test_008_unreferenced_received_is_lost_once(self):
+        instance = system_tester(timeout_s=0, stats_path=None)
+        instance.handle_received(self._make_pdu(bytes([1, 2, 3]), vcid_counter=5))
+        instance._timeout_packet(5)
+
+        stats = instance.get_stats()
+        self.assertEqual(stats["lost_packets"], 1)
+        self.assertEqual(stats["received_packets"], 0)
+
 
 if __name__ == '__main__':
     gr_unittest.run(qa_system_tester)

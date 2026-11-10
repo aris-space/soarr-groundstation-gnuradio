@@ -69,7 +69,11 @@ payload under `entry["original"]`/`entry["transmitted"]` respectively.
 `handle_received` follows the same extraction pattern, then additionally
 calls `_finalize_entry`, which picks `entry["original"]` if present,
 else `entry["transmitted"]`, as the reference payload; if **neither** is
-set, the packet counts as lost.
+set, the packet counts as lost and is completed (its timer cancelled, so
+the timeout doesn't count it lost again). Every packet completes exactly
+once — scored, lost without a reference, or timed out — and a `received`
+message for an already-completed packet is dropped (logged at `error`)
+instead of being counted again.
 
 **`handle_start`'s repetition/mode gating**: a new `start` is ignored
 outright (no trigger emitted, no entry created) if `repetitions > 0` and
@@ -136,7 +140,7 @@ tracking key.
 
 ## Test coverage
 
-- `python/soarr/qa_system_tester.py` — 6 test methods: construction and
+- `python/soarr/qa_system_tester.py` — 9 test methods: construction and
   default parameter values (`test_instance`); a `start`→`original`→
   `received` flow with matching payloads, each PDU carrying a
   `telecommand.tc_header.vcid_counter` metadata path, expected to
@@ -149,9 +153,13 @@ tracking key.
   (`test_003_timeout_marks_packet_lost`); `_save_stats` raising
   `OSError` during `handle_received` confirmed not to propagate past
   the handler (`test_004_save_stats_failure_does_not_crash_handle_received`);
-  and `message_port_pub` raising `RuntimeError` during `handle_start`
+  `message_port_pub` raising `RuntimeError` during `handle_start`
   confirmed not to propagate past the handler
-  (`test_005_trigger_publish_failure_does_not_crash_handle_start`).
+  (`test_005_trigger_publish_failure_does_not_crash_handle_start`); a
+  repeated `received` not scored twice (`test_006`); a `received` after
+  a timeout not also counted as received (`test_007`); and an
+  unreferenced `received` counted lost once, not again at its timeout
+  (`test_008`).
 - `python/soarr/qa_tx_chain.py::test_012_system_tester_tracks_real_tx_chain_output`
   — `handle_original`/`handle_received` called directly against the real
   TX chain's own output (not passthrough shims), confirming a packet

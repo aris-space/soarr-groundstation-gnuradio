@@ -248,12 +248,19 @@ class system_tester(gr.basic_block):
         compared_bits = max(len(left_bytes), len(right_bytes)) * 8
         return bit_errors, compared_bits
 
+    def _complete_entry(self, entry):
+        entry["completed"] = True
+        if entry["timer"] is not None:
+            entry["timer"].cancel()
+
     def _finalize_entry(self, entry, received_payload):
         reference_payload = entry["original"] if entry["original"] is not None else entry["transmitted"]
 
         if reference_payload is None:
             self._stats["lost_packets"] += 1
             self.logger.error(f"Packet id={entry['packet_id']} completed without a reference payload; marking as lost.")
+            self._complete_entry(entry)
+            self._update_stats()
             return
 
         self._stats["received_packets"] += 1
@@ -270,10 +277,7 @@ class system_tester(gr.basic_block):
         else:
             self.logger.info(f"Packet id={entry['packet_id']} payload matched exactly.")
 
-        entry["completed"] = True
-        if entry["timer"] is not None:
-            entry["timer"].cancel()
-
+        self._complete_entry(entry)
         self._update_stats()
 
     def _timeout_packet(self, packet_id):
@@ -414,6 +418,7 @@ class system_tester(gr.basic_block):
         Drops when:
             - the payload is not a PDU (error - malformed input)
             - vcid_counter can't be extracted from the metadata (error - can't be tracked, no fallback)
+            - the packet is already completed, scored or timed out (error - a duplicate or late message, never counted twice)
             - scoring the packet or saving stats fails for any other reason (error - unexpected internal failure)
         """
         try:
@@ -429,6 +434,11 @@ class system_tester(gr.basic_block):
 
             with self._lock:
                 entry = self._get_or_create_entry(vcid_counter, "received")
+                if entry["completed"]:
+                    # Already scored or timed out; counting it again would
+                    # make one packet both received twice, or lost and received.
+                    self.logger.error(f"Packet id={entry['packet_id']} already completed; ignoring duplicate or late received message.")
+                    return
                 entry["received"] = payload_bytes
                 self.logger.debug(f"Stored received payload for packet id={entry['packet_id']} ({len(payload_bytes)} bytes).")
                 self._finalize_entry(entry, payload_bytes)
