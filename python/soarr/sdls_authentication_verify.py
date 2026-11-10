@@ -33,8 +33,9 @@ class sdls_authentication_verify(gr.basic_block):
         """
         Args:
             authentication_state (bool): if False, verify_message becomes
-                a pure passthrough after its shape checks - no key/counter
-                extraction, no tag verification.
+                a passthrough after its shape checks - no key/counter
+                extraction, no tag verification; only `auth_key` is
+                removed from the metadata.
             nonce (bytes): fixed 14-byte value combined with the
                 per-message sdls_counter into the 16-byte block used to
                 recompute the CMAC tag. Must match sdls_authentication's
@@ -231,7 +232,8 @@ class sdls_authentication_verify(gr.basic_block):
             "out" (pmt_pair): PDU with `auth_key` removed from metadata
                 and the tag stripped from the payload. If
                 authentication_state is False, republishes the input
-                unchanged instead (after the same shape checks).
+                payload unverified instead (after the same shape checks),
+                still with `auth_key` removed.
 
         Drops when:
             - msg is not a PDU pair (error - malformed input, this block sits downstream of ccsds_reader)
@@ -262,9 +264,10 @@ class sdls_authentication_verify(gr.basic_block):
                 self.logger.error(f"Received non-dict metadata: {dict_msg}")
                 return
 
-            # If authentication state is False, pass through the message unmodified
+            # Disabled: pass the payload through, but still drop the key -
+            # nothing downstream needs it.
             if not self.authentication_state:
-                self.message_port_pub(pmt.intern("out"), msg)
+                self.message_port_pub(pmt.intern("out"), pmt.cons(pmt.dict_delete(dict_msg, pmt.intern("auth_key")), payload_u8vector))
                 return
 
             # If authentication state is True, perform verification

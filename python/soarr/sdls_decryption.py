@@ -27,8 +27,8 @@ class sdls_decryption(gr.basic_block):
         """
         Args:
             decryption_state (bool): if False, decrypt_message becomes a
-                pure passthrough after its shape checks - no validation,
-                no metadata mutation.
+                passthrough after its shape checks - no validation; only
+                `crypt_key` is removed from the metadata.
             nonce (bytes): fixed 14-byte value combined with the
                 per-message sdls_counter into the same 16-byte AES-CTR
                 counter block sdls_encryption used to encrypt. Must match
@@ -176,7 +176,8 @@ class sdls_decryption(gr.basic_block):
             "out" (pmt_pair): PDU with `crypt_key` removed from metadata
                 and the payload replaced by its AES-256-CTR plaintext. If
                 decryption_state is False, republishes the input
-                unchanged instead (after the same shape checks).
+                payload undecrypted instead (after the same shape checks),
+                still with `crypt_key` removed.
 
         Drops when:
             - msg is not a PDU pair (error - malformed input, this block sits downstream of ccsds_reader)
@@ -206,8 +207,9 @@ class sdls_decryption(gr.basic_block):
                 return
 
             if self.decryption_state is False:
-                # If decryption is disabled, pass the message through unchanged
-                self.message_port_pub(pmt.intern("out"), msg)
+                # Disabled: pass the payload through, but still drop the key -
+                # nothing downstream needs it.
+                self.message_port_pub(pmt.intern("out"), pmt.cons(pmt.dict_delete(dict_msg, pmt.intern("crypt_key")), payload_u8vector))
                 return
 
             # Extract the decryption key from the dict message

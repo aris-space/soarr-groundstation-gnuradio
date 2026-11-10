@@ -31,8 +31,9 @@ class sdls_authentication(gr.basic_block):
         """
         Args:
             authentication_state (bool): if False, add_authentication
-                becomes a pure passthrough after its shape checks - no
-                key/counter validation, no metadata mutation.
+                becomes a passthrough after its shape checks - no
+                key/counter validation; only `auth_key` is removed from
+                the metadata.
             nonce (bytes): fixed 14-byte value combined with the
                 per-message sdls_counter into the 16-byte block prepended
                 to the payload before computing the CMAC tag. Never
@@ -207,7 +208,8 @@ class sdls_authentication(gr.basic_block):
             "out" (pmt_pair): PDU with `auth_key` removed from metadata
                 and a 16-byte AES-CMAC tag appended to the payload. If
                 authentication_state is False, republishes the input
-                unchanged instead (after the same shape checks).
+                payload untagged instead (after the same shape checks),
+                still with `auth_key` removed.
 
         Drops when:
             - msg is not a PDU pair (error - malformed input at the TX boundary, not raw RF noise)
@@ -240,7 +242,8 @@ class sdls_authentication(gr.basic_block):
 
             if self.authentication_state is False:
                 self.logger.info(f"No authentication applied since authentication_state is False. Passing through message.")
-                self.message_port_pub(pmt.intern("out"), msg)
+                # Still drop the key: nothing downstream needs it.
+                self.message_port_pub(pmt.intern("out"), pmt.cons(pmt.dict_delete(dict_msg, pmt.intern("auth_key")), payload_u8vector))
                 return # Early exit if authentication is disabled
 
             # Extract the secret key from the message dict, with validation.

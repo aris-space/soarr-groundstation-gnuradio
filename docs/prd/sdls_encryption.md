@@ -29,7 +29,7 @@ RX counterpart: [sdls_decryption](sdls_decryption.md).
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `encryption_state` | bool | `True` | `False` makes the block a pure passthrough after its shape checks — input republished on `out` unchanged, no key/counter validation, no metadata mutation. Named to mirror `sdls_decryption`'s `decryption_state`. |
+| `encryption_state` | bool | `True` | `False` makes the block a passthrough after its shape checks — the payload republished on `out` unchanged, no key/counter validation; only `crypt_key` is removed from the metadata (nothing downstream needs it, and it would otherwise reach every later block and sink). Named to mirror `sdls_decryption`'s `decryption_state`. |
 | `nonce` | bytes | `b"\x00" * 14` (all-zero) | Fixed for the block's lifetime, combined with the per-message `sdls_counter` into one 16-byte AES-CTR counter block. Never transmitted — RX's `sdls_decryption` must be configured with the identical value out-of-band. Validated in `__init__` (`TypeError`/`ValueError` if not exactly 14 bytes). |
 
 ## Behavior / edge cases / current error handling
@@ -40,7 +40,8 @@ without publishing, regardless of `encryption_state`. Only past those
 checks does it look at `encryption_state`.
 
 **`encryption_state=False`**: republishes the already-shape-validated
-input PDU on `out` completely unchanged — no key/counter extraction.
+input payload on `out` unchanged — no key/counter extraction — with
+only `crypt_key` removed from the metadata.
 **Same order as the RX sibling**: `sdls_decryption.decrypt_message`
 also checks shape first, `decryption_state` second.
 

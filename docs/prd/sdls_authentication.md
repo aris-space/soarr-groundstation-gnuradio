@@ -32,7 +32,7 @@ It uses the same `authentication_state` parameter name as this block.
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `authentication_state` | bool | `True` | `False` makes the block a pure passthrough after its shape checks — input republished on `out` unchanged, no key/counter validation, no metadata mutation. Matches `sdls_authentication_verify`'s own `authentication_state` parameter name — not a new convention. |
+| `authentication_state` | bool | `True` | `False` makes the block a passthrough after its shape checks — the payload republished on `out` unchanged, no key/counter validation; only `auth_key` is removed from the metadata (nothing downstream needs it, and it would otherwise reach every later block and sink). Matches `sdls_authentication_verify`'s own `authentication_state` parameter name — not a new convention. |
 | `nonce` | bytes | `b"\x00" * 14` (all-zero) | Fixed for the block's lifetime, combined with the per-message `sdls_counter` into the 16-byte block prepended to the payload before CMAC (see Behavior). Never transmitted — RX's `sdls_authentication_verify` must be configured with the identical value out-of-band. **Independent of `sdls_encryption`'s `nonce`** — a separate parameter, separate key (`auth_key` vs. `crypt_key`), by design: using distinct key/nonce material for encryption vs. authentication is standard practice, not a bug, even though both currently default to the same all-zero value. Validated in `__init__` (`TypeError`/`ValueError` if not exactly 14 bytes). |
 
 ## Behavior / edge cases / current error handling
@@ -43,7 +43,8 @@ without publishing, regardless of `authentication_state`. Only past
 those checks does it look at `authentication_state`.
 
 **`authentication_state=False`**: republishes the already-shape-validated
-input PDU on `out` completely unchanged — no key/counter extraction.
+input payload on `out` unchanged — no key/counter extraction — with
+only `auth_key` removed from the metadata.
 **Same order as the RX sibling**: `sdls_authentication_verify.verify_message`
 also checks shape first, `authentication_state` second.
 

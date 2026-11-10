@@ -37,7 +37,7 @@ framing. Every example flowgraph with an RX chain
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `authentication_state` | bool | `True` | `False` makes the block a pure passthrough after its shape checks — input republished on `out` unchanged, no key/counter validation, no metadata mutation. Matches `sdls_authentication`'s own parameter name (same convention, not new). |
+| `authentication_state` | bool | `True` | `False` makes the block a passthrough after its shape checks — the payload republished on `out` unchanged, no key/counter validation; only `auth_key` is removed from the metadata (nothing downstream needs it, and it would otherwise reach every later block and sink). Matches `sdls_authentication`'s own parameter name (same convention, not new). |
 | `nonce` | bytes | `b"\x00" * 14` (all-zero) | Fixed for the block's lifetime, combined with the per-message `sdls_counter` to rebuild the same 16-byte counter block `sdls_authentication` prepended before computing its tag. Must match `sdls_authentication`'s own `nonce` value out-of-band, or every tag fails to verify (`qa_sdls_authentication_round_trip.py::test_005_nonce_mismatch_fails`). Validated in `__init__` (`TypeError`/`ValueError` if not exactly 14 bytes) — the error message hardcodes "14" rather than referencing `NONCE_LEN`, cosmetic only since the two currently agree. |
 
 ## Behavior / edge cases / current error handling
@@ -48,7 +48,8 @@ without publishing, regardless of `authentication_state`. Only past
 those checks does it look at `authentication_state`.
 
 **`authentication_state=False`**: republishes the already-shape-validated
-input PDU on `out` completely unchanged — no key/counter extraction.
+input payload on `out` unchanged — no key/counter extraction — with
+only `auth_key` removed from the metadata.
 **Same order as the TX sibling**: `sdls_authentication.add_authentication`
 also checks shape first, `authentication_state` second.
 

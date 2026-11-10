@@ -30,8 +30,8 @@ class sdls_encryption(gr.basic_block):
         """
         Args:
             encryption_state (bool): if False, add_encryption becomes a
-                pure passthrough after its shape checks - no validation,
-                no metadata mutation.
+                passthrough after its shape checks - no validation; only
+                `crypt_key` is removed from the metadata.
             nonce (bytes): fixed 14-byte value combined with the
                 per-message sdls_counter into one 16-byte AES-CTR counter
                 block. Never transmitted - RX's sdls_decryption must be
@@ -180,7 +180,8 @@ class sdls_encryption(gr.basic_block):
             "out" (pmt_pair): PDU with `crypt_key` removed from metadata
                 and the payload replaced by its AES-256-CTR ciphertext.
                 If encryption_state is False, republishes the input
-                unchanged instead (after the same shape checks).
+                payload unencrypted instead (after the same shape checks),
+                still with `crypt_key` removed.
 
         Drops when:
             - msg is not a PDU pair (error - malformed input at the TX boundary, not raw RF noise)
@@ -214,7 +215,8 @@ class sdls_encryption(gr.basic_block):
 
             if self.encryption_state is False:
                 self.logger.info(f"No encryption applied since encryption_state is False. Passing through message.")
-                self.message_port_pub(pmt.intern("out"), msg)
+                # Still drop the key: nothing downstream needs it.
+                self.message_port_pub(pmt.intern("out"), pmt.cons(pmt.dict_delete(dict_msg, pmt.intern("crypt_key")), payload_u8vector))
                 return # Early exit if encryption is disabled
 
             # Extract the encryption key from the dict
