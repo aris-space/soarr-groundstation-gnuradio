@@ -35,7 +35,7 @@ them in a single CLTU, as CCSDS 231.0-B-4 requires (see
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `polynomial` | int | `0xC5` | Generator polynomial g(x) = x^7 + x^6 + x^2 + 1, as an 8-bit value with bit 7 set (the implicit leading term is stored explicitly, not implied). Validated in `__init__` (raises `ValueError` if outside `0x80`-`0xFF`). |
+| `generator_polynomial` | int | `0xC5` | Generator polynomial g(x) = x^7 + x^6 + x^2 + 1, as an 8-bit value with bit 7 set (the implicit leading term is stored explicitly, not implied). Validated in `__init__` (raises `ValueError` if outside `0x80`-`0xFF`). |
 
 ## Behavior / edge cases / current error handling
 
@@ -43,7 +43,7 @@ them in a single CLTU, as CCSDS 231.0-B-4 requires (see
 first), padded to a multiple of 56 bits with an alternating `0,1,0,1,...`
 fill pattern (packs to `0x55` bytes) if not already aligned, then each
 56-bit chunk is: converted back to 7 bytes, divided (GF(2) polynomial
-long division) by `polynomial` to get a 7-bit remainder, complemented,
+long division) by `generator_polynomial` to get a 7-bit remainder, complemented,
 and packed as `[7 parity bits][1 filler bit, always 0]` into an 8th byte
 appended to the chunk's 7 information bytes — an 8-byte codeword. All
 codewords are concatenated in order and published as one PDU.
@@ -102,7 +102,7 @@ None currently.
   hand-derived known-answer case), single-bit-flip changing the parity
   (error-detection property), PDU metadata preserved with `filled` added
   (`test_012`), a non-u8vector body dropped
-  cleanly (`test_015`), an invalid `polynomial` raising at construction
+  cleanly (`test_015`), an invalid `generator_polynomial` raising at construction
   (`test_026`), a non-pair input dropped cleanly instead of crashing the
   handler (`test_027`), an empty payload dropped cleanly (`test_028`),
   a mock-forced publish failure proven to be caught and dropped

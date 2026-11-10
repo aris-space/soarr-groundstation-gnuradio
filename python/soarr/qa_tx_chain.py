@@ -113,7 +113,7 @@ class layout(gr.top_block):
 
         # Row 4: Channel coding path
         self.lfsr_scrambler = lfsr_scrambler(seed=SCRAMBLER_SEED, register_length=8)
-        self.bch_encoder = bch_encoder(polynomial=BCH_POLYNOMIAL)
+        self.bch_encoder = bch_encoder(generator_polynomial=BCH_POLYNOMIAL)
         self.cltu_framer = cltu_framer(start_sequence=CLTU_START_SEQUENCE, tail_sequence=CLTU_TAIL_SEQUENCE)
 
         # Row 5: Ground tooling, not part of the signal chain (fed manually by tests, not msg_connect-wired).
@@ -566,7 +566,7 @@ class qa_tx_chain(gr_unittest.TestCase):
         PAYLOAD_BYTES = bytes([0x00] * 7)
         EXPECTED_PARITY_BYTE = 0xFE
 
-        block = bch_encoder(polynomial=0xC5)
+        block = bch_encoder(generator_polynomial=0xC5)
         captured = []
         original_pub = self._capture_specific_port(block, "codewords", captured)
 

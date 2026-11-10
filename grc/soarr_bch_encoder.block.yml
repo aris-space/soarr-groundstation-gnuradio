@@ -4,10 +4,10 @@ category: '[soarr]/CLTU'
 
 templates:
   imports: from gnuradio import soarr
-  make: soarr.bch_encoder(${polynomial})
+  make: soarr.bch_encoder(${generator_polynomial})
 
 parameters:
-- id: polynomial
+- id: generator_polynomial
   label: Generator Polynomial
   dtype: int
   default: 0xC5

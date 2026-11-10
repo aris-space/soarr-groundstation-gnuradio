@@ -752,7 +752,7 @@ blocks:
     comment: ''
     maxoutbuf: '0'
     minoutbuf: '0'
-    polynomial: '197'
+    generator_polynomial: '197'
   states:
     bus_sink: false
     bus_source: false
