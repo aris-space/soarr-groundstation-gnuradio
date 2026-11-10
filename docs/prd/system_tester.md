@@ -135,12 +135,19 @@ tracking key.
 
 ## Known issues / TODOs
 
-- No test exercises `handle_transmitted`, `AUTOMATIC_MODE`, the
-  `repetitions` cap, or `stats_path` actually writing a file.
+- **`start` ids and `vcid_counter` are two unrelated tracking keys.**
+  `handle_start` keys its entry by `len(self._entries)` (0, 1, 2, …),
+  while `original`/`transmitted`/`received` key theirs by
+  `vcid_counter`. They only coincide if `vcid_counter` starts at `0`,
+  advances in lockstep with every `start`, and never wraps (it does, at
+  `255 → 0`). Otherwise each `start` leaves an orphan entry that times
+  out as lost and, in `WAITING_TRIGGER_MODE`, keeps the next `start`
+  ignored until it does, while the real packet is counted as a second
+  generated packet.
 
 ## Test coverage
 
-- `python/soarr/qa_system_tester.py` — 9 test methods: construction and
+- `python/soarr/qa_system_tester.py` — 14 test methods: construction and
   default parameter values (`test_instance`); a `start`→`original`→
   `received` flow with matching payloads, each PDU carrying a
   `telecommand.tc_header.vcid_counter` metadata path, expected to
@@ -159,7 +166,13 @@ tracking key.
   repeated `received` not scored twice (`test_006`); a `received` after
   a timeout not also counted as received (`test_007`); and an
   unreferenced `received` counted lost once, not again at its timeout
-  (`test_008`).
+  (`test_008`); `transmitted` used as the reference only without an
+  `original`, and `original` winning when both are present
+  (`test_009`); `WAITING_TRIGGER_MODE` ignoring a `start` while a packet
+  is in flight (`test_010`); `AUTOMATIC_MODE` accepting overlapping
+  `start`s with sequential `packet_id`s (`test_011`); the `repetitions`
+  cap stopping further `start`s (`test_012`); and `stats_path` writing
+  a JSON snapshot, creating its missing parent directory (`test_013`).
 - `python/soarr/qa_tx_chain.py::test_012_system_tester_tracks_real_tx_chain_output`
   — `handle_original`/`handle_received` called directly against the real
   TX chain's own output (not passthrough shims), confirming a packet
