@@ -70,6 +70,17 @@ MAC_BYTES = 16
 DEFAULT_NONCE = b"\x00" * 14
 
 
+def _crc16_ccitt(data):
+    """CRC-16/CCITT with crc_append's parameters above, computed independently."""
+    crc = CRC_APPEND_INITIAL_VALUE
+    for byte in data:
+        crc ^= byte << 8
+        for _ in range(8):
+            crc = ((crc << 1) ^ CRC_APPEND_POLYNOMIAL) if crc & 0x8000 else (crc << 1)
+            crc &= 0xFFFF
+    return crc ^ CRC_APPEND_FINAL_XOR
+
+
 class layout(gr.top_block):
     """Test layout wiring all non-qa SOARR blocks left-to-right, top-to-bottom."""
 
@@ -777,6 +788,20 @@ class qa_tx_chain(gr_unittest.TestCase):
                          nonce=DEFAULT_NONCE, initial_value=REAL_CHAIN_SDLS_COUNTER)
         expected_packet = encapsulation_packet.header_for_payload(len(REAL_CHAIN_PAYLOAD)) + REAL_CHAIN_PAYLOAD
         self.assertEqual(cipher.decrypt(ciphertext), expected_packet)
+
+    def test_014_frame_length_matches_real_crc_append_output(self):
+        """tc_primary_header's frame_length counts the FECF the real crc_append appends."""
+        frame = self._run_real_chain()
+
+        # CCSDS 232.0-B-4: frame_length is the total frame length in
+        # octets minus one, FECF included.
+        frame_length = ((frame[2] & 0x03) << 8) | frame[3]
+        self.assertEqual(frame_length, len(frame) - 1)
+
+        # The 2 bytes frame_length counts past the data are crc_append's
+        # FECF: CRC-16/CCITT (poly 0x1021, init 0xFFFF) over the rest.
+        fecf_bytes = CRC_APPEND_NUM_BITS // 8
+        self.assertEqual(frame[-fecf_bytes:], _crc16_ccitt(frame[:-fecf_bytes]).to_bytes(fecf_bytes, "big"))
 
 
 if __name__ == '__main__':

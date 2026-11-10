@@ -95,15 +95,8 @@ bytes.
 
 ## Known issues / TODOs
 
-- **No test decodes/checks the `frame_length` *field value* itself
-  against a wired, real `digital.crc_append`.** `qa_tx_chain.py`'s real
-  `digital.crc_append` is configured for CCSDS 232.0-B-4's actual 2-byte
-  FECF (CRC-16/CCITT, poly `0x1021`, init `0xFFFF`, no reflection, no
-  final XOR), matching this block's `additional_crc_bytes=2` assumption
-  under `is_crc_used=True` — but `test_002` only checks the new
-  total-length expectation, not the TFPH `frame_length` field
-  specifically (and couldn't, easily, since `tc_primary_header`'s real
-  handler is shimmed out in that test).
+None currently.
+
 ## Test coverage
 
 - `python/soarr/qa_tc_primary_header.py` — 10 test methods (`test_instance`
@@ -130,3 +123,7 @@ bytes.
   `db_client` and SDLS/TC handlers, so this block receives metadata in
   the nested shape the pipeline actually produces, and checks that its
   nested `scid`, `vcid` and required `vcid_counter` reach the wire correctly.
+- `python/soarr/qa_tx_chain.py::test_014_frame_length_matches_real_crc_append_output`
+  — on the same real-chain frame, checks that `frame_length` equals the
+  frame's total length minus one, with the real `digital.crc_append`'s
+  FECF included, and that those last 2 bytes are a valid CRC-16/CCITT.
