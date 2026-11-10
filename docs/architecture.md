@@ -148,14 +148,13 @@ exists nowhere else.
 
 `digital.crc_check` sits between `ccsds_receiver` and `ccsds_reader`,
 checking the FECF — the RX-side counterpart to TX's `digital.crc_append`.
-It has two output ports, `fail` and `ok`; in the confirmed external
-flowgraph both are wired to `ccsds_reader`'s input. That's how the
-flowgraph was left, not a documented design decision — don't read
-architectural intent into it.
+It has two output ports, `fail` and `ok`; the example flowgraphs wire
+only `ok` to `ccsds_reader`, so a frame that fails the FECF check is
+dropped there.
 
 `ccsds_reader`'s output port is named `debug`, but it's actually its real,
-only output — not a diagnostic-only tap (confirmed: it's wired onward to
-the next block in the working flowgraph, not just to a debug sink).
+only output — not a diagnostic-only tap: the example flowgraphs wire it
+onward to the RX `inject_db`.
 
 A second `inject_db`/`db_client` pair sits between `ccsds_reader` and
 `sdls_authentication_verify`, mirroring the TX-side key lookup and

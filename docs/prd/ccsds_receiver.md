@@ -19,10 +19,9 @@ see [bch_decoder.md](bch_decoder.md) and
 [lfsr_descrambler.md](lfsr_descrambler.md) for exactly how each is
 invoked and pre-validated from here (`_checkmsg`, `DESCRAMBLING_ACTIVE`,
 and the 4 `reset_sequence()` call sites are documented in those two
-PRDs, not repeated here). Despite being the canonical path, **no `.grc`
-flowgraph file exists anywhere in this repo** (`find . -iname "*.grc"`
-returns nothing) — this block has no example flowgraph wiring it to
-anything.
+PRDs, not repeated here). Every example flowgraph with an RX chain
+([examples/](../../examples/)) wires it between `cltu_deframer` and
+`digital.crc_check`.
 
 ```
 (BCH-corrected, descrambled codeword PDUs) → ccsds_receiver.in

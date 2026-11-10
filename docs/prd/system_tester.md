@@ -14,18 +14,18 @@ Ground-tooling, not signal chain
 ([architecture.md](../architecture.md)'s own framing): "compares
 original vs. received payloads out-of-band, at the end of the pipeline;
 it does not sit inline in either chain and has no per-block error-signal
-port to depend on." No `.grc` flowgraph file exists anywhere in this
-repo. `python/soarr/qa_tx_chain.py`'s `layout` fixture instantiates it
+port to depend on." No example flowgraph uses it.
+`python/soarr/qa_tx_chain.py`'s `layout` fixture instantiates it
 alongside the real TX chain, but not `msg_connect`-wired into that
 chain's topology — `test_012_system_tester_tracks_real_tx_chain_output`
 feeds it directly: `handle_original` with the raw pre-chain payload,
 then `handle_received` with `cltu_framer`'s real captured output
 (concatenated across every CLTU chunk `bch_encoder`'s 7-byte block
 splitting produces, since `system_tester` tracks one payload per
-packet). There is no RX chain anywhere in this repo, so this doesn't
-establish a real receiving wiring for `original`/`transmitted`/
-`received`/`trigger` — only that the tracking machinery itself
-integrates with the real TX chain's output shape.
+packet). That test has no RX chain, so it doesn't establish a real
+receiving wiring for `original`/`transmitted`/`received`/`trigger` —
+only that the tracking machinery itself integrates with the real TX
+chain's output shape.
 
 ## Message ports
 

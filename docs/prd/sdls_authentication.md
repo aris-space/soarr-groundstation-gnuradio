@@ -98,17 +98,6 @@ support for SDLS's other permitted MAC schemes.
 
 - **Default `nonce` is all-zero** (`b"\x00" * 14`) unless explicitly
   overridden — same as `sdls_encryption`.
-- **`sdls_authentication_verify.py` (RX) has a known issue of its own,
-  out of scope for this PRD** — its `verify_message` contains an entire
-  alternate MAC-input construction path (triggered when
-  `dict_msg["sdls"]["security_trailer"]` is present, optionally prefixing
-  a reconstructed encapsulation header) that this block never produces —
-  this block always appends the tag directly to the payload and never
-  writes `sdls.security_trailer` or reads `encapsulation_header` metadata
-  for tag construction. Under the current TX→RX pairing (the only path
-  any test exercises) that alternate path is never reached, so there's no
-  observed bug — see [sdls_authentication_verify.md](sdls_authentication_verify.md)
-  for the full detail.
 
 ## Test coverage
 

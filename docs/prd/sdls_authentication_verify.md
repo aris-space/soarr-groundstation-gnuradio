@@ -22,8 +22,8 @@ sdls_authentication_verify.out → sdls_decryption.in
 Not in [coding-standards.md](../coding-standards.md)'s raw-RF `warn`
 list — this block sits downstream of `ccsds_reader`, where malformed
 input is "no longer plausibly channel noise" per that list's own
-framing. No `.grc` flowgraph file exists anywhere in this repo to
-independently confirm the wiring above; it matches
+framing. Every example flowgraph with an RX chain
+([examples/](../../examples/)) wires it this way, matching
 [architecture.md](../architecture.md)'s documented RX chain.
 
 ## Message ports
@@ -88,12 +88,13 @@ current implementation.
    `sdls_authentication` originally tagged before `ccsds_reader` split
    the encapsulation header out of the payload.
 
-`sdls_authentication` itself never produces a `security_trailer`-shaped
-output (see [sdls_authentication.md](sdls_authentication.md#known-issues--todos)),
-so this path is untested through the real TX→RX pipeline:
-`qa_sdls_authentication_verify.py::test_013`/`test_014` exercise it
-directly (constructing the metadata shape by hand), but no test in this
-repo produces that shape via the real pipeline.
+`sdls_authentication` appends the tag to the payload; `ccsds_reader`
+then splits it out of the received frame into `sdls.security_trailer`
+whenever `sdls_type` is `2` or `3`. So in the real RX chain the tag
+always arrives as a trailer, and the trailer path is the one received
+frames take. `qa_sdls_rx_chain.py` runs it through the real
+`ccsds_reader`; `qa_sdls_authentication_verify.py::test_013`/`test_014`
+also exercise it directly.
 
 **Tag verification** (`_verify_tag`): `CMAC.new(secret, ciphermod=AES).update(counter_bytes + mac_payload).verify(tag)`
 — on `ValueError` (mismatch), returns `False` rather than propagating,
