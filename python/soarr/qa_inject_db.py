@@ -880,6 +880,43 @@ entries:
 
         self.assertEqual(self._outputs(published), [(bytes([100]), 100), (bytes([101]), 101), (bytes([102]), 102)])
 
+    # The request is pending before its query goes out, so an answer
+    # delivered during the publish itself (a synchronous connection) still
+    # finds it.
+    def test_033_answer_delivered_during_publish_is_paired(self):
+        block = inject_db()
+        published = []
+
+        def _answer_immediately(port, msg):
+            published.append((port, msg))
+            if pmt.eqv(port, pmt.intern("db_call")):
+                block.send_msg_out(self._mk_response(self._request_id(msg), 42))
+
+        original_pub = block.message_port_pub
+        block.message_port_pub = _answer_immediately
+        try:
+            block.send_db_call(self._mk_request(1, [0xA]))
+        finally:
+            self._restore_pub(block, original_pub)
+
+        self.assertEqual(self._outputs(published), [(bytes([0xA]), 42)])
+
+    # A query that fails to publish leaves no pending request behind.
+    def test_034_failed_publish_leaves_nothing_pending(self):
+        block = inject_db()
+
+        def _raise(port, msg):
+            raise RuntimeError("simulated publish failure")
+
+        original_pub = block.message_port_pub
+        block.message_port_pub = _raise
+        try:
+            block.send_db_call(self._mk_request(1, [0xA]))  # must not raise
+        finally:
+            self._restore_pub(block, original_pub)
+
+        self.assertEqual(len(block._pending), 0)
+
 
 if __name__ == '__main__':
     gr_unittest.run(qa_inject_db)

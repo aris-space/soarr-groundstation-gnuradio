@@ -53,9 +53,12 @@ RX chain diagram only — not independently wired or tested in this repo.
 
 **Two-phase flow, correlated by request id**: `send_db_call` (the `in`
 handler) validates the incoming PDU (requiring a u8vector payload),
-assigns it the next request id, publishes it on `db_call` with that id
-added as `db_request_id` and its role as `db_role`, and stores the unmodified metadata and payload
-in `self._pending` (an ordered id → request map). Any number of requests
+assigns it the next request id, stores the unmodified metadata and
+payload in `self._pending` (an ordered id → request map), then publishes
+it on `db_call` with that id added as `db_request_id` and its role as
+`db_role`. Storing first means an answer delivered during the publish
+itself (a synchronous connection) still finds its request; if the
+publish fails, the request is removed again. Any number of requests
 may be in flight at once. `send_msg_out` (the `db_callback` handler)
 validates the callback PDU's shape (metadata dict required, but its own
 payload need not be a u8vector), removes `db_request_id` from it, and
@@ -150,8 +153,8 @@ None currently.
 
 ## Test coverage
 
-- `python/soarr/qa_inject_db.py` — 33 test methods (`test_instance` +
-  `test_001`–`test_032`): a valid `in` PDU (with nested `telecommand`/
+- `python/soarr/qa_inject_db.py` — 35 test methods (`test_instance` +
+  `test_001`–`test_034`): a valid `in` PDU (with nested `telecommand`/
   `sdls` metadata) emitting a `db_call`, a missing required key and a
   non-integer `scid` each emitting nothing, a `db_callback` with valid
   symbol-hex `auth_key`/`crypt_key` emitting `out`, a genuinely nil
@@ -190,4 +193,6 @@ None currently.
   raising `ValueError` (`test_030`), every `db_call` carrying the role
   as `db_role` without it reaching `out` (`test_031`), and RX lookups
   against a real `db_client` continuing past its 16-bit counter limit
-  (`test_032`).
+  (`test_032`), an answer delivered during the `db_call` publish still
+  paired with its request (`test_033`), and a failed publish leaving no
+  pending request (`test_034`).

@@ -429,17 +429,22 @@ class inject_db(gr.basic_block):
             self._next_request_id += 1
             query_meta = pmt.dict_add(dict_msg, pmt.intern(REQUEST_ID_KEY), pmt.from_uint64(request_id))
             query_meta = pmt.dict_add(query_meta, pmt.intern(ROLE_KEY), pmt.intern(self.role))
-            self.message_port_pub(pmt.intern("db_call"), pmt.cons(query_meta, payload_u8vector))
 
-            # Stored after publishing: the response is handled on this
-            # block's own thread, so it can't arrive before this returns.
             if len(self._pending) >= self.MAX_PENDING_REQUESTS:
                 dropped_id, _ = self._pending.popitem(last=False)
                 self.logger.warn(
                     f"{self.MAX_PENDING_REQUESTS} database requests pending; discarding the oldest "
                     f"(db_request_id {dropped_id}), which was never answered."
                 )
+            # Pending before the query goes out: in a flowgraph the answer is
+            # queued for this block's thread anyway, but a synchronous
+            # delivery (a direct call) arrives during the publish itself.
             self._pending[request_id] = (dict_msg, payload_u8vector)
+            try:
+                self.message_port_pub(pmt.intern("db_call"), pmt.cons(query_meta, payload_u8vector))
+            except Exception:
+                self._pending.pop(request_id, None)
+                raise
         except Exception as exc:
             self.logger.error(f"Failed to build or publish db_call: {exc}")
 
