@@ -273,6 +273,30 @@ class ccsds_receiver(gr.basic_block):
         self.message_port_pub(pmt.intern("out"), pmt.cons(metadata, pmt.init_u8vector(len(frame_data), list(frame_data))))
         self.frame_buffer = bytearray()  # Clear buffer for next frame
 
+    def _cltu_start(self, msg):
+        """
+        Args:
+            msg (pmt_any): codeword PDU, as cltu_deframer publishes it.
+
+        Returns:
+            bool | None: the `scramble_reset` metadata flag - True on a
+                CLTU's first codeword, False on the others - or None if
+                msg carries no such flag.
+        """
+        if not pmt.is_pair(msg) or not pmt.is_dict(pmt.car(msg)):
+            return None
+        flag = pmt.dict_ref(pmt.car(msg), pmt.intern("scramble_reset"), pmt.PMT_NIL)
+        if not pmt.is_bool(flag):
+            return None
+        return pmt.to_bool(flag)
+
+    def _abort_frame(self):
+        self.length_found = False
+        self.remaining_frame_length = 0
+        self.total_frame_length = 0
+        self.frame_buffer = bytearray()
+        self.lfsr_descrambler.reset_sequence()
+
     def receiver(self, msg):
         """
         Args:
@@ -288,6 +312,11 @@ class ccsds_receiver(gr.basic_block):
             - the codeword fails shape validation, BCH correction, or
               descrambling (warn - see _readInputMsg; also aborts and
               resets any frame already in progress)
+            - (TC mode) a new CLTU starts while a frame is in progress:
+              the unfinished frame is aborted (warn - its CLTU ended early)
+            - (TC mode) the codeword is not a CLTU's first and no frame is
+              in progress - the rest of a CLTU whose frame was rejected or
+              aborted (debug - expected, never searched for a header)
             - message_type selects TM, or field_type selects
               Encapsulation Field (warn - not implemented)
             - any other exception occurs while searching for a TFPH or
@@ -295,15 +324,22 @@ class ccsds_receiver(gr.basic_block):
               before any structural check has passed)
         """
         try:
+            # A frame starts at a CLTU's first codeword (cltu_deframer's
+            # scramble_reset). Without the key, every codeword between
+            # frames is a candidate, as for a source that doesn't mark CLTUs.
+            cltu_start = self._cltu_start(msg) if self.message_type == MESSAGE_TYPE_TC else None
+            if cltu_start and self.length_found:
+                self.logger.warn("New CLTU started before the current frame was complete. Aborting current frame.")
+                self._abort_frame()
+            if cltu_start is False and not self.length_found:
+                self.logger.debug("Codeword is not a CLTU start and no frame is in progress; skipping it.")
+                return
+
             payload_bytes = self._readInputMsg(msg)
             if payload_bytes is None:
                 if self.length_found:
                     self.logger.warn("Error during frame accumulation. Aborting current frame.")
-                    self.length_found = False
-                    self.remaining_frame_length = 0
-                    self.total_frame_length = 0
-                    self.frame_buffer = bytearray()
-                    self.lfsr_descrambler.reset_sequence()
+                    self._abort_frame()
                 return  # Message was invalid or not processable, ignore it
 
             if not self.length_found: # Only search if not found yet

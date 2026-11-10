@@ -61,8 +61,9 @@ codeword, in order. `scramble_reset` is `True` on the first codeword of
 each CLTU and `False` on the rest: CCSDS restarts de-randomization at
 every CLTU, and `lfsr_descrambler` honors this key, so the standalone
 `bch_decoder → lfsr_descrambler` chain stays aligned across consecutive
-CLTUs. `ccsds_receiver` resets its own descrambler at each frame start
-as well, so the key is redundant but harmless there.
+CLTUs. `ccsds_receiver` uses the key to find CLTU boundaries: it starts
+a frame only at a CLTU's first codeword and aborts an unfinished frame
+when the next CLTU starts.
 
 **Locating CLTUs**: the tag-based path is the only one a flowgraph uses; the untagged search is a test hook. Both use `_scan_cltu`:
 

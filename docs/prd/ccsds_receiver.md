@@ -33,7 +33,7 @@ ccsds_receiver.out → ccsds_reader.in
 
 | Port | Direction | PMT shape | Example |
 |---|---|---|---|
-| `in` | input | PDU: `(metadata_dict . codeword_u8vector)`, codeword exactly 8 bytes — validated by `_checkmsg` before use. | `pmt.cons({}, u8vector(8 bytes))` |
+| `in` | input | PDU: `(metadata_dict . codeword_u8vector)`, codeword exactly 8 bytes — validated by `_checkmsg` before use. Metadata key `scramble_reset` (bool, optional, set by `cltu_deframer`): `True` on a CLTU's first codeword, `False` on the rest (see Behavior). | `pmt.cons({scramble_reset: #t}, u8vector(8 bytes))` |
 | `out` | output | PDU: `(metadata_dict . frame_u8vector)`, metadata is a freshly built dict carrying only `frame_length` (int, the published frame's actual byte count), payload is the fully reassembled TC transfer frame (TFPH + payload bytes, whatever was accumulated). | `pmt.cons({frame_length: 16}, u8vector(16 bytes))` |
 
 `receiver` (the handler registered on `in`) returns the **original,
@@ -64,9 +64,23 @@ always `True`), through `lfsr_descrambler.descramble_msg` (also `None`
 on failure) → the resulting 8 payload bytes are returned. Any failure at
 any stage returns `None` from `_readInputMsg`.
 
+**CLTU boundaries** (TC mode): a TC frame starts at the first codeword
+of a CLTU, which `cltu_deframer` marks with `scramble_reset=True`
+(`_cltu_start`). A codeword marked `False` while no frame is in progress
+is the rest of a CLTU whose frame was rejected or aborted: it is skipped
+(logged at `debug`) before BCH decoding and never searched for a TFPH.
+A codeword marked `True` while a frame is still in progress means that
+frame's CLTU ended early: the frame is aborted (logged at `warn`) and
+the new codeword is searched instead. Without these checks a later
+codeword passes the TFPH checks about once in 16 (`tfvn` and `reserve`
+both zero), and a false header with a large `frame_length` swallows the
+following real frames. A codeword without the key (a source that
+doesn't mark CLTUs) is searched as before.
+
 **TC mode, TFPH search and frame reassembly** (`message_type=0`,
 `field_type=0`): while no frame is in progress (`self.length_found ==
-False`), every incoming 8-byte codeword is passed to `_searchTFPH`,
+False`), every incoming 8-byte codeword that can start a frame (see CLTU
+boundaries) is passed to `_searchTFPH`,
 which parses the CCSDS 232.0-B-4 TFPH (`tc_header()`, 40 bits: `tfvn`(2),
 `bypass_flag`(1), `control_flag`(1), `reserve`(2), `scid`(10),
 `vcid`(6), `frame_length`(10), `frame_sequence_number`(8) —
@@ -178,8 +192,8 @@ check against the field this codebase's TX side adds via the stock
 
 ## Test coverage
 
-- `python/soarr/qa_ccsds_receiver.py` — 11 test methods (`test_instance`
-  + `test_001`-`test_010`): construction and its default parameter
+- `python/soarr/qa_ccsds_receiver.py` — 13 test methods (`test_instance`
+  + `test_001`-`test_012`): construction and its default parameter
   values (`test_instance`), an invalid TFPH (`tfvn=1`) never publishing
   (`test_001`), a complete 2-codeword TC frame published with the
   correct bytes, length, and TFPH field values recoverable from the
@@ -191,6 +205,9 @@ check against the field this codebase's TX side adds via the stock
   (`test_007`), Encapsulation Field dropped cleanly instead of raising
   (`test_008`), a mock-forced publish failure proven to be caught
   and dropped rather than raised through the real handler (`test_009`),
-  and a negative or `>= 1024` `fixed_byte_length` raising `ValueError`
-  at construction (`test_010`). No test in this repo constructs
+  a negative or `>= 1024` `fixed_byte_length` raising `ValueError`
+  at construction (`test_010`), and — with real scrambled BCH codewords
+  carrying `scramble_reset` — a frame cut short by the next CLTU dropped
+  while the next frame is received (`test_011`), and a later codeword
+  that would parse as a header never starting a frame (`test_012`). No test in this repo constructs
   `message_type=2` (Fixed Length mode).
