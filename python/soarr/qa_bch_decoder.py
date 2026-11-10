@@ -212,6 +212,35 @@ class qa_bch_decoder(gr_unittest.TestCase):
         self.assertTrue(pmt.dict_has_key(out_dict, pmt.intern("timestamp")))
         self.assertTrue(pmt.dict_has_key(out_dict, pmt.intern("sequence")))
 
+    def _codeword_bits(self, payload):
+        """The 64 codeword bits bch_encoder produces for a 7-byte payload."""
+        codeword = pmt.u8vector_elements(pmt.cdr(self._encode_payload(bch_encoder(), payload)))
+        return [(byte >> (7 - i)) & 1 for byte in codeword for i in range(8)]
+
+    # Every single-bit error in the 63 code bits is corrected.
+    def test_015_every_single_bit_error_is_corrected(self):
+        decoder = bch_decoder()
+        payload = [0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE]
+        bits = self._codeword_bits(payload)
+        expected = bits[:56]
+        for pos in range(63):
+            corrupted = list(bits)
+            corrupted[pos] ^= 1
+            self.assertEqual(decoder._decode(corrupted), expected, f"bit {pos}")
+
+    # The code's minimum distance is 4, so every double-bit error is
+    # detected: none lies within one bit of another codeword. Each must be
+    # rejected - "correcting" it would return a different codeword's data.
+    def test_016_every_double_bit_error_is_rejected(self):
+        decoder = bch_decoder()
+        bits = self._codeword_bits([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE])
+        for first in range(63):
+            for second in range(first + 1, 63):
+                corrupted = list(bits)
+                corrupted[first] ^= 1
+                corrupted[second] ^= 1
+                self.assertIsNone(decoder._decode(corrupted), f"bits {first}, {second}")
+
 
 if __name__ == '__main__':
     gr_unittest.run(qa_bch_decoder)

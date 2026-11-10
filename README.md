@@ -101,7 +101,7 @@ description.
 | `sdls_authentication_verify` | SDLS | Verifies and strips the AES-CMAC tag |
 | `sdls_decryption` | SDLS | Decrypts the payload with AES-256-CTR |
 | `encapsulation_parser` | Encapsulation | Strips the encapsulation packet header after decryption, header fields into the metadata |
-| `bch_decoder` | CLTU | Standalone BCH (63,56) decoder (corrects up to 2 bit errors) |
+| `bch_decoder` | CLTU | Standalone BCH (63,56) decoder (corrects 1 bit error, drops codewords with more) |
 | `lfsr_descrambler` | LFSR | Standalone de-randomizer |
 | `data_creator` | Testing | Generates test payloads |
 | `system_tester` | (root) | Measures bit error rate, message error rate, and lost packets in a loopback |
