@@ -9,6 +9,7 @@
 import json
 import os
 import tempfile
+import time
 
 from gnuradio import gr, gr_unittest
 import pmt
@@ -111,9 +112,9 @@ class qa_system_tester(gr_unittest.TestCase):
         finally:
             self._restore_port(instance, original_pub)
 
-        trigger_meta = pmt.car(captured[0])
-        packet_id = int(pmt.to_long(pmt.dict_ref(trigger_meta, pmt.intern("packet_id"), pmt.PMT_NIL)))
-        instance._timeout_packet(packet_id)
+        self.assertEqual(len(captured), 1)
+        # No packet ever claimed the start; fire its timeout directly.
+        instance._timeout_entry(instance._unclaimed_starts[0])
 
         stats = instance.get_stats()
         self.assertEqual(stats["lost_packets"], 1)
@@ -167,7 +168,7 @@ class qa_system_tester(gr_unittest.TestCase):
         instance.handle_start(pmt.PMT_NIL)
         payload = bytes([1, 2, 3])
         instance.handle_original(self._make_pdu(payload, vcid_counter=0))
-        instance._timeout_packet(0)
+        instance._timeout_entry(instance._entries[0])
         instance.handle_received(self._make_pdu(payload, vcid_counter=0))
 
         stats = instance.get_stats()
@@ -179,7 +180,7 @@ class qa_system_tester(gr_unittest.TestCase):
     def test_008_unreferenced_received_is_lost_once(self):
         instance = system_tester(timeout_s=0, stats_path=None)
         instance.handle_received(self._make_pdu(bytes([1, 2, 3]), vcid_counter=5))
-        instance._timeout_packet(5)
+        instance._timeout_entry(instance._entries[5])
 
         stats = instance.get_stats()
         self.assertEqual(stats["lost_packets"], 1)
@@ -269,6 +270,65 @@ class qa_system_tester(gr_unittest.TestCase):
         self.assertEqual(saved["bit_errors"], 1)
         self.assertEqual(saved["compared_bits"], 16)
         self.assertAlmostEqual(saved["bit_error_rate"], 1 / 16)
+
+    def _run_packet(self, instance, vcid_counter, payload=bytes([1, 2, 3])):
+        instance.handle_start(pmt.PMT_NIL)
+        instance.handle_original(self._make_pdu(payload, vcid_counter=vcid_counter))
+        instance.handle_received(self._make_pdu(payload, vcid_counter=vcid_counter))
+
+    # A start is paired with its packet's vcid_counter whatever value
+    # db_client starts counting from, not only when it starts at 0.
+    def test_014_start_pairs_with_any_first_vcid_counter(self):
+        instance = system_tester(mode=WAITING_TRIGGER_MODE, timeout_s=0, stats_path=None)
+        self._run_packet(instance, vcid_counter=7)
+        self._run_packet(instance, vcid_counter=8)
+
+        stats = instance.get_stats()
+        self.assertEqual(stats["generated_packets"], 2)
+        self.assertEqual(stats["received_packets"], 2)
+        self.assertEqual(stats["ignored_starts"], 0)
+
+    # vcid_counter wraps 255 -> 0: the packet reusing vcid_counter 0 is a
+    # new packet, not a duplicate of the first one.
+    def test_015_vcid_counter_wrap_starts_a_new_packet(self):
+        instance = system_tester(repetitions=0, mode=WAITING_TRIGGER_MODE, timeout_s=0, stats_path=None)
+        for n in range(257):
+            self._run_packet(instance, vcid_counter=n % 256)
+
+        stats = instance.get_stats()
+        self.assertEqual(stats["generated_packets"], 257)
+        self.assertEqual(stats["received_packets"], 257)
+        self.assertEqual(stats["ignored_starts"], 0)
+        self.assertEqual(stats["lost_packets"], 0)
+
+    # The timeout timer follows its entry when a packet claims the start
+    # and re-keys it by vcid_counter.
+    def test_016_timer_fires_after_start_is_claimed(self):
+        instance = system_tester(timeout_s=0.05, stats_path=None)
+        instance.handle_start(pmt.PMT_NIL)
+        instance.handle_original(self._make_pdu(bytes([1, 2, 3]), vcid_counter=9))
+
+        for _ in range(100):
+            if instance.get_stats()["lost_packets"]:
+                break
+            time.sleep(0.01)
+
+        stats = instance.get_stats()
+        self.assertEqual(stats["generated_packets"], 1)
+        self.assertEqual(stats["lost_packets"], 1)
+
+    # A start that timed out before any packet claimed it is skipped: the
+    # next packet claims the next start.
+    def test_017_timed_out_start_is_not_claimed(self):
+        instance = system_tester(mode=AUTOMATIC_MODE, timeout_s=0, stats_path=None)
+        instance.handle_start(pmt.PMT_NIL)
+        instance._timeout_entry(instance._unclaimed_starts[0])
+        self._run_packet(instance, vcid_counter=3)
+
+        stats = instance.get_stats()
+        self.assertEqual(stats["generated_packets"], 2)
+        self.assertEqual(stats["lost_packets"], 1)
+        self.assertEqual(stats["received_packets"], 1)
 
 
 if __name__ == '__main__':

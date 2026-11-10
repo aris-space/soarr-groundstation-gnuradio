@@ -11,6 +11,7 @@ import json
 import os
 import threading
 import time
+from collections import deque
 
 from gnuradio import gr
 import pmt
@@ -73,7 +74,10 @@ class system_tester(gr.basic_block):
         self.set_msg_handler(pmt.intern("received"), self.handle_received)
 
         self._lock = threading.RLock()
+        # Packets keyed by vcid_counter, and starts no packet has claimed yet.
         self._entries = {}
+        self._unclaimed_starts = deque()
+        self._next_start_id = 0
 
         self._stats = {
             "generated_packets": 0,
@@ -203,20 +207,37 @@ class system_tester(gr.basic_block):
         self._print_stats("system_tester stats")
         self._save_stats()
 
-    def _start_timeout_timer(self, packet_id):
+    def _start_timeout_timer(self, entry):
         if self.timeout_s <= 0:
             return None
 
-        timer = threading.Timer(self.timeout_s, self._timeout_packet, args=(packet_id,))
+        # Bound to the entry, not its key: a start's entry is re-keyed by
+        # vcid_counter once a packet claims it.
+        timer = threading.Timer(self.timeout_s, self._timeout_entry, args=(entry,))
         timer.daemon = True
         timer.start()
         return timer
 
-    def _get_or_create_entry(self, packet_id, source):
-        """Fetch tracking item by vcid_counter id, or create it if missing."""
-        if packet_id in self._entries:
-            return self._entries[packet_id]
+    def _get_or_create_entry(self, vcid_counter, source):
+        """Fetch the tracking entry for vcid_counter, claiming the oldest
+        unclaimed start (or creating a new entry) for a new packet."""
+        entry = self._entries.get(vcid_counter)
+        if entry is not None and (not entry["completed"] or source == "received"):
+            return entry
 
+        # No entry, or a completed one whose vcid_counter has come round
+        # again (it wraps 255 -> 0): a new packet.
+        while self._unclaimed_starts and self._unclaimed_starts[0]["completed"]:
+            self._unclaimed_starts.popleft()  # timed out before any packet claimed it
+        if self._unclaimed_starts:
+            entry = self._unclaimed_starts.popleft()
+            entry["packet_id"] = vcid_counter
+        else:
+            entry = self._new_entry(vcid_counter, source)
+        self._entries[vcid_counter] = entry
+        return entry
+
+    def _new_entry(self, packet_id, source):
         entry = {
             "packet_id": packet_id,
             "source": source,
@@ -228,8 +249,7 @@ class system_tester(gr.basic_block):
             "timer": None,
         }
 
-        entry["timer"] = self._start_timeout_timer(packet_id)
-        self._entries[packet_id] = entry
+        entry["timer"] = self._start_timeout_timer(entry)
         self._stats["generated_packets"] += 1
         return entry
 
@@ -280,15 +300,14 @@ class system_tester(gr.basic_block):
         self._complete_entry(entry)
         self._update_stats()
 
-    def _timeout_packet(self, packet_id):
+    def _timeout_entry(self, entry):
         with self._lock:
-            entry = self._entries.get(packet_id)
-            if entry is None or entry["completed"]:
+            if entry["completed"]:
                 return
 
             entry["completed"] = True
             self._stats["lost_packets"] += 1
-            self.logger.error(f"Packet id={packet_id} timed out after {self.timeout_s:.3f}s and was marked as lost.")
+            self.logger.error(f"Packet id={entry['packet_id']} timed out after {self.timeout_s:.3f}s and was marked as lost.")
             self._update_stats()
 
     def handle_start(self, msg):
@@ -314,18 +333,19 @@ class system_tester(gr.basic_block):
                     return
 
                 if self.mode == WAITING_TRIGGER_MODE:
-                    has_outstanding = any(not entry["completed"] for entry in self._entries.values())
-                    if has_outstanding:
+                    tracked = list(self._entries.values()) + list(self._unclaimed_starts)
+                    if any(not entry["completed"] for entry in tracked):
                         self._stats["ignored_starts"] += 1
                         self.logger.info("Waiting-trigger mode is busy; ignoring start request until the active packet completes.")
                         self._update_stats()
                         return
 
-                # Sequential tracking key, independent of vcid_counter -
-                # this is the only tracking key handle_start has, since a
-                # start message carries no metadata to extract one from.
-                fallback_id = len(self._entries)
-                entry = self._get_or_create_entry(fallback_id, "start")
+                # A start message carries no vcid_counter, so its entry
+                # waits, keyed by a sequential start id, until the first
+                # message of a new packet claims it (_get_or_create_entry).
+                entry = self._new_entry(self._next_start_id, "start")
+                self._next_start_id += 1
+                self._unclaimed_starts.append(entry)
 
             self.logger.debug(f"Emitting trigger for packet id={entry['packet_id']}")
             self.message_port_pub(pmt.intern("trigger"), self._make_trigger_msg(entry['packet_id']))

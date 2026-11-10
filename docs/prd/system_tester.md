@@ -35,7 +35,7 @@ integrates with the real TX chain's output shape.
 | `original` | input | PDU: `(metadata_dict . payload_u8vector)`. Stored as a packet's reference payload if a `vcid_counter` can be extracted (see Behavior); dropped otherwise. | `pmt.cons({telecommand: {tc_header: {vcid_counter: 3}}}, u8vector(payload))` |
 | `transmitted` | input | Same PDU shape as `original`; stored as an alternate reference payload (used only if `original` was never recorded for that packet — see Behavior). | same shape as `original` |
 | `received` | input | Same PDU shape as `original`; on receipt, finalizes and scores that packet's tracking entry against whichever reference payload is available. | same shape as `original` |
-| `trigger` | output | PDU: `(metadata_dict . PMT_NIL)`, metadata `{packet_id: int, mode: int}`, no payload. | `pmt.cons({packet_id: 0, mode: 0}, pmt.PMT_NIL)` |
+| `trigger` | output | PDU: `(metadata_dict . PMT_NIL)`, metadata `{packet_id: int, mode: int}`, no payload; `packet_id` is the start's sequential id (0, 1, 2, …), not a `vcid_counter`. | `pmt.cons({packet_id: 0, mode: 0}, pmt.PMT_NIL)` |
 
 ## Parameters
 
@@ -43,23 +43,29 @@ integrates with the real TX chain's output shape.
 |---|---|---|---|
 | `repetitions` | int | `100` | Caps how many packets `handle_start` will begin tracking; `<= 0` means no cap. Not validated for type (`int(repetitions)` coerces silently). |
 | `mode` | int | `0` | `0`=`WAITING_TRIGGER_MODE` (a new `start` is ignored, incrementing `ignored_starts`, while any tracked packet is still incomplete), `1`=`AUTOMATIC_MODE` (no such gating — `start` always begins a new tracked packet, allowing overlap). Validated in `__init__` (raises `ValueError` if not `0` or `1`). |
-| `timeout_s` | float | `1.0` | How long a tracked packet waits for `received` before `_timeout_packet` marks it lost. `<= 0` disables the timer entirely (`_start_timeout_timer` returns `None` without starting one — a packet that never gets a `received` message then simply never completes or counts as lost). |
+| `timeout_s` | float | `1.0` | How long a tracked packet waits for `received` before `_timeout_entry` marks it lost. `<= 0` disables the timer entirely (`_start_timeout_timer` returns `None` without starting one — a packet that never gets a `received` message then simply never completes or counts as lost). |
 | `stats_path` | str \| `None` | `"system_tester_stats.json"` | Where `_save_stats` writes a JSON stats snapshot after every packet completes or times out — a relative path by default, resolved against the process's current working directory, not this file's location. `None` (or empty) disables writing entirely (every test in this repo passes `stats_path=None` to avoid the side effect). |
 
 ## Behavior / edge cases / current error handling
 
-**Tracking key**: every packet is tracked in `self._entries` keyed by an
-integer `packet_id`. For `original`/`transmitted`/`received`, this key
-comes from `_extract_vcid_counter`, which walks
-`meta["telecommand"]["tc_header"]["vcid_counter"]` and returns `None` if
+**Tracking key**: every packet is tracked in `self._entries` keyed by
+its `vcid_counter`, which `_extract_vcid_counter` reads from
+`meta["telecommand"]["tc_header"]["vcid_counter"]` (returning `None` if
 any level of that path is missing or the final value isn't an integer
-PMT. For `start`, no such metadata exists yet (a `start` message carries
-no payload to extract it from), so `handle_start` instead uses
-`fallback_id = len(self._entries)` — a sequential counter, not tied to
-`vcid_counter` at all. `vcid_counter` is the sole synchronization
-mechanism for `original`/`transmitted`/`received`; there is no
-insertion-order or other fallback tracking for a message that lacks one
-— such a message is dropped.
+PMT). A message without one is dropped; there is no other tracking key.
+
+A `start` message carries no `vcid_counter`, so `handle_start` creates
+an *unclaimed* entry, keyed by a sequential start id, in
+`self._unclaimed_starts`. `_get_or_create_entry` pairs the two: the
+first message of a new packet claims the oldest unclaimed start
+(skipping any that already timed out) and re-keys it by its
+`vcid_counter`; with no unclaimed start, it creates a new entry. A
+packet is new when its `vcid_counter` has no entry yet, or when that
+entry is completed and the message is an `original`/`transmitted` —
+`vcid_counter` wraps `255 → 0`, so a completed entry's key comes round
+again for a later packet. A `received` for a completed entry is a
+duplicate or late message instead (see below). Timeout timers are bound
+to the entry, not its key, so they survive the re-keying.
 
 **`handle_original` and `handle_transmitted` are near-identical**:
 extract the payload and `vcid_counter`; if either extraction fails,
@@ -78,10 +84,9 @@ instead of being counted again.
 **`handle_start`'s repetition/mode gating**: a new `start` is ignored
 outright (no trigger emitted, no entry created) if `repetitions > 0` and
 the cap is already reached, or if `mode == WAITING_TRIGGER_MODE` and any
-existing entry is still incomplete (counted in `ignored_starts`). Both
-checks happen before a `fallback_id`-keyed entry is created, so a
-packet's `packet_id` sequence can have gaps relative to how many `start`
-messages were actually sent.
+tracked entry, claimed or not, is still incomplete (counted in
+`ignored_starts`). Both checks happen before the start's entry is
+created, so ignored starts use up no start id.
 
 **Scoring** (`_finalize_entry`): if the reference and received payloads
 differ in length or content, `message_errors` increments once for the
@@ -113,8 +118,9 @@ handlers, and every private helper that directly touches a PMT/PDU
 [ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md).
 `_get_or_create_entry` keeps a one-line summary (it doesn't touch PMT
 directly). `_get_stats_snapshot`, `get_stats`, `_save_stats`,
-`_print_stats`, `_update_stats`, `_start_timeout_timer`, `_bit_errors`,
-`_finalize_entry`, and `_timeout_packet` have no docstring — none of
+`_print_stats`, `_update_stats`, `_start_timeout_timer`, `_new_entry`,
+`_bit_errors`, `_complete_entry`, `_finalize_entry`, and
+`_timeout_entry` have no docstring — none of
 them touch PMT directly, so ADR-0004 doesn't require one.
 
 **Naming**: file, class, every constructor parameter, every method
@@ -135,19 +141,11 @@ tracking key.
 
 ## Known issues / TODOs
 
-- **`start` ids and `vcid_counter` are two unrelated tracking keys.**
-  `handle_start` keys its entry by `len(self._entries)` (0, 1, 2, …),
-  while `original`/`transmitted`/`received` key theirs by
-  `vcid_counter`. They only coincide if `vcid_counter` starts at `0`,
-  advances in lockstep with every `start`, and never wraps (it does, at
-  `255 → 0`). Otherwise each `start` leaves an orphan entry that times
-  out as lost and, in `WAITING_TRIGGER_MODE`, keeps the next `start`
-  ignored until it does, while the real packet is counted as a second
-  generated packet.
+None currently.
 
 ## Test coverage
 
-- `python/soarr/qa_system_tester.py` — 14 test methods: construction and
+- `python/soarr/qa_system_tester.py` — 18 test methods: construction and
   default parameter values (`test_instance`); a `start`→`original`→
   `received` flow with matching payloads, each PDU carrying a
   `telecommand.tc_header.vcid_counter` metadata path, expected to
@@ -155,7 +153,7 @@ tracking key.
   the same flow with a deliberately different payload, expected to
   report one message error and a nonzero bit-error count
   (`test_002_payload_difference_counts_as_message_and_bit_error`); a
-  `start` followed by a direct `_timeout_packet` call (bypassing
+  `start` followed by a direct `_timeout_entry` call (bypassing
   `received` entirely) confirmed to mark the packet lost
   (`test_003_timeout_marks_packet_lost`); `_save_stats` raising
   `OSError` during `handle_received` confirmed not to propagate past
@@ -164,15 +162,20 @@ tracking key.
   confirmed not to propagate past the handler
   (`test_005_trigger_publish_failure_does_not_crash_handle_start`); a
   repeated `received` not scored twice (`test_006`); a `received` after
-  a timeout not also counted as received (`test_007`); and an
+  a timeout not also counted as received (`test_007`); an
   unreferenced `received` counted lost once, not again at its timeout
   (`test_008`); `transmitted` used as the reference only without an
   `original`, and `original` winning when both are present
   (`test_009`); `WAITING_TRIGGER_MODE` ignoring a `start` while a packet
   is in flight (`test_010`); `AUTOMATIC_MODE` accepting overlapping
   `start`s with sequential `packet_id`s (`test_011`); the `repetitions`
-  cap stopping further `start`s (`test_012`); and `stats_path` writing
-  a JSON snapshot, creating its missing parent directory (`test_013`).
+  cap stopping further `start`s (`test_012`); `stats_path` writing
+  a JSON snapshot, creating its missing parent directory (`test_013`);
+  a start paired with its packet whatever `vcid_counter` it starts from
+  (`test_014`); 257 packets across the `255 → 0` wrap each tracked as
+  its own packet (`test_015`); a real timeout timer still firing after
+  its start was claimed and re-keyed (`test_016`); and a timed-out
+  unclaimed start skipped by the next packet (`test_017`).
 - `python/soarr/qa_tx_chain.py::test_012_system_tester_tracks_real_tx_chain_output`
   — `handle_original`/`handle_received` called directly against the real
   TX chain's own output (not passthrough shims), confirming a packet
