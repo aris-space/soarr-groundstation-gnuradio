@@ -64,7 +64,7 @@ every CLTU, and `lfsr_descrambler` honors this key, so the standalone
 CLTUs. `ccsds_receiver` resets its own descrambler at each frame start
 as well, so the key is redundant but harmless there.
 
-**Two ways to locate CLTUs**, both using `_scan_cltu`:
+**Locating CLTUs**: the tag-based path is the only one a flowgraph uses; the untagged search is a test hook. Both use `_scan_cltu`:
 
 1. **Tag-based** (`general_work` → `_try_process_pending_tag`): the GNU
    Radio scheduler entry point. `general_work` appends incoming stream
@@ -78,11 +78,13 @@ as well, so the key is redundant but harmless there.
    pattern within a codeword) are ignored. With no tag pending, the
    buffer is trimmed to the last few items, so an untagged stream doesn't
    grow it without bound.
-2. **Untagged search** (`process_bytes`): scans the buffer for a
+2. **Untagged search** (`_process_bytes`, test hook only): scans the buffer for a
    start-sequence position whose `_scan_cltu` result is `ok` — at byte
    boundaries in packed mode, at every bit in unpacked mode — publishes
    every complete CLTU found, and keeps any undecided tail of the buffer
-   for the next call, so a CLTU may arrive split across calls.
+   for the next call, so a CLTU may arrive split across calls. It shares
+   `general_work`'s buffers, so it must never run on a block in a running
+   flowgraph.
 
 **Bit ordering is always MSB-first** — `_bytes_to_bits` and
 `_pack_bits_to_bytes` unconditionally treat each byte's most significant
@@ -91,7 +93,7 @@ bit first; there is no configurable alternative.
 **Error handling**: `cltu_deframer` *is* on
 [coding-standards.md](../coding-standards.md)'s raw-RF `warn` list — a
 tag whose CLTU is rejected (`no_start`, `no_tail`, `empty`) is logged at
-`warn`; `process_bytes`'s search logs a start with no tail at `debug`,
+`warn`; `_process_bytes`'s search logs a start with no tail at `debug`,
 since random data regularly resembles a 16-bit start sequence within the
 threshold. This block has no message input port and registers no
 `set_msg_handler`, so
@@ -123,13 +125,12 @@ TX — see [cltu_framer.md](cltu_framer.md).
 
 ## Known issues / TODOs
 
-None currently. Whether `process_bytes` should stay public alongside
-`general_work` is an open design question ([#3](https://github.com/aris-space/soarr-groundstation-gnuradio/issues/3)).
+None currently.
 
 ## Test coverage
 
 - `python/soarr/qa_cltu_deframer.py` — 21 test methods (`test_instance`
-  + `test_001`–`test_007`, `test_010`–`test_022`). Via `process_bytes`:
+  + `test_001`–`test_007`, `test_010`–`test_022`). Via `_process_bytes`:
   single-codeword CLTU extraction, extraction after leading/trailing
   noise, input split across two calls, multiple CLTUs in one chunk,
   unpacked-bit input, unpacked-bit output, a 3-codeword CLTU split into
