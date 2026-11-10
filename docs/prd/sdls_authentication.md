@@ -98,18 +98,6 @@ support for SDLS's other permitted MAC schemes.
 
 - **Default `nonce` is all-zero** (`b"\x00" * 14`) unless explicitly
   overridden — same as `sdls_encryption`.
-- **The nested `sdls_counter` fallback lookup path is not an edge case —
-  it's the only path `sdls_counter` takes in the real pipeline, and it
-  has zero test coverage** (same finding as `sdls_encryption`'s PRD, and
-  verified the same way directly in `inject_db.py`: `sdls_counter` is
-  assigned *by* the `db_client` response, so `inject_db`'s merge logic
-  always nests it under `sdls.security_header.sdls_counter`, never
-  top-level). No test in `qa_sdls_authentication.py` or
-  `qa_sdls_authentication_round_trip.py` constructs that shape, and
-  `qa_tx_chain.py::test_002_end_to_end_message_routing` — the one test
-  that runs the real wired topology — shims this block's real handler
-  out. The code path this block's `sdls_counter` handling actually takes
-  in production has never been run by any test in this repo.
 - **`sdls_authentication_verify.py` (RX) has a known issue of its own,
   out of scope for this PRD** — its `verify_message` contains an entire
   alternate MAC-input construction path (triggered when
@@ -154,3 +142,8 @@ support for SDLS's other permitted MAC schemes.
   `msg_connect` wiring (covered separately by
   `test_002_end_to_end_message_routing`, with this block's handler
   shimmed out).
+- `python/soarr/qa_tx_chain.py::test_013_real_chain_reads_nested_metadata`
+  — runs one `data_creator` PDU through the real, wired `inject_db`/
+  `db_client` and SDLS/TC handlers, so this block receives metadata in
+  the nested shape the pipeline actually produces, and checks that its
+  nested `sdls_counter` reaches the wire correctly (the tag verifies with it).

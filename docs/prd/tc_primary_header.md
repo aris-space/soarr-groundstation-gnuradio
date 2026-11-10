@@ -95,18 +95,6 @@ bytes.
 
 ## Known issues / TODOs
 
-- **`vcid_counter` — this block's one required field — takes the
-  untested nested-fallback path as its primary path in the real
-  pipeline**, the same finding already documented for `spi`/`sdls_counter`
-  in the SDLS blocks' PRDs. Verified directly in `db_client.py`:
-  `vcid_counter` is assigned *by* the DB response (never known
-  beforehand), so `inject_db.py`'s merge logic always nests it under
-  `telecommand.tc_header.vcid_counter`, never top-level. Every test in
-  `qa_tc_primary_header.py` sets `vcid_counter` at the top level directly,
-  and `qa_tx_chain.py::test_002_end_to_end_message_routing` shims this
-  block's real handler out. The code path this block's `vcid_counter`
-  handling actually takes in production has never been run by any test
-  in this repo.
 - **No test decodes/checks the `frame_length` *field value* itself
   against a wired, real `digital.crc_append`.** `qa_tx_chain.py`'s real
   `digital.crc_append` is configured for CCSDS 232.0-B-4's actual 2-byte
@@ -137,3 +125,8 @@ bytes.
   proving real header-building logic but not the `msg_connect` wiring
   (covered separately by `test_002_end_to_end_message_routing`, with this
   block's handler shimmed out).
+- `python/soarr/qa_tx_chain.py::test_013_real_chain_reads_nested_metadata`
+  — runs one `data_creator` PDU through the real, wired `inject_db`/
+  `db_client` and SDLS/TC handlers, so this block receives metadata in
+  the nested shape the pipeline actually produces, and checks that its
+  nested `scid`, `vcid` and required `vcid_counter` reach the wire correctly.

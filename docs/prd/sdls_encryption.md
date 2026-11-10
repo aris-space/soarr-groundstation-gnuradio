@@ -115,21 +115,6 @@ support for SDLS's other permitted cipher suites.
   confidentiality for both messages involved.
 - **Default `nonce` is all-zero** (`b"\x00" * 14`) unless explicitly
   overridden by the caller/GRC flowgraph.
-- **The nested `sdls_counter` fallback lookup path
-  (`dict_msg["sdls"]["security_header"]["sdls_counter"]`) is not an edge
-  case — it's the only path `sdls_counter` takes in the real pipeline,
-  and it has zero test coverage.** Verified directly in `inject_db.py`:
-  `sdls_counter` is assigned *by* the `db_client` response, not known
-  before the DB call, so `inject_db`'s merge logic
-  (`_merge_key_into_nested`) always nests it
-  under `sdls.security_header.sdls_counter` — never top-level. Every test
-  in `qa_sdls_encryption.py` constructs `sdls_counter` at the top level
-  directly, bypassing `inject_db` entirely, and
-  `qa_tx_chain.py::test_002_end_to_end_message_routing` — the one test
-  that *does* run the real wired topology — shims this block's real
-  handler out. The code path this block's `sdls_counter` handling
-  actually takes in production has never been run by any test in this
-  repo.
 
 ## Test coverage
 
@@ -162,3 +147,8 @@ support for SDLS's other permitted cipher suites.
   `test_002_end_to_end_message_routing` covers the wiring separately, with
   this block's handler shimmed out — same split as documented in
   `encapsulation_header`'s PRD.
+- `python/soarr/qa_tx_chain.py::test_013_real_chain_reads_nested_metadata`
+  — runs one `data_creator` PDU through the real, wired `inject_db`/
+  `db_client` and SDLS/TC handlers, so this block receives metadata in
+  the nested shape the pipeline actually produces, and checks that its
+  nested `sdls_counter` reaches the wire correctly (the frame decrypts with it).

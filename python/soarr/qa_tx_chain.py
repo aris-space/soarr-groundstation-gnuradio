@@ -18,8 +18,11 @@ from Crypto.Hash import CMAC
 from gnuradio.soarr import inject_db
 from gnuradio.soarr import bch_encoder
 from gnuradio.soarr import cltu_framer
+from gnuradio.soarr import data_creator
 from gnuradio.soarr import db_client
 from gnuradio.soarr import encapsulation_header
+from gnuradio.soarr import encapsulation_packet
+from gnuradio.soarr.db_client import TEST_AUTH_KEY, TEST_CRYPT_KEY
 from gnuradio.soarr import lfsr_scrambler
 from gnuradio.soarr import sdls_authentication
 from gnuradio.soarr import sdls_encryption
@@ -53,6 +56,18 @@ CRC_APPEND_INPUT_REFLECTED = False
 CRC_APPEND_RESULT_REFLECTED = False
 CRC_APPEND_SWAP_ENDIANNESS = False
 CRC_APPEND_SKIP_HEADER_BYTES = 0
+
+# Real-handler chain run (test_013): the layout's db_client dummy entry
+# (SCID 0x155, SPI 1, VCID 0x12) with distinctive counters.
+REAL_CHAIN_SCID = 0x155
+REAL_CHAIN_SPI = 1
+REAL_CHAIN_VCID = 0x12
+REAL_CHAIN_SDLS_COUNTER = 0x1234
+REAL_CHAIN_VCID_COUNTER = 0x56
+REAL_CHAIN_PAYLOAD = bytes([0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02])
+TC_HEADER_BYTES = 5
+MAC_BYTES = 16
+DEFAULT_NONCE = b"\x00" * 14
 
 
 class layout(gr.top_block):
@@ -682,6 +697,87 @@ class qa_tx_chain(gr_unittest.TestCase):
         self.assertEqual(stats["generated_packets"], 1)
         self.assertEqual(stats["received_packets"], 1)
         self.assertEqual(stats["lost_packets"], 0)
+
+    def _run_real_chain(self):
+        """Run one data_creator PDU through the real inject_db/db_client and
+        SDLS/TC handlers, and return the frame crc_append hands the scrambler."""
+        # data_creator nests every field (telecommand.tc_header /
+        # sdls.security_header) and inject_db nests the db_client counters
+        # it merges in: the metadata shape the pipeline actually produces.
+        creator = data_creator(data=REAL_CHAIN_PAYLOAD, data_length_bytes=len(REAL_CHAIN_PAYLOAD),
+                               scid=REAL_CHAIN_SCID, spi=REAL_CHAIN_SPI, vcid=REAL_CHAIN_VCID)
+        created = []
+        original_creator_pub = self._capture_specific_port(creator, "out", created)
+        creator.generate_message(pmt.PMT_NIL)
+        self._restore_port(creator, original_creator_pub)
+        self.assertEqual(len(created), 1)
+
+        # Distinctive counters, so a field can only come out right if the
+        # block read it from where inject_db put it. The layout's
+        # tc_primary_header defaults (scid=0, vcid=0) are equally wrong.
+        entry = self.tb.db_client._db[str(REAL_CHAIN_SCID)][str(REAL_CHAIN_SPI)]
+        entry["sdls_counter"] = REAL_CHAIN_SDLS_COUNTER
+        entry["vcid_counter"] = REAL_CHAIN_VCID_COUNTER
+
+        frames = []
+
+        def capture_frame(this, msg):
+            """Record the frame instead of scrambling it."""
+            frames.append(msg)
+
+        # GNU Radio dispatches a Python handler by its __name__ on the
+        # block, so the attribute name must match the function name.
+        scrambler = self.tb.lfsr_scrambler
+        scrambler.capture_frame = MethodType(capture_frame, scrambler)
+        scrambler.set_msg_handler(pmt.intern("in"), scrambler.capture_frame)
+
+        self.tb.start()
+        self.tb.inject_db.to_basic_block()._post(pmt.intern("in"), created[0])
+        for _ in range(200):
+            if frames:
+                break
+            time.sleep(0.01)
+        self.tb.stop()
+        self.tb.wait()
+
+        self.assertEqual(len(frames), 1, "the real chain dropped the PDU")
+        return bytes(pmt.u8vector_elements(pmt.cdr(frames[0])))
+
+    def test_013_real_chain_reads_nested_metadata(self):
+        """Every SDLS/TC field read from inject_db's nested metadata ends up on the wire."""
+        frame = self._run_real_chain()
+
+        tc_header = frame[:TC_HEADER_BYTES]
+        scid = ((tc_header[0] & 0x03) << 8) | tc_header[1]
+        vcid = tc_header[2] >> 2
+        frame_sequence_number = tc_header[4]
+        # tc_primary_header: nested scid/vcid and the required vcid_counter.
+        self.assertEqual(scid, REAL_CHAIN_SCID)
+        self.assertEqual(vcid, REAL_CHAIN_VCID)
+        self.assertEqual(frame_sequence_number, REAL_CHAIN_VCID_COUNTER)
+
+        sdls_start = TC_HEADER_BYTES
+        spi = int.from_bytes(frame[sdls_start:sdls_start + 2], "big")
+        sdls_counter = int.from_bytes(frame[sdls_start + 2:sdls_start + 4], "big")
+        # sdls_header: nested spi and sdls_counter.
+        self.assertEqual(spi, REAL_CHAIN_SPI)
+        self.assertEqual(sdls_counter, REAL_CHAIN_SDLS_COUNTER)
+
+        protected = frame[sdls_start + 4:-CRC_APPEND_NUM_BITS // 8]
+        ciphertext, mac = protected[:-MAC_BYTES], protected[-MAC_BYTES:]
+        counter_block = DEFAULT_NONCE + REAL_CHAIN_SDLS_COUNTER.to_bytes(2, "big")
+
+        # sdls_authentication: tag computed with the nested sdls_counter.
+        cmac = CMAC.new(bytes.fromhex(TEST_AUTH_KEY), ciphermod=AES)
+        cmac.update(counter_block + ciphertext)
+        cmac.verify(mac)
+
+        # sdls_encryption: encrypted with the nested sdls_counter.
+        cipher = AES.new(bytes.fromhex(TEST_CRYPT_KEY), AES.MODE_CTR,
+                         nonce=DEFAULT_NONCE, initial_value=REAL_CHAIN_SDLS_COUNTER)
+        expected_packet = encapsulation_packet.header_for_payload(len(REAL_CHAIN_PAYLOAD)) + REAL_CHAIN_PAYLOAD
+        self.assertEqual(cipher.decrypt(ciphertext), expected_packet)
+
 
 if __name__ == '__main__':
     gr_unittest.run(qa_tx_chain)
