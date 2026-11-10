@@ -84,13 +84,13 @@ class qa_bch_decoder(gr_unittest.TestCase):
         pair_no_data = pmt.cons(pmt.make_dict(), pmt.PMT_NIL)
         self.assertIsNone(instance.error_correction_mode(pair_no_data))
 
-    def test_006_invalid_pdu_structure_wrong_type(self):
+    def test_005_invalid_pdu_structure_wrong_type(self):
         instance = bch_decoder()
         # Pair with wrong payload type
         pair_no_u8 = pmt.cons(pmt.make_dict(), pmt.init_u16vector(4, [0x00] * 4))
         self.assertIsNone(instance.error_correction_mode(pair_no_u8))
 
-    def test_014_invalid_pdu_structure_no_dict_metadata(self):
+    def test_006_invalid_pdu_structure_no_dict_metadata(self):
         instance = bch_decoder()
         # Pair with valid u8vector payload but non-dict metadata
         # (pmt.PMT_NIL doesn't work as a "not a dict" sentinel here: an

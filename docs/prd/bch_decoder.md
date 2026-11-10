@@ -96,8 +96,7 @@ catch-log-drop, so nothing escapes the handler.
 `ccsds_receiver`'s direct call already validates shape and length before
 calling this method (Pipeline position above), so in practice only the
 message port and direct unit-test calls exercise these drop paths
-(`qa_bch_decoder.py::test_003`, `test_004`, `test_006`, `test_007`,
-`test_008`, `test_014`).
+(`qa_bch_decoder.py::test_003`-`test_008`).
 
 **Error handling** (compliant with
 [coding-standards.md](../coding-standards.md),
@@ -138,7 +137,7 @@ this block, rather than relying on a hand-derived known-answer vector.
 ## Test coverage
 
 - `python/soarr/qa_bch_decoder.py` — 16 test methods (`test_instance` +
-  `test_001`-`test_004`, `test_006`-`test_016`): construction and its
+  `test_001`-`test_016`): construction and its
   default parameter values, invalid `generator_polynomial` raising at
   construction, the five malformed/
   wrong-length-input conditions (not a pair, payload not a u8vector,
