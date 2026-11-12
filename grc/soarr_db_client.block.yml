@@ -1,5 +1,5 @@
 id: soarr_db_client
-label: DB Client
+label: Key Store
 category: '[Soarr]/Common/Key Database'
 
 templates:

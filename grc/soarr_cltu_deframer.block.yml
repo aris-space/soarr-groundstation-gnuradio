@@ -1,5 +1,5 @@
 id: soarr_cltu_deframer
-label: CLTU Deframer
+label: TC CLTU Deframer
 category: '[Soarr]/TC (Telecommand)/RX'
 
 templates:

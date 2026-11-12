@@ -1,5 +1,5 @@
 id: soarr_bch_encoder
-label: BCH Encoder
+label: TC BCH Encoder
 category: '[Soarr]/TC (Telecommand)/TX'
 
 templates:

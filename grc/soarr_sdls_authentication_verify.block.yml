@@ -1,5 +1,5 @@
 id: soarr_sdls_authentication_verify
-label: SDLS Authentication Verify
+label: SDLS MAC Verifier
 category: '[Soarr]/Common/SDLS'
 
 templates:

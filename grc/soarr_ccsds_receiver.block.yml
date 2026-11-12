@@ -1,5 +1,5 @@
 id: soarr_ccsds_receiver
-label: CCSDS Receiver
+label: TC Frame Receiver
 category: '[Soarr]/TC (Telecommand)/RX'
 
 templates:

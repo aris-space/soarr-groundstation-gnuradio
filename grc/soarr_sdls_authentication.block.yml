@@ -1,5 +1,5 @@
 id: soarr_sdls_authentication
-label: SDLS Authentication
+label: SDLS MAC Adder
 category: '[Soarr]/Common/SDLS'
 
 templates:

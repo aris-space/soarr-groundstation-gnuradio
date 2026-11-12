@@ -1,5 +1,5 @@
 id: soarr_lfsr_scrambler
-label: LFSR Scrambler
+label: TC Scrambler
 category: '[Soarr]/TC (Telecommand)/TX'
 
 templates:

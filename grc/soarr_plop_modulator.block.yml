@@ -1,5 +1,5 @@
 id: soarr_plop_modulator
-label: PLOP Modulator
+label: TC PLOP Modulator
 category: '[Soarr]/TC (Telecommand)/TX'
 
 templates:

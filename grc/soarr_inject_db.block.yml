@@ -1,5 +1,5 @@
 id: soarr_inject_db
-label: Inject DB
+label: Key Injector
 category: '[Soarr]/Common/Key Database'
 
 templates:

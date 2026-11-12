@@ -1,5 +1,5 @@
 id: soarr_ccsds_reader
-label: CCSDS Reader
+label: TC Frame Parser
 category: '[Soarr]/TC (Telecommand)/RX'
 
 templates:

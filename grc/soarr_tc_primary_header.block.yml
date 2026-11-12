@@ -1,5 +1,5 @@
 id: soarr_tc_primary_header
-label: TC Primary Header
+label: TC Primary Header Adder
 category: '[Soarr]/TC (Telecommand)/TX'
 
 templates:

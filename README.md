@@ -81,31 +81,31 @@ description.
 
 ## Blocks
 
-| Block | GRC category | Purpose |
-|---|---|---|
-| `inject_db` | Common / Key Database | Queries `db_client` and merges the returned keys and counters into each PDU's metadata |
-| `db_client` | Common / Key Database | Serves keys, SPIs, and counters by SCID + SPI from an in-memory entry or a YAML file |
-| `encapsulation_header` | Common / Encapsulation | Prepends the CCSDS encapsulation packet header |
-| `sdls_encryption` | Common / SDLS | Encrypts the payload with AES-256-CTR |
-| `sdls_authentication` | Common / SDLS | Appends an AES-CMAC authentication tag |
-| `sdls_header` | Common / SDLS | Prepends the SDLS security header (SPI + IV) |
-| `tc_primary_header` | TC / TX | Builds the 5-byte TC transfer frame primary header |
-| `lfsr_scrambler` | TC / TX | Applies the CCSDS TC pseudo-randomizer |
-| `bch_encoder` | TC / TX | Splits the frame into BCH (63,56) codewords |
-| `cltu_framer` | TC / TX | Wraps codewords in the CLTU start and tail sequences |
-| `plop_modulator` | TC / TX | BPSK-modulates CLTUs for the SDR, PLOP-1 bursts or PLOP-2 continuous carrier, switchable at runtime |
-| `cltu_burst_builder` | TC / TX | Wraps each CLTU in acquisition sequence + idle tail as one transmission burst (PLOP-1) |
-| `acquisition_idle_sequencer` | TC / TX | Adds acquisition/idle sequences and outputs a continuous byte stream (PLOP-2) |
-| `cltu_deframer` | TC / RX | Finds CLTUs in the received stream |
-| `ccsds_receiver` | TC / RX | BCH-corrects, de-randomizes, and reassembles TC transfer frames |
-| `ccsds_reader` | TC / RX | Parses a reassembled frame into its header fields and payload |
-| `sdls_authentication_verify` | Common / SDLS | Verifies and strips the AES-CMAC tag |
-| `sdls_decryption` | Common / SDLS | Decrypts the payload with AES-256-CTR |
-| `encapsulation_parser` | Common / Encapsulation | Strips the encapsulation packet header after decryption, header fields into the metadata |
-| `bch_decoder` | TC / RX | Standalone BCH (63,56) decoder (corrects 1 bit error, drops codewords with more) |
-| `lfsr_descrambler` | TC / RX | Standalone de-randomizer |
-| `data_creator` | Utilities | Generates test payloads |
-| `system_tester` | Utilities | Measures bit error rate, message error rate, and lost packets in a loopback |
+| Block | GRC label | GRC category | Purpose |
+|---|---|---|---|
+| `inject_db` | Key Injector | Common / Key Database | Queries `db_client` and merges the returned keys and counters into each PDU's metadata |
+| `db_client` | Key Store | Common / Key Database | Serves keys, SPIs, and counters by SCID + SPI from an in-memory entry or a YAML file |
+| `encapsulation_header` | Encapsulation Header Adder | Common / Encapsulation | Prepends the CCSDS encapsulation packet header |
+| `sdls_encryption` | SDLS Encryption | Common / SDLS | Encrypts the payload with AES-256-CTR |
+| `sdls_authentication` | SDLS MAC Adder | Common / SDLS | Appends an AES-CMAC authentication tag |
+| `sdls_header` | SDLS Header Adder | Common / SDLS | Prepends the SDLS security header (SPI + IV) |
+| `tc_primary_header` | TC Primary Header Adder | TC / TX | Builds the 5-byte TC transfer frame primary header |
+| `lfsr_scrambler` | TC Scrambler | TC / TX | Applies the CCSDS TC pseudo-randomizer |
+| `bch_encoder` | TC BCH Encoder | TC / TX | Splits the frame into BCH (63,56) codewords |
+| `cltu_framer` | TC CLTU Framer | TC / TX | Wraps codewords in the CLTU start and tail sequences |
+| `plop_modulator` | TC PLOP Modulator | TC / TX | BPSK-modulates CLTUs for the SDR, PLOP-1 bursts or PLOP-2 continuous carrier, switchable at runtime |
+| `cltu_burst_builder` | TC CLTU Burst Builder | TC / TX | Wraps each CLTU in acquisition sequence + idle tail as one transmission burst (PLOP-1) |
+| `acquisition_idle_sequencer` | TC Acquisition and Idle Sequencer | TC / TX | Adds acquisition/idle sequences and outputs a continuous byte stream (PLOP-2) |
+| `cltu_deframer` | TC CLTU Deframer | TC / RX | Finds CLTUs in the received stream |
+| `ccsds_receiver` | TC Frame Receiver | TC / RX | BCH-corrects, de-randomizes, and reassembles TC transfer frames |
+| `ccsds_reader` | TC Frame Parser | TC / RX | Parses a reassembled frame into its header fields and payload |
+| `sdls_authentication_verify` | SDLS MAC Verifier | Common / SDLS | Verifies and strips the AES-CMAC tag |
+| `sdls_decryption` | SDLS Decryption | Common / SDLS | Decrypts the payload with AES-256-CTR |
+| `encapsulation_parser` | Encapsulation Parser | Common / Encapsulation | Strips the encapsulation packet header after decryption, header fields into the metadata |
+| `bch_decoder` | TC BCH Decoder | TC / RX | Standalone BCH (63,56) decoder (corrects 1 bit error, drops codewords with more) |
+| `lfsr_descrambler` | TC Descrambler | TC / RX | Standalone de-randomizer |
+| `data_creator` | Data Creator | Utilities | Generates test payloads |
+| `system_tester` | System Tester | Utilities | Measures bit error rate, message error rate, and lost packets in a loopback |
 
 `bch_decoder` and `lfsr_descrambler` are also used internally by
 `ccsds_receiver`; they are exposed separately for testing individual

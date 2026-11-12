@@ -1,5 +1,5 @@
 id: soarr_acquisition_idle_sequencer
-label: Acquisition and Idle Sequencer
+label: TC Acquisition and Idle Sequencer
 category: '[Soarr]/TC (Telecommand)/TX'
 
 templates:

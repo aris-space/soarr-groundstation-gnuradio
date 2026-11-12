@@ -1,5 +1,5 @@
 id: soarr_bch_decoder
-label: BCH Decoder
+label: TC BCH Decoder
 category: '[Soarr]/TC (Telecommand)/RX'
 
 templates:

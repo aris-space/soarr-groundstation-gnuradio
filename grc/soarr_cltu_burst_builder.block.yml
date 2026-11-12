@@ -1,5 +1,5 @@
 id: soarr_cltu_burst_builder
-label: CLTU Burst Builder
+label: TC CLTU Burst Builder
 category: '[Soarr]/TC (Telecommand)/TX'
 
 templates:

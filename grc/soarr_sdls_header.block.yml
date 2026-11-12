@@ -1,5 +1,5 @@
 id: soarr_sdls_header
-label: SDLS Header
+label: SDLS Header Adder
 category: '[Soarr]/Common/SDLS'
 
 templates:
