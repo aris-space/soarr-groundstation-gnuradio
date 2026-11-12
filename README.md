@@ -5,7 +5,7 @@ CCSDS Telecommand (TC) uplink for ARIS's SOARR mission: encode, secure,
 frame, and transmit a telecommand on TX, and detect, correct, verify, and
 decrypt it again on RX.
 
-All 23 blocks are pure Python and appear in GNU Radio Companion under the
+All 24 blocks are pure Python and appear in GNU Radio Companion under the
 **[Soarr]** category: TC (Telecommand) TX and RX, Common (shared by TC
 and TM: SDLS, Encapsulation, Key Database), and Utilities.
 
@@ -89,6 +89,7 @@ description.
 | `sdls_encryption` | SDLS Encryption | Common / SDLS | Encrypts the payload with AES-256-CTR |
 | `sdls_authentication` | SDLS MAC Adder | Common / SDLS | Appends an AES-CMAC authentication tag |
 | `sdls_header` | SDLS Header Adder | Common / SDLS | Prepends the SDLS security header (SPI + IV) |
+| `sdls_apply` | SDLS Apply | Common / SDLS | SDLS ApplySecurity in one block: encryption, MAC, security header, by SDLS mode |
 | `tc_primary_header` | TC Primary Header Adder | TC / TX | Builds the 5-byte TC transfer frame primary header |
 | `lfsr_scrambler` | TC Scrambler | TC / TX | Applies the CCSDS TC pseudo-randomizer |
 | `bch_encoder` | TC BCH Encoder | TC / TX | Splits the frame into BCH (63,56) codewords |
