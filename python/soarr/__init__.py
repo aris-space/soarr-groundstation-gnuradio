@@ -62,5 +62,6 @@ from .tc_frame_encoder import tc_frame_encoder
 from .tc_frame_decoder import tc_frame_decoder
 from .tm_randomizer import tm_randomizer
 from .tm_cadu_framer import tm_cadu_framer
+from .tm_frame_generator import tm_frame_generator
 from .acquisition_idle_sequencer import acquisition_idle_sequencer
 from .system_tester import system_tester

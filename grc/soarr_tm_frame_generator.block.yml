@@ -1,0 +1,83 @@
+id: soarr_tm_frame_generator
+label: TM Frame Generator
+category: '[Soarr]/TM (Telemetry)/Frame'
+
+templates:
+  imports: from gnuradio import soarr
+  make: soarr.tm_frame_generator(${scid}, ${vcid}, ${frame_length}, ${secondary_header}, ${secondary_header_data},
+    ${ocf}, ${ocf_value}, ${fecf})
+
+parameters:
+- id: scid
+  label: SCID
+  dtype: int
+  default: 0
+- id: vcid
+  label: VCID
+  dtype: int
+  default: 0
+- id: frame_length
+  label: Frame Length (bytes)
+  dtype: int
+  default: 223
+- id: secondary_header
+  label: Secondary Header
+  dtype: enum
+  options: ['False', 'True']
+  option_labels: [Disabled, Enabled]
+  default: 'False'
+- id: secondary_header_data
+  label: Secondary Header Data (hex)
+  dtype: string
+  default: '00'
+  hide: ${ 'none' if secondary_header == 'True' else 'all' }
+- id: ocf
+  label: Operational Control Field
+  dtype: enum
+  options: ['False', 'True']
+  option_labels: [Disabled, Enabled]
+  default: 'False'
+- id: ocf_value
+  label: OCF Value
+  dtype: int
+  default: 0
+  hide: ${ 'none' if ocf == 'True' else 'all' }
+- id: fecf
+  label: FECF (CRC-16)
+  dtype: enum
+  options: ['False', 'True']
+  option_labels: [Disabled, Enabled]
+  default: 'False'
+
+asserts:
+- ${ scid >= 0 and scid < 2**10 }
+- ${ vcid >= 0 and vcid < 2**3 }
+- ${ frame_length <= 2048 }
+- ${ ocf == 'False' or (ocf_value >= 0 and ocf_value < 2**32) }
+
+inputs:
+- label: in
+  domain: message
+  optional: 0
+
+outputs:
+- label: out
+  domain: message
+  optional: 0
+
+documentation: |-
+  Builds CCSDS TM Transfer Frames (132.0-B-3) of a fixed length from one packet per PDU: primary header, optional secondary header, data field, optional Operational Control Field and FECF.
+
+  Each PDU is one burst: a packet longer than the data field is split across frames, the last frame filled with Encapsulation Idle Packets (0xE0). The First Header Pointer marks the first packet starting in each frame. Every frame but the last carries burst_more = True in the metadata, so Burst Builder sends all CADUs of the PDU as one burst.
+
+  Frame Length: fixed for the channel; 223 x interleaving depth fills Reed-Solomon (255,223) codewords, at most 2048. The data field is what remains after the headers, OCF and FECF.
+  SCID / VCID: used when the metadata carries no scid / vcid. Frame counts run per spacecraft (master channel) and per virtual channel.
+  Secondary Header Data: 1 to 63 bytes in hexadecimal, fixed length; the metadata key secondary_header (bytes of the same length) replaces it per PDU.
+  OCF Value: 4 bytes, e.g. a CLCW; the metadata key ocf replaces it per PDU.
+  FECF: CRC-16/CCITT over the whole frame, as on TC; usually off with Reed-Solomon.
+
+  Ports:
+  - in: one packet per PDU, e.g. from Encapsulation Header Adder.
+  - out: one frame per PDU, in order, for the Reed-Solomon encoder (gr-satellites), TM Randomizer and TM CADU Framer.
+
+file_format: 1

@@ -5,10 +5,11 @@ CCSDS Telecommand (TC) uplink for ARIS's SOARR mission: encode, secure,
 frame, and transmit a telecommand on TX, and detect, correct, verify, and
 decrypt it again on RX.
 
-All 30 blocks are pure Python and appear in GNU Radio Companion under the
+All 31 blocks are pure Python and appear in GNU Radio Companion under the
 **[Soarr]** category: TC (Telecommand), by function (Frame, Randomizer,
-BCH, CLTU, PLOP), TM (Telemetry), Common (shared by TC and TM: SDLS, Encapsulation, Key
-Database, Burst), and Utilities.
+BCH, CLTU, PLOP), TM (Telemetry), by function (Frame, Randomizer, CADU),
+Common (shared by TC and TM: SDLS, Encapsulation, Key Database, Burst),
+and Utilities.
 
 ## Features
 
@@ -110,6 +111,7 @@ description.
 | `encapsulation_parser` | Encapsulation Parser | Common / Encapsulation | Strips the encapsulation packet header after decryption, header fields into the metadata |
 | `bch_decoder` | TC BCH Decoder | TC / BCH | Standalone BCH (63,56) decoder (corrects 1 bit error, drops codewords with more) |
 | `lfsr_descrambler` | TC Descrambler | TC / Randomizer | Standalone de-randomizer |
+| `tm_frame_generator` | TM Frame Generator | TM / Frame | Builds fixed-length TM transfer frames from one packet per PDU, splits and idle-fills it, marks the frames of one burst |
 | `tm_cadu_framer` | TM CADU Framer | TM / CADU | Prepends the CCSDS Attached Sync Marker to a codeblock: one CADU |
 | `tm_randomizer` | TM Randomizer | TM / Randomizer | CCSDS TM pseudo-randomizer (17-bit LFSR, or legacy 8-bit LFSR), randomizes on TX and derandomizes on RX |
 | `data_creator` | Data Creator | Utilities | Generates test payloads |
@@ -213,9 +215,11 @@ encrypt/decrypt, authenticate/verify round trips.
 
 ## Roadmap
 
-- **Telemetry (TM)** — the downlink counterpart to TC is the next step.
-  Only telecommand is implemented today; `ccsds_receiver` already has a
-  TM message type option, but selecting it does not process frames yet.
+- **Telemetry (TM)** — the downlink counterpart to TC. The transmit
+  side has its frame, randomizer and CADU blocks, with Reed-Solomon coding
+  from gr-satellites; the receive side is not implemented yet.
+  `ccsds_receiver` has a TM message type option, but selecting it does not
+  process frames.
 
 ## Known issues
 

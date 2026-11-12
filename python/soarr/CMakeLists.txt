@@ -50,6 +50,7 @@ gr_python_install(FILES __init__.py
     tc_frame_decoder.py
     tm_randomizer.py
     tm_cadu_framer.py
+    tm_frame_generator.py
     acquisition_idle_sequencer.py
     system_tester.py DESTINATION ${GR_PYTHON_DIR}/gnuradio/soarr)
 
@@ -124,6 +125,7 @@ GR_ADD_TEST(qa_tc_frame_encoder ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}
 GR_ADD_TEST(qa_tc_frame_decoder ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tc_frame_decoder.py)
 GR_ADD_TEST(qa_tm_randomizer ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tm_randomizer.py)
 GR_ADD_TEST(qa_tm_cadu_framer ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tm_cadu_framer.py)
+GR_ADD_TEST(qa_tm_frame_generator ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tm_frame_generator.py)
 GR_ADD_TEST(qa_tm_reed_solomon ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tm_reed_solomon.py)
 
 # Acquisition/idle sequence tests
