@@ -5,7 +5,7 @@ CCSDS Telecommand (TC) uplink for ARIS's SOARR mission: encode, secure,
 frame, and transmit a telecommand on TX, and detect, correct, verify, and
 decrypt it again on RX.
 
-All 25 blocks are pure Python and appear in GNU Radio Companion under the
+All 26 blocks are pure Python and appear in GNU Radio Companion under the
 **[Soarr]** category: TC (Telecommand) TX and RX, Common (shared by TC
 and TM: SDLS, Encapsulation, Key Database), and Utilities.
 
@@ -84,6 +84,7 @@ description.
 | Block | GRC label | GRC category | Purpose |
 |---|---|---|---|
 | `inject_db` | Key Injector | Common / Key Database | Queries `db_client` and merges the returned keys and counters into each PDU's metadata |
+| `key_database` | Key Database | Common / Key Database | Key Injector and Key Store in one block, the query loop inside |
 | `db_client` | Key Store | Common / Key Database | Serves keys, SPIs, and counters by SCID + SPI from an in-memory entry or a YAML file |
 | `encapsulation_header` | Encapsulation Header Adder | Common / Encapsulation | Prepends the CCSDS encapsulation packet header |
 | `sdls_encryption` | SDLS Encryption | Common / SDLS | Encrypts the payload with AES-256-CTR |

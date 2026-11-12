@@ -30,5 +30,6 @@ install(FILES
     soarr_sdls_authentication_verify.block.yml
     soarr_sdls_apply.block.yml
     soarr_sdls_process.block.yml
+    soarr_key_database.block.yml
     soarr_acquisition_idle_sequencer.block.yml
     soarr_system_tester.block.yml DESTINATION share/gnuradio/grc/blocks)

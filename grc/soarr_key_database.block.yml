@@ -1,0 +1,70 @@
+id: soarr_key_database
+label: Key Database
+category: '[Soarr]/Common/Key Database'
+
+templates:
+  imports: from gnuradio import soarr
+  make: soarr.key_database(${role}, ${db_type}, ${yaml_path}, ${auto_reset_counters}, ${scid}, ${spi}, ${vcid})
+
+parameters:
+- id: role
+  label: Role
+  dtype: enum
+  options: ['"tx"', '"rx"']
+  option_labels: ['TX (database assigns counters)', 'RX (counters from the frame)']
+  default: '"tx"'
+- id: db_type
+  label: Database
+  dtype: enum
+  options: ['0', '1']
+  option_labels: [Dummy (test keys), Local YAML]
+  default: '0'
+- id: yaml_path
+  label: Local YAML File
+  dtype: file_open
+  default: ""
+  hide: ${ 'none' if db_type == '1' else 'all' }
+- id: auto_reset_counters
+  label: Auto Reset Counters
+  dtype: enum
+  options: ['True', 'False']
+  option_labels: [Enabled, Disabled]
+  default: 'False'
+  hide: ${ 'part' if db_type == '0' else 'all' }
+- id: scid
+  label: Dummy SCID
+  dtype: int
+  default: 0x155
+  hide: ${ 'none' if db_type == '0' else 'all' }
+- id: spi
+  label: Dummy SPI
+  dtype: int
+  default: 1
+  hide: ${ 'none' if db_type == '0' else 'all' }
+- id: vcid
+  label: Dummy VCID
+  dtype: int
+  default: 0x12
+  hide: ${ 'none' if db_type == '0' else 'all' }
+
+inputs:
+- label: in
+  domain: message
+  optional: 0
+
+outputs:
+- label: out
+  domain: message
+  optional: 0
+
+documentation: |-
+  Key Injector and Key Store in one block: each PDU gets the keys, SPI material and counters of its SCID + SPI entry, with the database query loop inside.
+
+  Role TX: the database assigns the SDLS and VCID counters. Role RX: the received frame's counters are kept, and lookups don't use up the database's counter.
+  Database: the dummy entry uses the built-in test keys (for loopback tests); real keys come from a YAML file (see examples/db_client_example.yaml).
+
+  Ports:
+  - in: on TX the payload (e.g. from Data Creator), on RX the parsed frame (from TC Frame Parser), with the SCID and SPI in the metadata.
+  - out: the same PDU with crypt_key, auth_key and the counters merged in, for Encapsulation Header Adder and then SDLS Apply (TX), or for SDLS Process (RX).
+
+file_format: 1
