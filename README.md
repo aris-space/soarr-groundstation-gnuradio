@@ -5,9 +5,9 @@ CCSDS Telecommand (TC) uplink for ARIS's SOARR mission: encode, secure,
 frame, and transmit a telecommand on TX, and detect, correct, verify, and
 decrypt it again on RX.
 
-All 28 blocks are pure Python and appear in GNU Radio Companion under the
+All 29 blocks are pure Python and appear in GNU Radio Companion under the
 **[Soarr]** category: TC (Telecommand), by function (Frame, Randomizer,
-BCH, CLTU, PLOP), Common (shared by TC and TM: SDLS, Encapsulation, Key
+BCH, CLTU, PLOP), TM (Telemetry), Common (shared by TC and TM: SDLS, Encapsulation, Key
 Database), and Utilities.
 
 ## Features
@@ -110,6 +110,7 @@ description.
 | `encapsulation_parser` | Encapsulation Parser | Common / Encapsulation | Strips the encapsulation packet header after decryption, header fields into the metadata |
 | `bch_decoder` | TC BCH Decoder | TC / BCH | Standalone BCH (63,56) decoder (corrects 1 bit error, drops codewords with more) |
 | `lfsr_descrambler` | TC Descrambler | TC / Randomizer | Standalone de-randomizer |
+| `tm_randomizer` | TM Randomizer | TM / Randomizer | CCSDS TM pseudo-randomizer (17-bit LFSR, or legacy 8-bit LFSR), randomizes on TX and derandomizes on RX |
 | `data_creator` | Data Creator | Utilities | Generates test payloads |
 | `system_tester` | System Tester | Utilities | Measures bit error rate, message error rate, and lost packets in a loopback |
 

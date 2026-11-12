@@ -6,7 +6,7 @@ decided it."
 
 All three rules below — snake_case naming, catch-log-drop message
 handlers, and the docstring/PMT-shape convention — are applied across all
-28 blocks. Per-block detail lives in [prd/](prd/).
+29 blocks. Per-block detail lives in [prd/](prd/).
 
 ## Block naming
 
@@ -74,7 +74,8 @@ async message-handler thread this rule targets.
 
 - `warn` — blocks before any structural/integrity check has passed,
   directly exposed to raw, potentially noisy RF data: `cltu_deframer`,
-  `bch_decoder`, `lfsr_descrambler`, `ccsds_receiver`, `ccsds_reader`.
+  `bch_decoder`, `lfsr_descrambler`, `ccsds_receiver`, `ccsds_reader`,
+  and `tm_randomizer` (which on RX sees data straight after the ASM).
 - `error` — everything else. Once a frame has cleared `ccsds_reader`
   (structurally valid, successfully parsed), malformed input downstream
   is no longer plausibly channel noise.

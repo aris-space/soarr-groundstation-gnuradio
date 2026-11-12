@@ -60,5 +60,6 @@ from .sdls_process import sdls_process
 from .key_database import key_database
 from .tc_frame_encoder import tc_frame_encoder
 from .tc_frame_decoder import tc_frame_decoder
+from .tm_randomizer import tm_randomizer
 from .acquisition_idle_sequencer import acquisition_idle_sequencer
 from .system_tester import system_tester

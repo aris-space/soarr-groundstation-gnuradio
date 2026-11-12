@@ -33,5 +33,6 @@ install(FILES
     soarr_key_database.block.yml
     soarr_tc_frame_encoder.block.yml
     soarr_tc_frame_decoder.block.yml
+    soarr_tm_randomizer.block.yml
     soarr_acquisition_idle_sequencer.block.yml
     soarr_system_tester.block.yml DESTINATION share/gnuradio/grc/blocks)

@@ -1,0 +1,51 @@
+id: soarr_tm_randomizer
+label: TM Randomizer
+category: '[Soarr]/TM (Telemetry)/Randomizer'
+
+templates:
+  imports: from gnuradio import soarr
+  make: soarr.tm_randomizer(${register_length}, ${length_check}, ${codeblock_length})
+
+parameters:
+- id: register_length
+  label: Sequence
+  dtype: enum
+  options: ['17', '8']
+  option_labels: [17-bit LFSR, 8-bit LFSR (legacy)]
+  default: '17'
+- id: length_check
+  label: Length Check
+  dtype: enum
+  options: ['False', 'True']
+  option_labels: [Disabled, Enabled]
+  default: 'False'
+- id: codeblock_length
+  label: Codeblock Length (bytes)
+  dtype: int
+  default: 255
+  hide: ${ 'none' if length_check == 'True' else 'all' }
+
+asserts:
+- ${ length_check == 'False' or codeblock_length >= 1 }
+
+inputs:
+- label: in
+  domain: message
+  optional: 0
+
+outputs:
+- label: out
+  domain: message
+  optional: 0
+
+documentation: |-
+  CCSDS TM Pseudo-Randomizer (131.0-B-5 section 10): XORs each codeblock, codeword or Transfer Frame with the standard pseudo-random sequence, restarted for every PDU. The same block randomizes on TX (after Reed-Solomon, Turbo or LDPC encoding) and derandomizes on RX (right after the ASM, before decoding); the ASM itself is not randomized.
+
+  Sequence: the 17-bit LFSR, h(x) = x^17 + x^14 + 1, start state 11000111000111000, a 131071-bit sequence (the current standard), or the legacy 8-bit LFSR, h(x) = x^8 + x^7 + x^5 + x^3 + 1, all ones, a 255-bit sequence, for backward compatibility.
+  Length Check: drop PDUs that aren't Codeblock Length bytes (e.g. 255 x interleaving depth for Reed-Solomon).
+
+  Ports:
+  - in: one codeblock, codeword or Transfer Frame as packed bytes.
+  - out: the same, randomized or derandomized; metadata unchanged.
+
+file_format: 1
