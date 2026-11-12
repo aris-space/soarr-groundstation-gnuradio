@@ -87,8 +87,8 @@ implementation.
 
 ## Test coverage
 
-- `python/soarr/qa_data_creator.py` — 18 test methods (`test_instance` +
-  `test_001`–`test_017`): manual-data generation with a real
+- `python/soarr/qa_data_creator.py` — 19 test methods (`test_instance` +
+  `test_001`–`test_018`): manual-data generation with a real
   `pmt.u8vector` output check, mode-0 random-payload generation via
   `_choose_mode` with a length check, mismatched explicit data and
   `data_length_bytes` raising `ValueError` (`test_003`), an unsupported
@@ -102,4 +102,5 @@ implementation.
   `sdls_counter` present in the published metadata (`test_015`), and a
   mock-forced publish failure proven to be caught and dropped rather
   than raised through the real handler (`test_016`), and the random
-  payload repeated unchanged across messages (`test_017`).
+  payload repeated unchanged across messages (`test_017`), and the
+  payload passed to `pmt.init_u8vector` as a list (`test_018`).

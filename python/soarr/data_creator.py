@@ -162,8 +162,10 @@ class data_creator(gr.basic_block):
             sdls = pmt.dict_add(sdls, pmt.intern("security_header"), sdls_header)
             msg_dict = pmt.dict_add(msg_dict, pmt.intern("sdls"), sdls)
 
-            # Create a PMT u8vector to hold the message data
-            msg_vector = pmt.init_u8vector(self.data_length_bytes, self.data)
+            # Create a PMT u8vector to hold the message data. Passed as a list:
+            # init_u8vector also has a (k, int) fill overload, which NumPy < 2
+            # would pick for a 1-byte array by converting it to a scalar.
+            msg_vector = pmt.init_u8vector(self.data_length_bytes, self.data.tolist())
 
             # Combine the dictionary and vector into a single PMT pair
             msg_out = pmt.cons(msg_dict, msg_vector)
