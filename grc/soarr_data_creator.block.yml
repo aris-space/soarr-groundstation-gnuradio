@@ -1,6 +1,6 @@
 id: soarr_data_creator
 label: Data Creator
-category: '[soarr]/Testing'
+category: '[Soarr]/Utilities'
 
 templates:
   imports: from gnuradio import soarr

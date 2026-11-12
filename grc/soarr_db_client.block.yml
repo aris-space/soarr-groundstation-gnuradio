@@ -1,6 +1,6 @@
 id: soarr_db_client
 label: DB Client
-category: '[soarr]/Database'
+category: '[Soarr]/Common/Key Database'
 
 templates:
   imports: from gnuradio import soarr

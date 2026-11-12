@@ -1,6 +1,6 @@
 id: soarr_cltu_deframer
 label: CLTU Deframer
-category: '[soarr]/CLTU'
+category: '[Soarr]/TC (Telecommand)/RX'
 
 templates:
   imports: from gnuradio import soarr

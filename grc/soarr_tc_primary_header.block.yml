@@ -1,6 +1,6 @@
 id: soarr_tc_primary_header
 label: TC Primary Header
-category: '[soarr]/Telecommand'
+category: '[Soarr]/TC (Telecommand)/TX'
 
 templates:
   imports: from gnuradio import soarr

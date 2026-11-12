@@ -1,6 +1,6 @@
 id: soarr_ccsds_reader
 label: CCSDS Reader
-category: '[soarr]/Reception'
+category: '[Soarr]/TC (Telecommand)/RX'
 
 templates:
   imports: from gnuradio import soarr

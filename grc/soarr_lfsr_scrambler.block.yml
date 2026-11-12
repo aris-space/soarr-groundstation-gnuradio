@@ -1,6 +1,6 @@
 id: soarr_lfsr_scrambler
 label: LFSR Scrambler
-category: '[soarr]/LFSR'
+category: '[Soarr]/TC (Telecommand)/TX'
 
 templates:
   imports: from gnuradio import soarr

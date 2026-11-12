@@ -126,10 +126,8 @@ them touch PMT directly, so ADR-0004 doesn't require one.
 **Naming**: file, class, every constructor parameter, every method
 name, and the GRC yaml's `label:` field ("System Tester") are all
 snake_case/Title Case, matching every other block's convention.
-`category: '[soarr]'` has no subcategory, unlike most other blocks
-(`'[soarr]/SDLS'`, `'[soarr]/Reception'`, etc.) — consistent with this
-being ground-tooling rather than a protocol-layer block, not obviously
-wrong.
+`category: '[Soarr]/Utilities'`, next to `data_creator`: ground tooling
+rather than a protocol-layer block.
 
 ## CCSDS reference
 

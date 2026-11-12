@@ -1,6 +1,6 @@
 id: soarr_plop_modulator
 label: PLOP Modulator
-category: '[soarr]/CLTU'
+category: '[Soarr]/TC (Telecommand)/TX'
 
 templates:
   imports: from gnuradio import soarr
