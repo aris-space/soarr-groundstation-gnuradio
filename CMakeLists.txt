@@ -42,7 +42,7 @@ find_package(Gnuradio "3.10" REQUIRED)
 # MAJOR=X, API=Y, PATCH=Z; ABI stays 0, since this module has no compiled
 # library (see docs/development.md, Releases).
 # cmake-format: off
-set(VERSION_MAJOR 1)
+set(VERSION_MAJOR 2)
 set(VERSION_API   0)
 set(VERSION_ABI   0)
 set(VERSION_PATCH 0)
