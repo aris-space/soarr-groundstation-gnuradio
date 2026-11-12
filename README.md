@@ -5,7 +5,7 @@ CCSDS Telecommand (TC) uplink for ARIS's SOARR mission: encode, secure,
 frame, and transmit a telecommand on TX, and detect, correct, verify, and
 decrypt it again on RX.
 
-All 27 blocks are pure Python and appear in GNU Radio Companion under the
+All 28 blocks are pure Python and appear in GNU Radio Companion under the
 **[Soarr]** category: TC (Telecommand) TX and RX, Common (shared by TC
 and TM: SDLS, Encapsulation, Key Database), and Utilities.
 
@@ -99,6 +99,7 @@ description.
 | `plop_modulator` | TC PLOP Modulator | TC / TX | BPSK-modulates CLTUs for the SDR, PLOP-1 bursts or PLOP-2 continuous carrier, switchable at runtime |
 | `cltu_burst_builder` | TC CLTU Burst Builder | TC / TX | Wraps each CLTU in acquisition sequence + idle tail as one transmission burst (PLOP-1) |
 | `acquisition_idle_sequencer` | TC Acquisition and Idle Sequencer | TC / TX | Adds acquisition/idle sequences and outputs a continuous byte stream (PLOP-2) |
+| `tc_frame_decoder` | TC Frame Decoder | TC / RX | Received bits to parsed frames in one block: correlator, CLTU deframer, frame receiver, FECF check, frame parser |
 | `cltu_deframer` | TC CLTU Deframer | TC / RX | Finds CLTUs in the received stream |
 | `ccsds_receiver` | TC Frame Receiver | TC / RX | BCH-corrects, de-randomizes, and reassembles TC transfer frames |
 | `ccsds_reader` | TC Frame Parser | TC / RX | Parses a reassembled frame into its header fields and payload |

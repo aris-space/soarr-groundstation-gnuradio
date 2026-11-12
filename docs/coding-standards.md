@@ -6,7 +6,7 @@ decided it."
 
 All three rules below — snake_case naming, catch-log-drop message
 handlers, and the docstring/PMT-shape convention — are applied across all
-27 blocks. Per-block detail lives in [prd/](prd/).
+28 blocks. Per-block detail lives in [prd/](prd/).
 
 ## Block naming
 
