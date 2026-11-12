@@ -16,6 +16,7 @@ development setup, and the decision records and PRDs that back them.
    - [0004 — Docstring and PMT shape convention](adr/0004-docstring-and-pmt-shape-convention.md)
    - [0005 — RX path canonical block](adr/0005-rx-path-canonical-block.md)
    - [0006 — Rename gr-sage to gr-soarr](adr/0006-rename-sage-to-soarr.md)
+   - [0007 — GRC block tree, labels, and hierarchical blocks](adr/0007-grc-block-tree-and-labels.md)
 5. `prd/` — one requirements doc per block (23 total, written in
    signal-flow order):
    - [encapsulation_header](prd/encapsulation_header.md)

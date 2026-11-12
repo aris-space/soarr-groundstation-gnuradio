@@ -19,6 +19,14 @@ block's matching `qa_*.py` test file follows the same name.
 CLTU, TC) collapse to one lowercase token, not letter-by-letter —
 `ccsdsReader` → `ccsds_reader`, not `c_c_s_d_s_reader`.
 
+**GRC category and label:** a block's `category:` is `[Soarr]/TC
+(Telecommand)/TX|RX`, `[Soarr]/TM (Telemetry)/TX|RX`, `[Soarr]/Common/…`
+or `[Soarr]/Utilities`. Its `label:` names what it does — `… Adder` on TX
+for a block that adds a field, `… Parser` on RX for one that strips it,
+`… Verifier` for a MAC check, verb pairs for transforms — and starts with
+`TC` or `TM` outside `Common` and `Utilities`, e.g. `TC Primary Header
+Adder`. See [ADR-0007](adr/0007-grc-block-tree-and-labels.md).
+
 **Rename table** (applied — kept here as the historical old→new mapping,
 e.g. for matching an old `.grc` flowgraph or old GRC block-id against its
 current name):
