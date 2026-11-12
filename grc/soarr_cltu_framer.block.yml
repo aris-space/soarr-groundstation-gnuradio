@@ -1,6 +1,6 @@
 id: soarr_cltu_framer
 label: TC CLTU Framer
-category: '[Soarr]/TC (Telecommand)/TX'
+category: '[Soarr]/TC (Telecommand)/CLTU'
 
 templates:
   imports: from gnuradio import soarr

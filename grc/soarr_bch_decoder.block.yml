@@ -1,6 +1,6 @@
 id: soarr_bch_decoder
 label: TC BCH Decoder
-category: '[Soarr]/TC (Telecommand)/RX'
+category: '[Soarr]/TC (Telecommand)/BCH'
 
 templates:
   imports: from gnuradio import soarr

@@ -1,6 +1,6 @@
 id: soarr_tc_frame_decoder
 label: TC Frame Decoder
-category: '[Soarr]/TC (Telecommand)/RX'
+category: '[Soarr]/TC (Telecommand)'
 
 templates:
   imports: from gnuradio import soarr

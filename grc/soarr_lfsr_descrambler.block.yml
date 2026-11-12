@@ -1,6 +1,6 @@
 id: soarr_lfsr_descrambler
 label: TC Descrambler
-category: '[Soarr]/TC (Telecommand)/RX'
+category: '[Soarr]/TC (Telecommand)/Randomizer'
 
 templates:
   imports: from gnuradio import soarr

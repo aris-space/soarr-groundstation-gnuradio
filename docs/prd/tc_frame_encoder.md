@@ -6,7 +6,7 @@ Turns a TC transfer frame's data field into a CLTU (CCSDS 232.0-B /
 231.0-B) as one hierarchical block: `tc_primary_header`, the stock
 `digital.crc_append` (FECF), `lfsr_scrambler`, `bch_encoder` and
 `cltu_framer`, wired in that fixed order. GRC label **TC Frame Encoder**,
-category `[Soarr]/TC (Telecommand)/TX`. See
+category `[Soarr]/TC (Telecommand)`. See
 [ADR-0007](../adr/0007-grc-block-tree-and-labels.md) for the hierarchical
 block rule.
 

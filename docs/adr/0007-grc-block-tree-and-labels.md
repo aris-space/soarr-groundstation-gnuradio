@@ -4,9 +4,14 @@
 
 **Tree:** every block sits under `[Soarr]` (GNU Radio's capitalisation for
 module roots) in one of four folders: `TC (Telecommand)` and
-`TM (Telemetry)`, each split into `TX` and `RX`, for blocks only one link
-direction uses; `Common` for blocks TC and TM share (SDLS, Encapsulation,
-Key Database); `Utilities` for test tooling. GRC files a block under one
+`TM (Telemetry)` for blocks only one link direction uses; `Common` for
+blocks TC and TM share; `Utilities` for test tooling. Inside them, blocks
+are grouped by function, not by TX and RX, so a block and its
+counterpart sit together: TC has Frame, Randomizer, BCH, CLTU and PLOP,
+Common has SDLS, Encapsulation and Key Database (rejected: TX/RX
+folders, which split each encoder/decoder pair). A hierarchical block for
+a whole chain (TC Frame Encoder/Decoder) sits directly in its link
+folder, one for a function next to its parts. GRC files a block under one
 category only, so a shared block lives in `Common` rather than appearing
 under both TC and TM (rejected: a second block YAML with another id for
 the same block — flowgraphs store the id, so one block would have two

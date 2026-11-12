@@ -8,7 +8,7 @@ Turns a received bit stream into parsed TC transfer frames (CCSDS
 `cltu_deframer`, `ccsds_receiver`, the stock `digital.crc_check` (FECF)
 and `ccsds_reader`. The RX counterpart of
 [tc_frame_encoder](tc_frame_encoder.md). GRC label **TC Frame Decoder**,
-category `[Soarr]/TC (Telecommand)/RX`. See
+category `[Soarr]/TC (Telecommand)`. See
 [ADR-0007](../adr/0007-grc-block-tree-and-labels.md) for the hierarchical
 block rule.
 

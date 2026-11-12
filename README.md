@@ -6,8 +6,9 @@ frame, and transmit a telecommand on TX, and detect, correct, verify, and
 decrypt it again on RX.
 
 All 28 blocks are pure Python and appear in GNU Radio Companion under the
-**[Soarr]** category: TC (Telecommand) TX and RX, Common (shared by TC
-and TM: SDLS, Encapsulation, Key Database), and Utilities.
+**[Soarr]** category: TC (Telecommand), by function (Frame, Randomizer,
+BCH, CLTU, PLOP), Common (shared by TC and TM: SDLS, Encapsulation, Key
+Database), and Utilities.
 
 ## Features
 
@@ -91,24 +92,24 @@ description.
 | `sdls_authentication` | SDLS MAC Adder | Common / SDLS | Appends an AES-CMAC authentication tag |
 | `sdls_header` | SDLS Header Adder | Common / SDLS | Prepends the SDLS security header (SPI + IV) |
 | `sdls_apply` | SDLS Apply | Common / SDLS | SDLS ApplySecurity in one block: encryption, MAC, security header, by SDLS mode |
-| `tc_frame_encoder` | TC Frame Encoder | TC / TX | Data field to CLTU in one block: primary header, FECF, randomizer, BCH, CLTU sequences |
-| `tc_primary_header` | TC Primary Header Adder | TC / TX | Builds the 5-byte TC transfer frame primary header |
-| `lfsr_scrambler` | TC Scrambler | TC / TX | Applies the CCSDS TC pseudo-randomizer |
-| `bch_encoder` | TC BCH Encoder | TC / TX | Splits the frame into BCH (63,56) codewords |
-| `cltu_framer` | TC CLTU Framer | TC / TX | Wraps codewords in the CLTU start and tail sequences |
-| `plop_modulator` | TC PLOP Modulator | TC / TX | BPSK-modulates CLTUs for the SDR, PLOP-1 bursts or PLOP-2 continuous carrier, switchable at runtime |
-| `cltu_burst_builder` | TC CLTU Burst Builder | TC / TX | Wraps each CLTU in acquisition sequence + idle tail as one transmission burst (PLOP-1) |
-| `acquisition_idle_sequencer` | TC Acquisition and Idle Sequencer | TC / TX | Adds acquisition/idle sequences and outputs a continuous byte stream (PLOP-2) |
-| `tc_frame_decoder` | TC Frame Decoder | TC / RX | Received bits to parsed frames in one block: correlator, CLTU deframer, frame receiver, FECF check, frame parser |
-| `cltu_deframer` | TC CLTU Deframer | TC / RX | Finds CLTUs in the received stream |
-| `ccsds_receiver` | TC Frame Receiver | TC / RX | BCH-corrects, de-randomizes, and reassembles TC transfer frames |
-| `ccsds_reader` | TC Frame Parser | TC / RX | Parses a reassembled frame into its header fields and payload |
+| `tc_frame_encoder` | TC Frame Encoder | TC | Data field to CLTU in one block: primary header, FECF, randomizer, BCH, CLTU sequences |
+| `tc_primary_header` | TC Primary Header Adder | TC / Frame | Builds the 5-byte TC transfer frame primary header |
+| `lfsr_scrambler` | TC Scrambler | TC / Randomizer | Applies the CCSDS TC pseudo-randomizer |
+| `bch_encoder` | TC BCH Encoder | TC / BCH | Splits the frame into BCH (63,56) codewords |
+| `cltu_framer` | TC CLTU Framer | TC / CLTU | Wraps codewords in the CLTU start and tail sequences |
+| `plop_modulator` | TC PLOP Modulator | TC / PLOP | BPSK-modulates CLTUs for the SDR, PLOP-1 bursts or PLOP-2 continuous carrier, switchable at runtime |
+| `cltu_burst_builder` | TC CLTU Burst Builder | TC / CLTU | Wraps each CLTU in acquisition sequence + idle tail as one transmission burst (PLOP-1) |
+| `acquisition_idle_sequencer` | TC Acquisition and Idle Sequencer | TC / PLOP | Adds acquisition/idle sequences and outputs a continuous byte stream (PLOP-2) |
+| `tc_frame_decoder` | TC Frame Decoder | TC | Received bits to parsed frames in one block: correlator, CLTU deframer, frame receiver, FECF check, frame parser |
+| `cltu_deframer` | TC CLTU Deframer | TC / CLTU | Finds CLTUs in the received stream |
+| `ccsds_receiver` | TC Frame Receiver | TC / Frame | BCH-corrects, de-randomizes, and reassembles TC transfer frames |
+| `ccsds_reader` | TC Frame Parser | TC / Frame | Parses a reassembled frame into its header fields and payload |
 | `sdls_authentication_verify` | SDLS MAC Verifier | Common / SDLS | Verifies and strips the AES-CMAC tag |
 | `sdls_decryption` | SDLS Decryption | Common / SDLS | Decrypts the payload with AES-256-CTR |
 | `sdls_process` | SDLS Process | Common / SDLS | SDLS ProcessSecurity in one block: MAC verification, decryption, by SDLS mode |
 | `encapsulation_parser` | Encapsulation Parser | Common / Encapsulation | Strips the encapsulation packet header after decryption, header fields into the metadata |
-| `bch_decoder` | TC BCH Decoder | TC / RX | Standalone BCH (63,56) decoder (corrects 1 bit error, drops codewords with more) |
-| `lfsr_descrambler` | TC Descrambler | TC / RX | Standalone de-randomizer |
+| `bch_decoder` | TC BCH Decoder | TC / BCH | Standalone BCH (63,56) decoder (corrects 1 bit error, drops codewords with more) |
+| `lfsr_descrambler` | TC Descrambler | TC / Randomizer | Standalone de-randomizer |
 | `data_creator` | Data Creator | Utilities | Generates test payloads |
 | `system_tester` | System Tester | Utilities | Measures bit error rate, message error rate, and lost packets in a loopback |
 
