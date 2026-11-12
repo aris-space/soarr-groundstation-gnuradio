@@ -8,7 +8,7 @@ decrypt it again on RX.
 All 29 blocks are pure Python and appear in GNU Radio Companion under the
 **[Soarr]** category: TC (Telecommand), by function (Frame, Randomizer,
 BCH, CLTU, PLOP), TM (Telemetry), Common (shared by TC and TM: SDLS, Encapsulation, Key
-Database), and Utilities.
+Database, Burst), and Utilities.
 
 ## Features
 
@@ -98,7 +98,7 @@ description.
 | `bch_encoder` | TC BCH Encoder | TC / BCH | Splits the frame into BCH (63,56) codewords |
 | `cltu_framer` | TC CLTU Framer | TC / CLTU | Wraps codewords in the CLTU start and tail sequences |
 | `plop_modulator` | TC PLOP Modulator | TC / PLOP | BPSK-modulates CLTUs for the SDR, PLOP-1 bursts or PLOP-2 continuous carrier, switchable at runtime |
-| `cltu_burst_builder` | TC CLTU Burst Builder | TC / CLTU | Wraps each CLTU in acquisition sequence + idle tail as one transmission burst (PLOP-1) |
+| `cltu_burst_builder` | Burst Builder | Common / Burst | Wraps each CLTU (TC, PLOP-1) or CADU (TM) in acquisition sequence + idle tail as one transmission burst |
 | `acquisition_idle_sequencer` | TC Acquisition and Idle Sequencer | TC / PLOP | Adds acquisition/idle sequences and outputs a continuous byte stream (PLOP-2) |
 | `tc_frame_decoder` | TC Frame Decoder | TC | Received bits to parsed frames in one block: correlator, CLTU deframer, frame receiver, FECF check, frame parser |
 | `cltu_deframer` | TC CLTU Deframer | TC / CLTU | Finds CLTUs in the received stream |

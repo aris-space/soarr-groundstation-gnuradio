@@ -1,6 +1,6 @@
 id: soarr_cltu_burst_builder
-label: TC CLTU Burst Builder
-category: '[Soarr]/TC (Telecommand)/CLTU'
+label: Burst Builder
+category: '[Soarr]/Common/Burst'
 
 templates:
   imports: from gnuradio import soarr
@@ -42,12 +42,12 @@ outputs:
   optional: 0
 
 documentation: |-
-  Turns each CLTU into one transmission burst for CCSDS PLOP-1 operation (carrier on only while sending): acquisition sequence + CLTU + short idle tail.
+  Turns each PDU into one transmission burst (carrier on only while sending): acquisition sequence + PDU + short idle tail. On TC the PDU is a CLTU (CCSDS PLOP-1), on TM a CADU. The acquisition sequence and tail are physical-layer fill, outside the CLTU or CADU.
 
   Ports:
-  - in: one CLTU per PDU, from cltu_framer.
+  - in: one CLTU (from TC CLTU Framer / TC Frame Encoder) or CADU (from TM CADU Framer) per PDU.
   - out: the burst, for GNU Radio's PDU to Tagged Stream block (length tag packet_len), then the modulator and a USRP sink with Length Tag Name packet_len.
 
-  The stream then carries only bursts and nothing in between, so a new CLTU is sent right away instead of waiting behind queued idle bytes. Set Acquisition Length to the time the receiver needs to lock on; with a differential modulator set Differential Modulation to Yes. For a continuous carrier (PLOP-2) use Acquisition and Idle Sequencer instead.
+  The stream then carries only bursts and nothing in between, so a new PDU is sent right away instead of waiting behind queued idle bytes. Set Acquisition Length to the time the receiver needs to lock on; with a differential modulator set Differential Modulation to Yes. For a continuous carrier (PLOP-2) use Acquisition and Idle Sequencer instead.
 
 file_format: 1

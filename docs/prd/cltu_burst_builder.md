@@ -2,16 +2,21 @@
 
 ## Purpose
 
-Wraps each CLTU into one transmission burst for CCSDS 231.0-B PLOP-1
-operation, where the carrier is on only while transmitting: acquisition
-sequence + CLTU + short idle tail. Together with GNU Radio's PDU to
-Tagged Stream block it replaces the continuous
+Wraps each PDU into one transmission burst, where the carrier is on
+only while transmitting: acquisition sequence + PDU + short idle tail. On
+TC the PDU is a CLTU (CCSDS 231.0-B PLOP-1); together with GNU Radio's
+PDU to Tagged Stream block it replaces the continuous
 [acquisition_idle_sequencer](acquisition_idle_sequencer.md) stream,
-removing its latency. See [architecture.md](../architecture.md).
+removing its latency. On TM it is a CADU from
+[tm_cadu_framer](tm_cadu_framer.md): CCSDS 131.0-B allows no bits between
+consecutive CADUs (9.4.2), so a preamble belongs to the burst, not the
+CADU. GRC label **Burst Builder**, category `[Soarr]/Common/Burst`; the
+id stays `soarr_cltu_burst_builder`. See [architecture.md](../architecture.md).
 
 ## Pipeline position
 
-TX chain, after `cltu_framer`, in burst mode:
+TX chain, in burst mode — on TC after `cltu_framer` (or
+`tc_frame_encoder`), on TM after `tm_cadu_framer`:
 
 ```
 cltu_framer.out → cltu_burst_builder.in
@@ -28,23 +33,23 @@ Stream, and the modulator, and adds switchable PLOP-2.
 
 | Port | Direction | PMT shape | Example |
 |---|---|---|---|
-| `in` | input | PDU: `(metadata_dict . cltu_u8vector)`, one CLTU. | `pmt.cons({}, u8vector(eb 90 ‖ codewords ‖ tail))` |
-| `out` | output | PDU with the same metadata and payload `acquisition sequence ‖ CLTU ‖ idle tail`. | `pmt.cons({}, u8vector(64 × 0xAA ‖ CLTU ‖ 4 × 0xAA))` |
+| `in` | input | PDU: `(metadata_dict . u8vector)`, one CLTU (TC) or CADU (TM). | `pmt.cons({}, u8vector(eb 90 ‖ codewords ‖ tail))` |
+| `out` | output | PDU with the same metadata and payload `acquisition sequence ‖ PDU ‖ idle tail`. | `pmt.cons({}, u8vector(64 × 0xAA ‖ CLTU ‖ 4 × 0xAA))` |
 
 ## Parameters
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `acquisition_length` | int | `64` | Acquisition sequence length in bytes, sent before every CLTU so the receiver can lock on; size it to the on-board receiver's acquisition time. `0` = none. Raises `ValueError` if negative. |
-| `tail_length` | int | `4` | Idle bytes after the CLTU, so the modulator's pulse-shaping filter flushes the last symbols before the burst ends. `0` = none. Raises `ValueError` if negative. |
+| `acquisition_length` | int | `64` | Acquisition sequence (preamble) length in bytes, sent before every burst so the receiver can lock on; size it to the on-board receiver's acquisition time. `0` = none. Raises `ValueError` if negative. |
+| `tail_length` | int | `4` | Idle bytes after the PDU, so the modulator's pulse-shaping filter flushes the last symbols before the burst ends. `0` = none. Raises `ValueError` if negative. |
 | `fill_byte` | int | `0xAA` | Byte used for the acquisition sequence and the tail; `0xAA` is alternating bits. Raises `ValueError` outside `0`–`255`. |
 | `diff_encoded` | bool | `False` | If `True`, use `0xFF` instead of `fill_byte`: a differential modulator turns it into alternating symbols. Same convention as `acquisition_idle_sequencer`. |
 
 ## Behavior / edge cases / current error handling
 
 **Burst** (`build_burst`): concatenates the precomputed acquisition
-bytes, the CLTU, and the precomputed tail, and publishes the result with
-the input metadata. One CLTU in, one burst out; the block keeps no state
+bytes, the PDU, and the precomputed tail, and publishes the result with
+the input metadata. One PDU in, one burst out; the block keeps no state
 between messages.
 
 **Why it removes the latency**: the stock `pdu_to_tagged_stream`

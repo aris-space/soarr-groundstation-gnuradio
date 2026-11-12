@@ -15,28 +15,30 @@ BYTE_MAX = 0xFF
 
 class cltu_burst_builder(gr.basic_block):
     """
-    Wrap each CLTU into one transmission burst for CCSDS 231.0-B PLOP-1
-    operation (carrier on only while transmitting): acquisition sequence,
-    CLTU, short idle tail.
+    Wrap each PDU into one transmission burst (carrier on only while
+    transmitting): acquisition sequence, the PDU, short idle tail. On TC the
+    PDU is a CLTU (CCSDS 231.0-B PLOP-1), on TM a CADU or several.
 
     Flow:
-    - Receive a CLTU PDU on `in` (from cltu_framer)
-    - Publish `acquisition sequence || CLTU || idle tail` as one PDU on `out`
+    - Receive a PDU on `in` (a CLTU from cltu_framer, a CADU from
+      tm_cadu_framer)
+    - Publish `acquisition sequence || PDU || idle tail` as one PDU on `out`
 
     Feed `out` into GNU Radio's PDU to Tagged Stream block: the stream then
     carries only bursts, each with a length tag for the USRP sink, and
     nothing between them - so no idle fill queues up in the stream buffers
-    ahead of the next CLTU, unlike acquisition_idle_sequencer's continuous
-    (PLOP-2) stream.
+    ahead of the next PDU, unlike acquisition_idle_sequencer's continuous
+    (PLOP-2) stream. The acquisition sequence and tail are physical-layer
+    fill, outside the CLTU or CADU itself.
     """
 
     def __init__(self, acquisition_length:int=64, tail_length:int=4, fill_byte:int=0xAA, diff_encoded:bool=False):
         """
         Args:
             acquisition_length (int): acquisition sequence length in bytes,
-                sent before every CLTU so the receiver can lock on; size it
+                sent before every burst so the receiver can lock on; size it
                 to the receiver's acquisition time (0 = none).
-            tail_length (int): idle bytes sent after the CLTU, letting the
+            tail_length (int): idle bytes sent after the PDU, letting the
                 modulator's filter flush the last symbols (0 = none).
             fill_byte (int): byte used for the acquisition sequence and the
                 tail. 0xAA gives alternating bits.

@@ -8,7 +8,7 @@ module roots) in one of four folders: `TC (Telecommand)` and
 blocks TC and TM share; `Utilities` for test tooling. Inside them, blocks
 are grouped by function, not by TX and RX, so a block and its
 counterpart sit together: TC has Frame, Randomizer, BCH, CLTU and PLOP,
-Common has SDLS, Encapsulation and Key Database (rejected: TX/RX
+Common has SDLS, Encapsulation, Key Database and Burst (rejected: TX/RX
 folders, which split each encoder/decoder pair). A hierarchical block for
 a whole chain (TC Frame Encoder/Decoder) sits directly in its link
 folder, one for a function next to its parts. GRC files a block under one

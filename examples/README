@@ -45,8 +45,8 @@ PLOP Modulator to what the on-board receiver needs to lock on. The USRP
 sink takes its bursts from TC PLOP Modulator's tx_sob/tx_eob tags, so its
 Length Tag Name stays empty.
 
-tc_loopback_sim.grc works on bytes instead of samples and uses TC CLTU
-Burst Builder with PDU to Tagged Stream for its PLOP-1 bursts.
+tc_loopback_sim.grc works on bytes instead of samples and uses Burst
+Builder with PDU to Tagged Stream for its PLOP-1 bursts.
 
 All flowgraphs use the Key Database's dummy entry with the same public
 test keys as db_client_example.yaml. tc_loopback_sim.grc and

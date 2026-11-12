@@ -37,6 +37,6 @@ documentation: |-
 
   Ports:
   - in: the frame's data field (e.g. from SDLS Apply), with vcid_counter (the frame sequence number) in the metadata.
-  - out: one CLTU per frame, for TC PLOP Modulator or TC CLTU Burst Builder.
+  - out: one CLTU per frame, for TC PLOP Modulator or Burst Builder.
 
 file_format: 1
