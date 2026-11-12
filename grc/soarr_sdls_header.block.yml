@@ -1,15 +1,15 @@
 id: soarr_sdls_header
-label: SDLS Header
-category: '[soarr]/SDLS'
+label: SDLS Header Adder
+category: '[Soarr]/Common/SDLS'
 
 templates:
   imports: from gnuradio import soarr
-  make: soarr.sdls_header(2)
+  make: soarr.sdls_header()
 
-#  iv_length_bytes is fixed at 2 (matching sdls_encryption/
-#  sdls_authentication's hardcoded AES-CTR/CMAC counter width) and not
-#  GRC-exposed, since any other value raises ValueError at construction -
-#  same pattern as bch_decoder's fixed mode parameter.
+#  iv_length_bytes keeps its default, sdls_constants.SDLS_COUNTER_BYTES -
+#  the counter width the SDLS crypto blocks use - and is not GRC-exposed,
+#  since any other value raises ValueError at construction (same pattern
+#  as bch_decoder's fixed mode parameter).
 
 inputs:
 - label: in

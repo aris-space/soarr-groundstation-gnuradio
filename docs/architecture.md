@@ -148,14 +148,13 @@ exists nowhere else.
 
 `digital.crc_check` sits between `ccsds_receiver` and `ccsds_reader`,
 checking the FECF — the RX-side counterpart to TX's `digital.crc_append`.
-It has two output ports, `fail` and `ok`; in the confirmed external
-flowgraph both are wired to `ccsds_reader`'s input. That's how the
-flowgraph was left, not a documented design decision — don't read
-architectural intent into it.
+It has two output ports, `fail` and `ok`; `tc_frame_decoder` wires only
+`ok` to `ccsds_reader`, so a frame that fails the FECF check is dropped
+there.
 
 `ccsds_reader`'s output port is named `debug`, but it's actually its real,
-only output — not a diagnostic-only tap (confirmed: it's wired onward to
-the next block in the working flowgraph, not just to a debug sink).
+only output — not a diagnostic-only tap: it is `tc_frame_decoder`'s
+output, which goes on to the RX key lookup.
 
 A second `inject_db`/`db_client` pair sits between `ccsds_reader` and
 `sdls_authentication_verify`, mirroring the TX-side key lookup and
@@ -178,7 +177,7 @@ The order shown above (`sdls_authentication_verify` before
 still-encrypted bytes; `sdls_decryption`'s AES-CTR transforms those same
 bytes. Decrypting first would break tag verification for any real payload.
 
-The example flowgraphs wire it this way
+`sdls_process` wires it this way
 (`sdls_authentication_verify.out → sdls_decryption.in`), and
 `tc_loopback_sim.grc` delivers every payload byte-identical with
 SDLS encryption and authentication on.
@@ -192,6 +191,25 @@ off (`sdls_type` 0 or 2); with encryption (`sdls_type` 1 or 3) it leaves
 the header in the data, and `encapsulation_parser` strips it after
 decryption. Both paths are covered end to end by
 `python/soarr/qa_sdls_rx_chain.py`.
+
+## Hierarchical blocks
+
+The chains above are also available as hierarchical blocks, each a fixed
+run of the individual blocks with CCSDS-fixed values built in
+([ADR-0007](adr/0007-grc-block-tree-and-labels.md)); the example
+flowgraphs are built from them:
+
+| Hierarchical block | Replaces |
+|---|---|
+| `key_database` | `inject_db` + `db_client` (TX and RX, by role) |
+| `sdls_apply` | `sdls_encryption` → `sdls_authentication` → `sdls_header` |
+| `tc_frame_encoder` | `tc_primary_header` → `digital.crc_append` → `lfsr_scrambler` → `bch_encoder` → `cltu_framer` |
+| `tc_frame_decoder` | `digital.correlate_access_code_tag_bb` → `cltu_deframer` → `ccsds_receiver` → `digital.crc_check` → `ccsds_reader` |
+| `sdls_process` | `sdls_authentication_verify` → `sdls_decryption` |
+
+So the TX chain reads `data_creator → key_database → encapsulation_header
+→ sdls_apply → tc_frame_encoder → plop_modulator`, and the RX chain
+`tc_frame_decoder → key_database → sdls_process → encapsulation_parser`.
 
 ## Ground-tooling (not signal chain)
 

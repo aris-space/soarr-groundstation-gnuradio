@@ -1,6 +1,6 @@
 id: soarr_inject_db
-label: Inject DB
-category: '[soarr]/Database'
+label: Key Injector
+category: '[Soarr]/Common/Key Database'
 
 templates:
   imports: from gnuradio import soarr

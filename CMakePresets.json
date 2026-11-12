@@ -1,0 +1,29 @@
+{
+    "version": 6,
+    "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+    "configurePresets": [
+        {
+            "name": "radioconda",
+            "displayName": "Windows, radioconda",
+            "description": "Build against the conda env in CONDA_PREFIX and install where GNU Radio Companion reads blocks",
+            "generator": "Visual Studio 17 2022",
+            "architecture": { "value": "x64", "strategy": "set" },
+            "binaryDir": "${sourceDir}/build",
+            "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+            "cacheVariables": {
+                "CMAKE_PREFIX_PATH": "$env{CONDA_PREFIX}/Library",
+                "CMAKE_INSTALL_PREFIX": "$env{CONDA_PREFIX}/Library",
+                "GR_PYTHON_DIR": "$env{CONDA_PREFIX}/Lib/site-packages"
+            },
+            "warnings": { "dev": false }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "radioconda",
+            "displayName": "Windows, radioconda (Release)",
+            "configurePreset": "radioconda",
+            "configuration": "Release"
+        }
+    ]
+}

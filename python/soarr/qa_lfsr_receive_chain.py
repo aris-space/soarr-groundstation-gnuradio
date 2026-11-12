@@ -97,7 +97,7 @@ class qa_lfsr_receive_chain(gr_unittest.TestCase):
         try:
             # Feed each captured frame byte-stream into the deframer as if it arrived over the air
             for meta, frame_bytes in self.frames:
-                self.deframer.process_bytes(frame_bytes)
+                self.deframer._process_bytes(frame_bytes)
         finally:
             self.deframer.message_port_pub = original_deframer_pub
             self.decoder.message_port_pub = original_decoder_pub
@@ -231,7 +231,7 @@ class qa_lfsr_receive_chain(gr_unittest.TestCase):
         self.descrambler.message_port_pub = lambda port, msg: self.recovered.append(
             bytes(pmt.u8vector_elements(pmt.cdr(msg))))
         try:
-            self.deframer.process_bytes(stream)
+            self.deframer._process_bytes(stream)
         finally:
             (self.deframer.message_port_pub, self.decoder.message_port_pub,
              self.descrambler.message_port_pub) = original_pubs
@@ -266,7 +266,7 @@ class qa_lfsr_receive_chain(gr_unittest.TestCase):
         receiver.message_port_pub = lambda port, msg: received.append(
             bytes(pmt.u8vector_elements(pmt.cdr(msg))))
         try:
-            self.deframer.process_bytes(stream)
+            self.deframer._process_bytes(stream)
         finally:
             self.deframer.message_port_pub = original_deframer_pub
             receiver.message_port_pub = original_receiver_pub

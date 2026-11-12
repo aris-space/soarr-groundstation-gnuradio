@@ -1,6 +1,6 @@
 id: soarr_system_tester
 label: System Tester
-category: '[soarr]'
+category: '[Soarr]/Utilities'
 
 templates:
   imports: from gnuradio import soarr

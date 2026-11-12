@@ -29,7 +29,7 @@ RX counterpart: [sdls_decryption](sdls_decryption.md).
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `encryption_state` | bool | `True` | `False` makes the block a pure passthrough after its shape checks — input republished on `out` unchanged, no key/counter validation, no metadata mutation. Named to mirror `sdls_decryption`'s `decryption_state`. |
+| `encryption_state` | bool | `True` | `False` makes the block a passthrough after its shape checks — the payload republished on `out` unchanged, no key/counter validation; only `crypt_key` is removed from the metadata (nothing downstream needs it, and it would otherwise reach every later block and sink). Named to mirror `sdls_decryption`'s `decryption_state`. |
 | `nonce` | bytes | `b"\x00" * 14` (all-zero) | Fixed for the block's lifetime, combined with the per-message `sdls_counter` into one 16-byte AES-CTR counter block. Never transmitted — RX's `sdls_decryption` must be configured with the identical value out-of-band. Validated in `__init__` (`TypeError`/`ValueError` if not exactly 14 bytes). |
 
 ## Behavior / edge cases / current error handling
@@ -40,7 +40,8 @@ without publishing, regardless of `encryption_state`. Only past those
 checks does it look at `encryption_state`.
 
 **`encryption_state=False`**: republishes the already-shape-validated
-input PDU on `out` completely unchanged — no key/counter extraction.
+input payload on `out` unchanged — no key/counter extraction — with
+only `crypt_key` removed from the metadata.
 **Same order as the RX sibling**: `sdls_decryption.decrypt_message`
 also checks shape first, `decryption_state` second.
 
@@ -105,30 +106,16 @@ support for SDLS's other permitted cipher suites.
 
 - **No (nonce, counter) reuse protection.** This block trusts that
   `sdls_counter` is unique per message for a given key — it has no
-  internal state to detect or prevent reuse. Under normal operation
-  (`db_client` issuing a monotonically-incrementing counter, no reset)
-  this holds; if `db_client`'s `auto_reset_counters=True` is ever set on
-  an instance actually used with real key material (not just dummy/test
-  payloads), the counter would wrap and repeat, and — combined with this
-  block's fixed `nonce` — reusing a (nonce, counter) pair under AES-CTR
-  with the same key breaks confidentiality for both messages involved.
+  internal state to detect or prevent reuse. Within one run,
+  `db_client` never re-serves a counter under a real key: its only
+  reset path, `auto_reset_counters`, is refused unless the keys are the
+  built-in test keys. Across restarts, `db_client`'s dummy and YAML
+  modes don't persist counters; keeping them unique over time is the
+  job of the external key database that `db_client` will connect to.
+  Reusing a (nonce, counter) pair under AES-CTR with the same key breaks
+  confidentiality for both messages involved.
 - **Default `nonce` is all-zero** (`b"\x00" * 14`) unless explicitly
   overridden by the caller/GRC flowgraph.
-- **The nested `sdls_counter` fallback lookup path
-  (`dict_msg["sdls"]["security_header"]["sdls_counter"]`) is not an edge
-  case — it's the only path `sdls_counter` takes in the real pipeline,
-  and it has zero test coverage.** Verified directly in `inject_db.py`:
-  `sdls_counter` is assigned *by* the `db_client` response, not known
-  before the DB call, so `inject_db`'s merge logic
-  (`_merge_key_into_nested`) always nests it
-  under `sdls.security_header.sdls_counter` — never top-level. Every test
-  in `qa_sdls_encryption.py` constructs `sdls_counter` at the top level
-  directly, bypassing `inject_db` entirely, and
-  `qa_tx_chain.py::test_002_end_to_end_message_routing` — the one test
-  that *does* run the real wired topology — shims this block's real
-  handler out. The code path this block's `sdls_counter` handling
-  actually takes in production has never been run by any test in this
-  repo.
 
 ## Test coverage
 
@@ -161,3 +148,8 @@ support for SDLS's other permitted cipher suites.
   `test_002_end_to_end_message_routing` covers the wiring separately, with
   this block's handler shimmed out — same split as documented in
   `encapsulation_header`'s PRD.
+- `python/soarr/qa_tx_chain.py::test_013_real_chain_reads_nested_metadata`
+  — runs one `data_creator` PDU through the real, wired `inject_db`/
+  `db_client` and SDLS/TC handlers, so this block receives metadata in
+  the nested shape the pipeline actually produces, and checks that its
+  nested `sdls_counter` reaches the wire correctly (the frame decrypts with it).

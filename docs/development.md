@@ -11,22 +11,19 @@ Build, install, and test setup for gr-soarr.
 
 ## CMake configuration (Windows / radioconda)
 
-The workspace uses these settings in
-[`.vscode/settings.json`](../.vscode/settings.json):
+[`CMakePresets.json`](../CMakePresets.json) holds the Windows/radioconda
+configuration: the `radioconda` configure and build presets use Visual
+Studio 2022 (x64), build into `build/` in Release, and derive every path
+from the conda env in `CONDA_PREFIX`:
 
-| Setting | Value |
+| Cache variable | Value |
 |---|---|
-| `cmake.sourceDirectory` | `${workspaceFolder}` |
-| `cmake.buildDirectory` | `${workspaceFolder}/build` |
-| `cmake.generator` | `Visual Studio 17 2022` |
-| `cmake.platform` | `x64` |
-| `CMAKE_PREFIX_PATH` | `${env:CONDA_PREFIX}/Library` |
-| `Gnuradio_DIR` | `${env:CONDA_PREFIX}/Library/lib/cmake/gnuradio` |
-| `MPIR_INCLUDE_DIR` | `${env:CONDA_PREFIX}/Library/include` |
-| `MPIR_LIBRARY` | `${env:CONDA_PREFIX}/Library/lib/mpir.lib` |
-| `MPIRXX_LIBRARY` | `${env:CONDA_PREFIX}/Library/lib/mpirxx_static.lib` |
-| `CMAKE_INSTALL_PREFIX` | `${env:CONDA_PREFIX}/Library` |
-| `GR_PYTHON_DIR` | `${env:CONDA_PREFIX}/Lib/site-packages` |
+| `CMAKE_PREFIX_PATH` | `$env{CONDA_PREFIX}/Library` |
+| `CMAKE_INSTALL_PREFIX` | `$env{CONDA_PREFIX}/Library` |
+| `GR_PYTHON_DIR` | `$env{CONDA_PREFIX}/Lib/site-packages` |
+
+GNU Radio, MPIR, and the env's Python are found through
+`CMAKE_PREFIX_PATH` and GNU Radio's own CMake config.
 
 Conda on Windows keeps GNU Radio under `Library`, which is also where GNU
 Radio Companion looks for block definitions
@@ -35,10 +32,50 @@ env's `Lib/site-packages`. The install prefix and `GR_PYTHON_DIR` follow
 that split; with the env root as prefix instead, the block definitions
 would land in a folder GRC never reads.
 
-`CONDA_PREFIX` is read from the environment VS Code was started in, so
-launch it from the activated env (`conda activate radioconda`, then
-`code .`); otherwise the paths resolve empty and configure fails to find
-GNU Radio.
+The preset also turns off CMake's developer warnings: GNU Radio 3.10's
+own CMake files use FindBoost and FindPythonInterp, which recent CMake
+versions warn about (policies CMP0148, CMP0167) on every configure.
+
+`CONDA_PREFIX` must be set, i.e. CMake — or VS Code — started from the
+activated env; otherwise every path resolves to `/Library/...` and
+configure fails with "Could not find a package configuration file
+provided by Gnuradio":
+
+```powershell
+conda activate radioconda
+cmake --preset radioconda
+cmake --build --preset radioconda
+cmake --install build --config Release
+```
+
+VS Code's CMake extension uses the presets (`cmake.useCMakePresets:
+always` in [`.vscode/settings.json`](../.vscode/settings.json)). If VS Code
+is started without the activated env (e.g. from the Start menu), add a
+`CMakeUserPresets.json` next to `CMakePresets.json` that names your env —
+it is ignored by git:
+
+```json
+{
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "radioconda-local",
+            "inherits": "radioconda",
+            "environment": { "CONDA_PREFIX": "C:/path/to/envs/radioconda" }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "radioconda-local",
+            "inherits": "radioconda",
+            "configurePreset": "radioconda-local"
+        }
+    ]
+}
+```
+
+Then pick **radioconda-local** with *CMake: Select Configure Preset*
+(after adding the file, run *Developer: Reload Window* once).
 
 If GNU Radio configure fails on Boost headers, install the matching
 development package in the same env:
@@ -72,16 +109,8 @@ the env's own `python.exe`), `-Config <name>` (default `Release`),
 (default `x64`), `-PipInstall` (also runs `pip install -r
 requirements.txt`, off by default).
 
-Equivalent manual sequence, if you'd rather run each step yourself:
-
-```powershell
-conda activate radioconda
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
-    -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX\Library" `
-    -DGR_PYTHON_DIR="$env:CONDA_PREFIX\Lib\site-packages"
-cmake --build build --config Release
-cmake --install build --config Release
-```
+To run each step yourself instead, use the presets from
+[CMake configuration](#cmake-configuration-windows--radioconda) above.
 
 GNU Radio Companion always uses the **installed** copy: after changing a
 block, re-run the install script and restart GRC.
@@ -170,7 +199,7 @@ driver handles it instead of the Windows network stack.
 
 ## GRC workflow
 
-The 23 blocks are exposed to GNU Radio Companion via
+The 28 blocks are exposed to GNU Radio Companion via
 `grc/soarr_*.block.yml`. Example flowgraphs for the full TX and RX chain —
 software only and over a USRP — are in [`examples/`](../examples/); see
 its README.
@@ -195,6 +224,53 @@ From [`requirements.txt`](../requirements.txt):
 
 GNU Radio itself is not installed via this file — install it through
 `radioconda`/conda instead.
+
+## Branches
+
+```
+feature/<topic> ──PR──▶ dev ──PR──▶ testing ──PR──▶ main ──tag──▶ vX.Y.Z
+```
+
+| Branch | Holds | Changes arrive |
+|---|---|---|
+| `dev` (default) | Day-to-day integration | Direct commits for small changes, or a pull request from a `feature/<topic>` branch |
+| `testing` | The state being validated in the lab (USRP, both PLOP modes) before a release | Pull request from `dev` only |
+| `main` | Released states only; every merge is tagged `vX.Y.Z` and gets a GitHub release | Pull request from `testing` only |
+
+`main` and `testing` are protected: no direct or force pushes, no
+deletion, for admins too. Pull requests need no approving review, but
+open review conversations must be resolved before merging. A problem found
+on `testing` is fixed on `dev` and promoted again, so fixes never exist
+only on `testing` or `main`.
+
+Open bugs, design questions, and test gaps are tracked as
+[GitHub issues](https://github.com/aris-space/soarr-groundstation-gnuradio/issues).
+
+## Releases
+
+Commits and pushes to `dev` never change the version. The version changes
+once per release, following [Semantic Versioning](https://semver.org/):
+
+| Since the last release | Next version |
+|---|---|
+| Bug fixes only | `X.Y.Z+1` (patch) |
+| New blocks or features, nothing breaks | `X.Y+1.0` (minor) |
+| Something that worked before stops working: a renamed or removed GRC parameter or public method, a configuration now refused | `X+1.0.0` (major) |
+
+The version lives only in the top-level `CMakeLists.txt`. A tag `vX.Y.Z`
+maps to `VERSION_MAJOR=X`, `VERSION_API=Y`, `VERSION_PATCH=Z`;
+`VERSION_ABI` stays `0`, since this module has no compiled library.
+
+To release:
+
+1. On `dev`, bump the version in one commit, e.g.
+   `build: bump version to 2.0.0`.
+2. Open a pull request `dev` → `testing` and validate that state in the
+   lab (USRP, both PLOP modes). Fixes go to `dev` and are promoted again.
+3. Open a pull request `testing` → `main` and merge it.
+4. Tag the merge commit on `main` as `vX.Y.Z` and publish a GitHub
+   release for the tag. Its notes list the commits since the previous
+   tag, grouped by type (`feat`, `fix`, …), with breaking changes first.
 
 ## Commit message hook
 

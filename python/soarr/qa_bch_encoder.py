@@ -47,13 +47,13 @@ class qa_bch_encoder(gr_unittest.TestCase):
     def test_001_default_polynomial(self):
         """Test encoder initialization with default polynomial 0xC5."""
         instance = bch_encoder()
-        self.assertEqual(instance.polynomial, 0xC5)
+        self.assertEqual(instance.generator_polynomial, 0xC5)
 
     def test_002_custom_polynomial(self):
         """Test encoder initialization with a custom (non-default, valid) polynomial."""
         custom_poly = 0x89
-        instance = bch_encoder(polynomial=custom_poly)
-        self.assertEqual(instance.polynomial, custom_poly)
+        instance = bch_encoder(generator_polynomial=custom_poly)
+        self.assertEqual(instance.generator_polynomial, custom_poly)
 
     def test_003_all_zeros_input(self):
         """Test encoding of all-zero 56-bit input."""
@@ -433,13 +433,13 @@ class qa_bch_encoder(gr_unittest.TestCase):
     # matching every other reviewed block's fail-fast-at-construction precedent.
     def test_026_invalid_polynomial_raises_at_construction(self):
         with self.assertRaises(ValueError):
-            bch_encoder(polynomial=0x00)
+            bch_encoder(generator_polynomial=0x00)
         with self.assertRaises(ValueError):
-            bch_encoder(polynomial=0x7F)
+            bch_encoder(generator_polynomial=0x7F)
         with self.assertRaises(ValueError):
-            bch_encoder(polynomial=0x100)
+            bch_encoder(generator_polynomial=0x100)
         with self.assertRaises(ValueError):
-            bch_encoder(polynomial=-1)
+            bch_encoder(generator_polynomial=-1)
 
     # Additional: a non-pair input must not crash the handler - dropped
     # cleanly (logged, no publish) instead of pmt.car raising out of it.

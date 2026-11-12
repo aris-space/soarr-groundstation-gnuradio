@@ -7,11 +7,11 @@
 #
 
 
-from construct import Bytes, Int16ub, Struct
+from construct import Bytes, BytesInteger, Struct
 from gnuradio import gr
 import pmt
 
-REQUIRED_IV_LENGTH_BYTES = 2
+from .sdls_constants import SDLS_COUNTER_BYTES as REQUIRED_IV_LENGTH_BYTES, SPI_BYTES
 
 class sdls_header(gr.basic_block):
     """
@@ -29,19 +29,15 @@ class sdls_header(gr.basic_block):
         """
         Args:
             iv_length_bytes (int): fixed byte width sdls_counter is
-                padded/validated to when building the header. Must be 2:
-                sdls_encryption/sdls_authentication's AES-CTR/CMAC
-                counter block is always exactly 2 bytes wide (a 14-byte
-                nonce leaves 2 bytes of a 16-byte AES block for
-                sdls_encryption/sdls_decryption; sdls_authentication/
-                sdls_authentication_verify hardcode
-                counter.to_bytes(2, ...) directly) - any other value
-                here would make the wire-transmitted sdls_counter field
-                width disagree with what TX/RX actually used
-                cryptographically.
+                padded/validated to when building the header. Must be
+                sdls_constants.SDLS_COUNTER_BYTES (2), the counter width
+                the SDLS crypto blocks build their AES counter block
+                from - any other value here would make the
+                wire-transmitted sdls_counter field width disagree with
+                what TX/RX actually used cryptographically.
 
         Raises:
-            ValueError: iv_length_bytes is not 2.
+            ValueError: iv_length_bytes is not SDLS_COUNTER_BYTES.
         """
         gr.basic_block.__init__(self,
             name="SDLS Header",
@@ -65,7 +61,7 @@ class sdls_header(gr.basic_block):
         # this runs, so the field width - and therefore this whole
         # schema - never varies across messages for a given instance.
         self._header_struct = Struct(
-            "spi" / Int16ub,
+            "spi" / BytesInteger(SPI_BYTES),
             "sdls_counter" / Bytes(self.iv_length_bytes),
         )
 
@@ -219,7 +215,7 @@ class sdls_header(gr.basic_block):
             # Extract and validate spi and sdls_counter from dict, each
             # checked at the top level first, falling back to
             # sdls.security_header only if genuinely absent.
-            spi = self._extract_with_fallback(dict_msg, security_header, "spi", 2)
+            spi = self._extract_with_fallback(dict_msg, security_header, "spi", SPI_BYTES)
             if spi is None:
                 return
 

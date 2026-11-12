@@ -1,6 +1,6 @@
 id: soarr_sdls_authentication
-label: SDLS Authentication
-category: '[soarr]/SDLS'
+label: SDLS MAC Adder
+category: '[Soarr]/Common/SDLS'
 
 templates:
   imports: from gnuradio import soarr

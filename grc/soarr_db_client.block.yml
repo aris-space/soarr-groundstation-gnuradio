@@ -1,6 +1,6 @@
 id: soarr_db_client
-label: DB Client
-category: '[soarr]/Database'
+label: Key Store
+category: '[Soarr]/Common/Key Database'
 
 templates:
   imports: from gnuradio import soarr
@@ -126,6 +126,6 @@ documentation: |-
   - db_call: queries from inject_db.
   - db_callback: the answers, to inject_db.
 
-  The SDLS counter is 16 bits; once an entry has used all values, its requests are refused until a new key is loaded. The VCID counter (frame sequence number) wraps from 255 to 0. Auto Reset Counters reuses SDLS counters: test use only.
+  The SDLS counter is 16 bits; once an entry has used all values, its requests are refused until a new key is loaded. The VCID counter (frame sequence number) wraps from 255 to 0. Auto Reset Counters reuses SDLS counters, so it is only allowed with the default test keys.
 
 file_format: 1

@@ -19,10 +19,9 @@ see [bch_decoder.md](bch_decoder.md) and
 [lfsr_descrambler.md](lfsr_descrambler.md) for exactly how each is
 invoked and pre-validated from here (`_checkmsg`, `DESCRAMBLING_ACTIVE`,
 and the 4 `reset_sequence()` call sites are documented in those two
-PRDs, not repeated here). Despite being the canonical path, **no `.grc`
-flowgraph file exists anywhere in this repo** (`find . -iname "*.grc"`
-returns nothing) — this block has no example flowgraph wiring it to
-anything.
+PRDs, not repeated here). Every example flowgraph with an RX chain
+([examples/](../../examples/)) wires it between `cltu_deframer` and
+`digital.crc_check`.
 
 ```
 (BCH-corrected, descrambled codeword PDUs) → ccsds_receiver.in
@@ -33,7 +32,7 @@ ccsds_receiver.out → ccsds_reader.in
 
 | Port | Direction | PMT shape | Example |
 |---|---|---|---|
-| `in` | input | PDU: `(metadata_dict . codeword_u8vector)`, codeword exactly 8 bytes — validated by `_checkmsg` before use. | `pmt.cons({}, u8vector(8 bytes))` |
+| `in` | input | PDU: `(metadata_dict . codeword_u8vector)`, codeword exactly 8 bytes — validated by `_checkmsg` before use. Metadata key `scramble_reset` (bool, optional, set by `cltu_deframer`): `True` on a CLTU's first codeword, `False` on the rest (see Behavior). | `pmt.cons({scramble_reset: #t}, u8vector(8 bytes))` |
 | `out` | output | PDU: `(metadata_dict . frame_u8vector)`, metadata is a freshly built dict carrying only `frame_length` (int, the published frame's actual byte count), payload is the fully reassembled TC transfer frame (TFPH + payload bytes, whatever was accumulated). | `pmt.cons({frame_length: 16}, u8vector(16 bytes))` |
 
 `receiver` (the handler registered on `in`) returns the **original,
@@ -48,9 +47,9 @@ return values `ccsds_receiver` itself relies on).
 |---|---|---|---|
 | `message_type` | int | `0` | `0`=TC, `1`=TM, `2`=Fixed Length. Validated in `__init__` (raises `ValueError` if outside `0`-`2`). Selecting `1` (TM) doesn't fail construction — the `NotImplementedError` for TM only fires later, from inside the message handler (see Behavior). |
 | `field_type` | int | `0` | `0`=TC Field, `1`=Encapsulation Field. Validated in `__init__` (raises `ValueError` if outside `0`-`1`). Same pattern as `message_type`: `1` passes construction, only raises from inside the handler when actually exercised. Only meaningful when `message_type=0`; the GRC yaml hides this parameter otherwise. |
-| `fixed_byte_length` | int | `0` | Target byte count for Fixed Length mode. Validated in `__init__` (raises `ValueError` if outside `0`-`1023`), matching the GRC yaml's own asserts. Only meaningful when `message_type=2`. |
-| `scid` | int | `0` | Spacecraft ID to filter on. Only applied if `scid_filter_enable=True`; otherwise `self.scid` is set to `None` and no filtering occurs. |
-| `vcid` | int | `0` | Virtual Channel ID to filter on. Same enable-flag pattern as `scid`. |
+| `fixed_byte_length` | int | `0` | Target byte count for Fixed Length mode. Validated in `__init__` (raises `ValueError` if outside `0`-`1023`, or if `0` with `message_type=2`, where a 0-byte frame would publish an empty PDU per codeword and discard its data), matching the GRC yaml's own asserts. Only meaningful when `message_type=2`. |
+| `scid` | int | `0` | Spacecraft ID to filter on. Only applied if `scid_filter_enable=True`; otherwise `self.scid` is set to `None` and no filtering occurs. Validated in `__init__` (raises `ValueError` if outside `0`-`1023`, the TFPH's 10-bit field). |
+| `vcid` | int | `0` | Virtual Channel ID to filter on. Same enable-flag pattern as `scid`. Validated in `__init__` (raises `ValueError` if outside `0`-`63`, the TFPH's 6-bit field; a value outside it could never match). |
 | `scid_filter_enable` | bool | `False` | Gates whether `scid` is stored (`self.scid`) or discarded in favor of `None` (no filtering). |
 | `vcid_filter_enable` | bool | `False` | Gates whether `vcid` is stored (`self.vcid`) or discarded in favor of `None` (no filtering). |
 
@@ -64,9 +63,23 @@ always `True`), through `lfsr_descrambler.descramble_msg` (also `None`
 on failure) → the resulting 8 payload bytes are returned. Any failure at
 any stage returns `None` from `_readInputMsg`.
 
+**CLTU boundaries** (TC mode): a TC frame starts at the first codeword
+of a CLTU, which `cltu_deframer` marks with `scramble_reset=True`
+(`_cltu_start`). A codeword marked `False` while no frame is in progress
+is the rest of a CLTU whose frame was rejected or aborted: it is skipped
+(logged at `debug`) before BCH decoding and never searched for a TFPH.
+A codeword marked `True` while a frame is still in progress means that
+frame's CLTU ended early: the frame is aborted (logged at `warn`) and
+the new codeword is searched instead. Without these checks a later
+codeword passes the TFPH checks about once in 16 (`tfvn` and `reserve`
+both zero), and a false header with a large `frame_length` swallows the
+following real frames. A codeword without the key (a source that
+doesn't mark CLTUs) is searched as before.
+
 **TC mode, TFPH search and frame reassembly** (`message_type=0`,
 `field_type=0`): while no frame is in progress (`self.length_found ==
-False`), every incoming 8-byte codeword is passed to `_searchTFPH`,
+False`), every incoming 8-byte codeword that can start a frame (see CLTU
+boundaries) is passed to `_searchTFPH`,
 which parses the CCSDS 232.0-B-4 TFPH (`tc_header()`, 40 bits: `tfvn`(2),
 `bypass_flag`(1), `control_flag`(1), `reserve`(2), `scid`(10),
 `vcid`(6), `frame_length`(10), `frame_sequence_number`(8) —
@@ -178,8 +191,8 @@ check against the field this codebase's TX side adds via the stock
 
 ## Test coverage
 
-- `python/soarr/qa_ccsds_receiver.py` — 11 test methods (`test_instance`
-  + `test_001`-`test_010`): construction and its default parameter
+- `python/soarr/qa_ccsds_receiver.py` — 15 test methods (`test_instance`
+  + `test_001`-`test_014`): construction and its default parameter
   values (`test_instance`), an invalid TFPH (`tfvn=1`) never publishing
   (`test_001`), a complete 2-codeword TC frame published with the
   correct bytes, length, and TFPH field values recoverable from the
@@ -191,6 +204,11 @@ check against the field this codebase's TX side adds via the stock
   (`test_007`), Encapsulation Field dropped cleanly instead of raising
   (`test_008`), a mock-forced publish failure proven to be caught
   and dropped rather than raised through the real handler (`test_009`),
-  and a negative or `>= 1024` `fixed_byte_length` raising `ValueError`
-  at construction (`test_010`). No test in this repo constructs
-  `message_type=2` (Fixed Length mode).
+  a negative or `>= 1024` `fixed_byte_length` raising `ValueError`
+  at construction (`test_010`), and — with real scrambled BCH codewords
+  carrying `scramble_reset` — a frame cut short by the next CLTU dropped
+  while the next frame is received (`test_011`), and a later codeword
+  that would parse as a header never starting a frame (`test_012`),
+  Fixed Length mode refusing a `fixed_byte_length` of `0` (`test_013`),
+  and an out-of-range `scid` or `vcid` raising (`test_014`). No test runs
+  Fixed Length mode's frame assembly (`test_013` only constructs it).

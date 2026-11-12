@@ -1,13 +1,13 @@
 id: soarr_bch_encoder
-label: BCH Encoder
-category: '[soarr]/CLTU'
+label: TC BCH Encoder
+category: '[Soarr]/TC (Telecommand)/BCH'
 
 templates:
   imports: from gnuradio import soarr
-  make: soarr.bch_encoder(${polynomial})
+  make: soarr.bch_encoder(${generator_polynomial})
 
 parameters:
-- id: polynomial
+- id: generator_polynomial
   label: Generator Polynomial
   dtype: int
   default: 0xC5

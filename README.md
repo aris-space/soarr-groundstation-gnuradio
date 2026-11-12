@@ -5,8 +5,10 @@ CCSDS Telecommand (TC) uplink for ARIS's SOARR mission: encode, secure,
 frame, and transmit a telecommand on TX, and detect, correct, verify, and
 decrypt it again on RX.
 
-All 23 blocks are pure Python and appear in GNU Radio Companion under the
-**[soarr]** category.
+All 28 blocks are pure Python and appear in GNU Radio Companion under the
+**[Soarr]** category: TC (Telecommand), by function (Frame, Randomizer,
+BCH, CLTU, PLOP), Common (shared by TC and TM: SDLS, Encapsulation, Key
+Database), and Utilities.
 
 ## Features
 
@@ -80,31 +82,36 @@ description.
 
 ## Blocks
 
-| Block | GRC category | Purpose |
-|---|---|---|
-| `inject_db` | Database | Queries `db_client` and merges the returned keys and counters into each PDU's metadata |
-| `db_client` | Database | Serves keys, SPIs, and counters by SCID + SPI from an in-memory entry or a YAML file |
-| `encapsulation_header` | Encapsulation | Prepends the CCSDS encapsulation packet header |
-| `sdls_encryption` | SDLS | Encrypts the payload with AES-256-CTR |
-| `sdls_authentication` | SDLS | Appends an AES-CMAC authentication tag |
-| `sdls_header` | SDLS | Prepends the SDLS security header (SPI + IV) |
-| `tc_primary_header` | Telecommand | Builds the 5-byte TC transfer frame primary header |
-| `lfsr_scrambler` | LFSR | Applies the CCSDS TC pseudo-randomizer |
-| `bch_encoder` | CLTU | Splits the frame into BCH (63,56) codewords |
-| `cltu_framer` | CLTU | Wraps codewords in the CLTU start and tail sequences |
-| `plop_modulator` | CLTU | BPSK-modulates CLTUs for the SDR, PLOP-1 bursts or PLOP-2 continuous carrier, switchable at runtime |
-| `cltu_burst_builder` | CLTU | Wraps each CLTU in acquisition sequence + idle tail as one transmission burst (PLOP-1) |
-| `acquisition_idle_sequencer` | (root) | Adds acquisition/idle sequences and outputs a continuous byte stream (PLOP-2) |
-| `cltu_deframer` | CLTU | Finds CLTUs in the received stream |
-| `ccsds_receiver` | Reception | BCH-corrects, de-randomizes, and reassembles TC transfer frames |
-| `ccsds_reader` | Reception | Parses a reassembled frame into its header fields and payload |
-| `sdls_authentication_verify` | SDLS | Verifies and strips the AES-CMAC tag |
-| `sdls_decryption` | SDLS | Decrypts the payload with AES-256-CTR |
-| `encapsulation_parser` | Encapsulation | Strips the encapsulation packet header after decryption, header fields into the metadata |
-| `bch_decoder` | CLTU | Standalone BCH (63,56) decoder (corrects up to 2 bit errors) |
-| `lfsr_descrambler` | LFSR | Standalone de-randomizer |
-| `data_creator` | Testing | Generates test payloads |
-| `system_tester` | (root) | Measures bit error rate, message error rate, and lost packets in a loopback |
+| Block | GRC label | GRC category | Purpose |
+|---|---|---|---|
+| `inject_db` | Key Injector | Common / Key Database | Queries `db_client` and merges the returned keys and counters into each PDU's metadata |
+| `key_database` | Key Database | Common / Key Database | Key Injector and Key Store in one block, the query loop inside |
+| `db_client` | Key Store | Common / Key Database | Serves keys, SPIs, and counters by SCID + SPI from an in-memory entry or a YAML file |
+| `encapsulation_header` | Encapsulation Header Adder | Common / Encapsulation | Prepends the CCSDS encapsulation packet header |
+| `sdls_encryption` | SDLS Encryption | Common / SDLS | Encrypts the payload with AES-256-CTR |
+| `sdls_authentication` | SDLS MAC Adder | Common / SDLS | Appends an AES-CMAC authentication tag |
+| `sdls_header` | SDLS Header Adder | Common / SDLS | Prepends the SDLS security header (SPI + IV) |
+| `sdls_apply` | SDLS Apply | Common / SDLS | SDLS ApplySecurity in one block: encryption, MAC, security header, by SDLS mode |
+| `tc_frame_encoder` | TC Frame Encoder | TC | Data field to CLTU in one block: primary header, FECF, randomizer, BCH, CLTU sequences |
+| `tc_primary_header` | TC Primary Header Adder | TC / Frame | Builds the 5-byte TC transfer frame primary header |
+| `lfsr_scrambler` | TC Scrambler | TC / Randomizer | Applies the CCSDS TC pseudo-randomizer |
+| `bch_encoder` | TC BCH Encoder | TC / BCH | Splits the frame into BCH (63,56) codewords |
+| `cltu_framer` | TC CLTU Framer | TC / CLTU | Wraps codewords in the CLTU start and tail sequences |
+| `plop_modulator` | TC PLOP Modulator | TC / PLOP | BPSK-modulates CLTUs for the SDR, PLOP-1 bursts or PLOP-2 continuous carrier, switchable at runtime |
+| `cltu_burst_builder` | TC CLTU Burst Builder | TC / CLTU | Wraps each CLTU in acquisition sequence + idle tail as one transmission burst (PLOP-1) |
+| `acquisition_idle_sequencer` | TC Acquisition and Idle Sequencer | TC / PLOP | Adds acquisition/idle sequences and outputs a continuous byte stream (PLOP-2) |
+| `tc_frame_decoder` | TC Frame Decoder | TC | Received bits to parsed frames in one block: correlator, CLTU deframer, frame receiver, FECF check, frame parser |
+| `cltu_deframer` | TC CLTU Deframer | TC / CLTU | Finds CLTUs in the received stream |
+| `ccsds_receiver` | TC Frame Receiver | TC / Frame | BCH-corrects, de-randomizes, and reassembles TC transfer frames |
+| `ccsds_reader` | TC Frame Parser | TC / Frame | Parses a reassembled frame into its header fields and payload |
+| `sdls_authentication_verify` | SDLS MAC Verifier | Common / SDLS | Verifies and strips the AES-CMAC tag |
+| `sdls_decryption` | SDLS Decryption | Common / SDLS | Decrypts the payload with AES-256-CTR |
+| `sdls_process` | SDLS Process | Common / SDLS | SDLS ProcessSecurity in one block: MAC verification, decryption, by SDLS mode |
+| `encapsulation_parser` | Encapsulation Parser | Common / Encapsulation | Strips the encapsulation packet header after decryption, header fields into the metadata |
+| `bch_decoder` | TC BCH Decoder | TC / BCH | Standalone BCH (63,56) decoder (corrects 1 bit error, drops codewords with more) |
+| `lfsr_descrambler` | TC Descrambler | TC / Randomizer | Standalone de-randomizer |
+| `data_creator` | Data Creator | Utilities | Generates test payloads |
+| `system_tester` | System Tester | Utilities | Measures bit error rate, message error rate, and lost packets in a loopback |
 
 `bch_decoder` and `lfsr_descrambler` are also used internally by
 `ccsds_receiver`; they are exposed separately for testing individual
@@ -161,7 +168,7 @@ install location to the first command as well:
   works as is
 
 Afterwards, restart GNU Radio Companion; the blocks appear under
-**[soarr]**. Script options, VS Code setup, and troubleshooting are in
+**[Soarr]**. Script options, VS Code setup, and troubleshooting are in
 [docs/development.md](docs/development.md).
 
 ## Usage
@@ -206,10 +213,9 @@ encrypt/decrypt, authenticate/verify round trips.
 
 ## Known issues
 
-- `db_client`'s `auto_reset_counters` option (in-memory test mode) wraps
-  the SDLS counter back to 0, which reuses AES-CTR counters under the
-  same key. Never enable it with real key material
-  ([#1](https://github.com/aris-space/soarr-groundstation-gnuradio/issues/1)).
+- `db_client`'s dummy and YAML modes don't persist SDLS counters across
+  restarts. Keeping counters unique over time is the job of the
+  external key database that `db_client` will connect to.
 
 Open bugs, design questions, and test-coverage gaps are tracked as
 [GitHub issues](https://github.com/aris-space/soarr-groundstation-gnuradio/issues).
@@ -219,10 +225,11 @@ Open bugs, design questions, and test-coverage gaps are tracked as
 | Document | Contents |
 |---|---|
 | [docs/architecture.md](docs/architecture.md) | TX/RX pipeline and block roles |
-| [docs/development.md](docs/development.md) | Build, install, test, and tooling setup |
+| [docs/development.md](docs/development.md) | Build, install, test, tooling setup, and branch workflow |
 | [docs/coding-standards.md](docs/coding-standards.md) | Naming, error handling, docstring, and commit rules |
 | [docs/adr/](docs/adr/) | Architecture decision records |
 | [docs/prd/](docs/prd/) | One requirements document per block |
+| [SECURITY.md](SECURITY.md) | How to report a vulnerability privately |
 
 ## License
 

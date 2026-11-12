@@ -1,6 +1,6 @@
 id: soarr_encapsulation_header
-label: Encapsulation Header
-category: '[soarr]/Encapsulation'
+label: Encapsulation Header Adder
+category: '[Soarr]/Common/Encapsulation'
 
 templates:
   imports: from gnuradio import soarr

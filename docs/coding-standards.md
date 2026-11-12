@@ -6,7 +6,7 @@ decided it."
 
 All three rules below — snake_case naming, catch-log-drop message
 handlers, and the docstring/PMT-shape convention — are applied across all
-23 blocks. Per-block detail lives in [prd/](prd/).
+28 blocks. Per-block detail lives in [prd/](prd/).
 
 ## Block naming
 
@@ -18,6 +18,16 @@ block's matching `qa_*.py` test file follows the same name.
 **Acronym rule:** known multi-letter domain acronyms (CCSDS, SDLS, BCH,
 CLTU, TC) collapse to one lowercase token, not letter-by-letter —
 `ccsdsReader` → `ccsds_reader`, not `c_c_s_d_s_reader`.
+
+**GRC category and label:** a block's `category:` is `[Soarr]/TC
+(Telecommand)/<function>` (Frame, Randomizer, BCH, CLTU, PLOP; a
+hierarchical block for a whole chain sits directly in `[Soarr]/TC
+(Telecommand)`), the same for `[Soarr]/TM (Telemetry)`,
+`[Soarr]/Common/<function>`, or `[Soarr]/Utilities`. Its `label:` names what it does — `… Adder` on TX
+for a block that adds a field, `… Parser` on RX for one that strips it,
+`… Verifier` for a MAC check, verb pairs for transforms — and starts with
+`TC` or `TM` outside `Common` and `Utilities`, e.g. `TC Primary Header
+Adder`. See [ADR-0007](adr/0007-grc-block-tree-and-labels.md).
 
 **Rename table** (applied — kept here as the historical old→new mapping,
 e.g. for matching an old `.grc` flowgraph or old GRC block-id against its

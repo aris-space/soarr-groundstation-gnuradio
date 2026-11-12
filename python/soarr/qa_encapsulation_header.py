@@ -11,7 +11,7 @@ from unittest.mock import patch
 from gnuradio import gr_unittest
 import pmt
 
-from gnuradio.soarr import encapsulation_header
+from gnuradio.soarr import encapsulation_header, encapsulation_packet
 
 
 class qa_encapsulation_header(gr_unittest.TestCase):
@@ -183,12 +183,17 @@ class qa_encapsulation_header(gr_unittest.TestCase):
         self.assertEqual(int.from_bytes(header[4:8], "big"), len(payload) + 8)
         self.assertEqual(out_payload, payload)
 
-    # 8) payload size boundary variant check
+    # 8) payload size boundary variant check, through the block's output
     def test_008_length_boundary_transitions(self):
-        self.assertEqual(encapsulation_header._determine_length_of_length(bytes([0x00] * 253)), 0b01)
-        self.assertEqual(encapsulation_header._determine_length_of_length(bytes([0x00] * 254)), 0b10)
-        self.assertEqual(encapsulation_header._determine_length_of_length(bytes([0x00] * 65531)), 0b10)
-        self.assertEqual(encapsulation_header._determine_length_of_length(bytes([0x00] * 65532)), 0b11)
+        for payload_len, length_of_length in ((253, 0b01), (254, 0b10), (65531, 0b10), (65532, 0b11)):
+            self.published = []
+            original_pub = self._capture_pub()
+            try:
+                self.block.add_header(self._make_pdu(self._default_meta(), bytes(payload_len)))
+            finally:
+                self._restore_pub(original_pub)
+            _, framed = self._get_single_output()
+            self.assertEqual(framed[0] & 0b11, length_of_length, f"{payload_len} bytes")
 
     # 9) error raised when size is exceeded
     def test_009_raises_when_payload_size_exceeds_supported_limit(self):
@@ -197,7 +202,7 @@ class qa_encapsulation_header(gr_unittest.TestCase):
                 return (2 ** 32) - 8
 
         with self.assertRaises(ValueError):
-            encapsulation_header._determine_length_of_length(OversizedObject())
+            encapsulation_packet.length_of_length_for(len(OversizedObject()))
 
     # 10) block input handled correctly (valid PDU published on out)
     def test_010_valid_input_is_processed_and_published(self):
@@ -378,21 +383,20 @@ class qa_encapsulation_header(gr_unittest.TestCase):
             self._restore_pub(original_pub)
 
     # Additional: an internal build failure (e.g. an oversized payload,
-    # which _determine_length_of_length rejects) is caught, logged, and
-    # dropped by the real message handler - not left to raise out of it.
-    # A real oversized payload would need ~4GB to construct, so the
-    # failure is forced via a mock instead of a real giant payload; the
-    # seam under test is add_header's own catch-log-drop behavior, not
-    # _determine_length_of_length's threshold logic (already covered by
-    # test_008/test_009).
+    # which header_for_payload rejects) is caught, logged, and dropped by
+    # the real message handler - not left to raise out of it. A real
+    # oversized payload would need ~4GB to construct, so the failure is
+    # forced via a mock instead of a real giant payload; the seam under
+    # test is add_header's own catch-log-drop behavior, not the threshold
+    # logic (already covered by test_008/test_009).
     def test_020_internal_build_failure_is_dropped_not_raised(self):
         msg = self._make_pdu(self._default_meta(), bytes([0x01, 0x02, 0x03]))
 
         original_pub = self._capture_pub()
         try:
             with patch.object(
-                encapsulation_header,
-                "_determine_length_of_length",
+                encapsulation_packet,
+                "header_for_payload",
                 side_effect=ValueError("payload too large"),
             ):
                 self.block.add_header(msg)  # must not raise

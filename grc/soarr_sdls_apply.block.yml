@@ -1,0 +1,43 @@
+id: soarr_sdls_apply
+label: SDLS Apply
+category: '[Soarr]/Common/SDLS'
+
+templates:
+  imports: from gnuradio import soarr
+  make: soarr.sdls_apply(${mode}, bytes.fromhex('{:028x}'.format(${nonce_hex})))
+
+parameters:
+- id: mode
+  label: SDLS Mode
+  dtype: enum
+  options: ['3', '1', '2']
+  option_labels: [Encryption and Authentication, Encryption only, Authentication only]
+  default: '3'
+- id: nonce_hex
+  label: Nonce
+  dtype: int
+  default: 0
+
+asserts:
+- ${ nonce_hex >= 0 and nonce_hex <= 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF }
+
+inputs:
+- label: in
+  domain: message
+  optional: 0
+
+outputs:
+- label: out
+  domain: message
+  optional: 0
+
+documentation: |-
+  SDLS ApplySecurity (CCSDS 355.0-B-1), the sending end, in one block: SDLS Encryption, then SDLS MAC Adder, then SDLS Header Adder.
+
+  SDLS Mode selects the steps; it matches the SDLS setting of the RX side (TC Frame Parser / SDLS Process). Without SDLS, leave this block out. Nonce (14 bytes, never transmitted) is used by both the encryption and the MAC; RX needs the same value.
+
+  Ports:
+  - in: payload with crypt_key, auth_key, spi and sdls_counter in the metadata, from the Key Injector (via Encapsulation Header Adder).
+  - out: SDLS header + payload (+ MAC), for TC Primary Header Adder. The keys are removed from the metadata.
+
+file_format: 1

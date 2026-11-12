@@ -37,9 +37,9 @@ class cltu_deframer(gr.basic_block):
     ccsds_receiver and bch_decoder expect). Start and tail sequences are
     accepted with up to `threshold` bit errors.
 
-    CLTU starts are located either by GNU Radio's Correlate Access Code -
-    Tag stream tags (general_work, the scheduler's path) or by searching the
-    buffer directly (process_bytes).
+    CLTU starts are located by GNU Radio's Correlate Access Code - Tag
+    stream tags (general_work, the scheduler's path). _process_bytes, a test
+    hook, searches untagged data directly instead.
 
         input_packed:
             - Yes: stream items are bytes (8 bits packed into one byte).
@@ -249,10 +249,11 @@ class cltu_deframer(gr.basic_block):
             self._publish_payload(payload_bits=codeword, start_errors=start_errors,
                                   tail_errors=tail_errors, scramble_reset=(index == 0))
 
-    def process_bytes(self, incoming):
+    def _process_bytes(self, incoming):
         """
-        Search incoming data for CLTUs without stream tags and publish
-        every complete one found. Data after the last complete CLTU is kept
+        Test hook: search incoming data for CLTUs without stream tags and
+        publish every complete one found. Never call it on a block in a
+        running flowgraph - it shares general_work's buffers. Data after the last complete CLTU is kept
         for the next call, so a CLTU may arrive split across calls. In
         packed mode, CLTUs are searched at byte boundaries only.
 
