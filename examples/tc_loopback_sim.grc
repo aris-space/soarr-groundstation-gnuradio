@@ -219,6 +219,7 @@ blocks:
     tail_length: '4'
     fill_byte: '0xAA'
     diff_encoded: 'False'
+    max_burst_pdus: '64'
     alias: ''
     affinity: ''
     comment: ''

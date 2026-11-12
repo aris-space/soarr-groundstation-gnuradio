@@ -10,7 +10,9 @@ PDU to Tagged Stream block it replaces the continuous
 removing its latency. On TM it is a CADU from
 [tm_cadu_framer](tm_cadu_framer.md): CCSDS 131.0-B allows no bits between
 consecutive CADUs (9.4.2), so a preamble belongs to the burst, not the
-CADU. GRC label **Burst Builder**, category `[Soarr]/Common/Burst`; the
+CADU; the CADUs of one packet, marked by
+[tm_frame_generator](tm_frame_generator.md), go out together as one
+burst. GRC label **Burst Builder**, category `[Soarr]/Common/Burst`; the
 id stays `soarr_cltu_burst_builder`. See [architecture.md](../architecture.md).
 
 ## Pipeline position
@@ -33,8 +35,8 @@ Stream, and the modulator, and adds switchable PLOP-2.
 
 | Port | Direction | PMT shape | Example |
 |---|---|---|---|
-| `in` | input | PDU: `(metadata_dict . u8vector)`, one CLTU (TC) or CADU (TM). | `pmt.cons({}, u8vector(eb 90 ‖ codewords ‖ tail))` |
-| `out` | output | PDU with the same metadata and payload `acquisition sequence ‖ PDU ‖ idle tail`. | `pmt.cons({}, u8vector(64 × 0xAA ‖ CLTU ‖ 4 × 0xAA))` |
+| `in` | input | PDU: `(metadata_dict . u8vector)`, one CLTU (TC) or CADU (TM). Metadata `burst_more` = `True`: more PDUs of this burst follow. | `pmt.cons({}, u8vector(eb 90 ‖ codewords ‖ tail))` |
+| `out` | output | PDU with payload `acquisition sequence ‖ PDUs ‖ idle tail` and the metadata of the burst's last PDU, `burst_more` removed. | `pmt.cons({}, u8vector(64 × 0xAA ‖ CLTU ‖ 4 × 0xAA))` |
 
 ## Parameters
 
@@ -44,13 +46,23 @@ Stream, and the modulator, and adds switchable PLOP-2.
 | `tail_length` | int | `4` | Idle bytes after the PDU, so the modulator's pulse-shaping filter flushes the last symbols before the burst ends. `0` = none. Raises `ValueError` if negative. |
 | `fill_byte` | int | `0xAA` | Byte used for the acquisition sequence and the tail; `0xAA` is alternating bits. Raises `ValueError` outside `0`–`255`. |
 | `diff_encoded` | bool | `False` | If `True`, use `0xFF` instead of `fill_byte`: a differential modulator turns it into alternating symbols. Same convention as `acquisition_idle_sequencer`. |
+| `max_burst_pdus` | int | `64` | Most PDUs in one burst. Reached while `burst_more` is still set, the held PDUs go out as a burst and the rest start the next one. Raises `ValueError` below `1`. |
 
 ## Behavior / edge cases / current error handling
 
 **Burst** (`build_burst`): concatenates the precomputed acquisition
 bytes, the PDU, and the precomputed tail, and publishes the result with
-the input metadata. One PDU in, one burst out; the block keeps no state
-between messages.
+the input metadata. A PDU without `burst_more` (or with it `False`) and
+nothing held gives one burst, its metadata unchanged — every TC CLTU.
+
+**Joined bursts**: a PDU with `burst_more` = `True` is held instead.
+The next PDU without it closes the burst: acquisition bytes, all held
+PDUs and that PDU back to back, tail — one burst with the closing PDU's
+metadata, `burst_more` removed. On TM these are the CADUs of one packet,
+whose frames `tm_frame_generator` marks. If `max_burst_pdus` PDUs are
+held and the marker is still set, they go out as a burst, logged at
+`warn`, and the PDUs after them start the next burst; nothing is held
+forever. A marker that is not a PMT boolean counts as absent.
 
 **Why it removes the latency**: the stock `pdu_to_tagged_stream`
 produces stream items only when a burst arrives, so the stream carries
@@ -65,8 +77,10 @@ bursts.
 [coding-standards.md](../coding-standards.md),
 [ADR-0003](../adr/0003-message-handler-error-policy.md)): `build_burst`'s
 full body is wrapped in catch-log-drop, logged at `error` (TX side, not
-raw RF). A non-pair message, a non-u8vector payload, or an empty CLTU is
-dropped.
+raw RF). A non-pair message, a non-u8vector payload, or an empty PDU is
+dropped; PDUs already held stay held. If building or publishing a burst
+fails, its held PDUs are lost with it, and the next PDU starts a new
+burst.
 
 **Docstrings** (compliant with
 [ADR-0004](../adr/0004-docstring-and-pmt-shape-convention.md)):
@@ -92,12 +106,19 @@ lab, not by the test suite.
 
 ## Test coverage
 
-- `python/soarr/qa_cltu_burst_builder.py` — 9 test methods
-  (`test_instance` + `test_001`–`test_008`): default burst layout
+- `python/soarr/qa_cltu_burst_builder.py` — 15 test methods
+  (`test_instance` + `test_001`–`test_014`): default burst layout
   (`test_001`), configurable acquisition and tail lengths including `0`
   (`test_002`), `diff_encoded` using `0xFF` (`test_003`), metadata passed
   through (`test_004`), invalid parameters raising (`test_005`), malformed
   input dropped (`test_006`), a publish failure caught (`test_007`), and
   a real flowgraph with GNU Radio's `pdu_to_tagged_stream` whose stream
   holds exactly the bursts, each with a correct `packet_len` tag and
-  nothing between them (`test_008`).
+  nothing between them (`test_008`); PDUs marked `burst_more` joined into
+  one burst, closed by `False` or a missing marker (`test_009`), the
+  burst carrying the last PDU's metadata without the marker (`test_010`),
+  `max_burst_pdus` sending a burst while the marker is still set
+  (`test_011`), a malformed PDU leaving the held burst intact
+  (`test_012`), a publish failure clearing it (`test_013`), and a packet
+  through `tm_frame_generator` and `tm_cadu_framer` leaving as one burst
+  of three CADUs (`test_014`).

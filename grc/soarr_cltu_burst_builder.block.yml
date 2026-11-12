@@ -4,7 +4,7 @@ category: '[Soarr]/Common/Burst'
 
 templates:
   imports: from gnuradio import soarr
-  make: soarr.cltu_burst_builder(${acquisition_length}, ${tail_length}, ${fill_byte}, ${diff_encoded})
+  make: soarr.cltu_burst_builder(${acquisition_length}, ${tail_length}, ${fill_byte}, ${diff_encoded}, ${max_burst_pdus})
 
 parameters:
 - id: acquisition_length
@@ -25,11 +25,16 @@ parameters:
   options: ['False', 'True']
   option_labels: ['No', 'Yes']
   default: 'False'
+- id: max_burst_pdus
+  label: Max PDUs per Burst
+  dtype: int
+  default: 64
 
 asserts:
 - ${ acquisition_length >= 0 }
 - ${ tail_length >= 0 }
 - ${ fill_byte >= 0 and fill_byte <= 0xFF }
+- ${ max_burst_pdus >= 1 }
 
 inputs:
 - label: in
@@ -45,7 +50,7 @@ documentation: |-
   Turns each PDU into one transmission burst (carrier on only while sending): acquisition sequence + PDU + short idle tail. On TC the PDU is a CLTU (CCSDS PLOP-1), on TM a CADU. The acquisition sequence and tail are physical-layer fill, outside the CLTU or CADU.
 
   Ports:
-  - in: one CLTU (from TC CLTU Framer / TC Frame Encoder) or CADU (from TM CADU Framer) per PDU.
+  - in: one CLTU (from TC CLTU Framer / TC Frame Encoder) or CADU (from TM CADU Framer) per PDU. A PDU with burst_more = True in the metadata (set by TM Frame Generator on every frame of a packet but the last) is held: the next PDU without it closes the burst, all of them back to back between one acquisition sequence and one tail. Max PDUs per Burst sends the held PDUs as a burst if the marker never clears.
   - out: the burst, for GNU Radio's PDU to Tagged Stream block (length tag packet_len), then the modulator and a USRP sink with Length Tag Name packet_len.
 
   The stream then carries only bursts and nothing in between, so a new PDU is sent right away instead of waiting behind queued idle bytes. Set Acquisition Length to the time the receiver needs to lock on; with a differential modulator set Differential Modulation to Yes. For a continuous carrier (PLOP-2) use Acquisition and Idle Sequencer instead.
