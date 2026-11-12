@@ -228,20 +228,21 @@ GNU Radio itself is not installed via this file — install it through
 ## Branches
 
 ```
-feature/<topic> ──PR──▶ dev ──PR──▶ testing ──PR──▶ main ──tag──▶ vX.Y.Z
+feature/<topic> ──PR──▶ dev ──branch──▶ release/X.Y.Z ──PR──▶ testing ──PR──▶ main ──tag──▶ vX.Y.Z
 ```
 
 | Branch | Holds | Changes arrive |
 |---|---|---|
 | `dev` (default) | Day-to-day integration | Direct commits for small changes, or a pull request from a `feature/<topic>` branch |
-| `testing` | The state being validated in the lab (USRP, both PLOP modes) before a release | Pull request from `dev` only |
+| `release/X.Y.Z` | One release candidate, frozen, so `dev` can take new work while it is validated | Cut from `dev` at the version bump; afterwards only lab fixes, cherry-picked from `dev` |
+| `testing` | The state being validated in the lab (USRP, both PLOP modes) before a release | Pull request from a `release/X.Y.Z` branch only |
 | `main` | Released states only; every merge is tagged `vX.Y.Z` and gets a GitHub release | Pull request from `testing` only |
 
 `main` and `testing` are protected: no direct or force pushes, no
 deletion, for admins too. Pull requests need no approving review, but
 open review conversations must be resolved before merging. A problem found
-on `testing` is fixed on `dev` and promoted again, so fixes never exist
-only on `testing` or `main`.
+on `testing` is fixed on `dev` and cherry-picked onto the release branch,
+so fixes never exist only on `testing` or `main`.
 
 Open bugs, design questions, and test gaps are tracked as
 [GitHub issues](https://github.com/aris-space/soarr-groundstation-gnuradio/issues).
@@ -264,13 +265,21 @@ maps to `VERSION_MAJOR=X`, `VERSION_API=Y`, `VERSION_PATCH=Z`;
 To release:
 
 1. On `dev`, bump the version in one commit, e.g.
-   `build: bump version to 2.0.0`.
-2. Open a pull request `dev` → `testing` and validate that state in the
-   lab (USRP, both PLOP modes). Fixes go to `dev` and are promoted again.
-3. Open a pull request `testing` → `main` and merge it.
-4. Tag the merge commit on `main` as `vX.Y.Z` and publish a GitHub
+   `build: bump version to 2.0.0`, and push it.
+2. Cut `release/X.Y.Z` from that commit and push it. A pull request
+   follows its branch, so a PR straight from `dev` would take in
+   everything committed to `dev` while it is open; the release branch
+   keeps the candidate fixed while `dev` moves on.
+3. Open a pull request `release/X.Y.Z` → `testing` and validate that
+   state in the lab (USRP, both PLOP modes). A fix is committed to
+   `dev` and cherry-picked onto `release/X.Y.Z`, which updates the PR.
+   Merge it with a merge commit, so `testing` keeps the same commits
+   (squashing would collapse them, rebasing would give them new hashes).
+4. Open a pull request `testing` → `main` and merge it the same way.
+5. Tag the merge commit on `main` as `vX.Y.Z` and publish a GitHub
    release for the tag. Its notes list the commits since the previous
    tag, grouped by type (`feat`, `fix`, …), with breaking changes first.
+   Then delete `release/X.Y.Z`.
 
 ## Commit message hook
 
