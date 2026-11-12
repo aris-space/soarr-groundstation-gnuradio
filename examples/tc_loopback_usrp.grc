@@ -84,59 +84,6 @@ blocks:
     - 844.0
     rotation: 0
     state: enabled
-- name: crc
-  id: variable_struct
-  parameters:
-    comment: ''
-    field0: '''Size'''
-    field1: '''Polynomial'''
-    field10: ''
-    field11: ''
-    field12: ''
-    field13: ''
-    field14: ''
-    field15: ''
-    field16: ''
-    field17: ''
-    field18: ''
-    field19: ''
-    field2: '''initRegisterValue'''
-    field3: '''finalXorValue'''
-    field4: ''
-    field5: ''
-    field6: ''
-    field7: ''
-    field8: ''
-    field9: ''
-    value0: '16'
-    value1: '0x1021'
-    value10: '0'
-    value11: '0'
-    value12: '0'
-    value13: '0'
-    value14: '0'
-    value15: '0'
-    value16: '0'
-    value17: '0'
-    value18: '0'
-    value19: '0'
-    value2: '0xFFFF'
-    value3: '0x0000'
-    value4: '0'
-    value5: '0'
-    value6: '0'
-    value7: '0'
-    value8: '0'
-    value9: '0'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1824
-    - 108.0
-    rotation: 0
-    state: enabled
 - name: data_rate
   id: variable
   parameters:
@@ -329,27 +276,6 @@ blocks:
     - 924.0
     rotation: 0
     state: enabled
-- name: digital_correlate_access_code_tag_xx_0
-  id: digital_correlate_access_code_tag_xx
-  parameters:
-    access_code: '1110101110010000'
-    affinity: ''
-    alias: ''
-    comment: ''
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    tagname: start
-    threshold: '1'
-    type: byte
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 248
-    - 1356.0
-    rotation: 0
-    state: enabled
 - name: digital_costas_loop_cc_0
   id: digital_costas_loop_cc
   parameters:
@@ -368,57 +294,6 @@ blocks:
     coordinate:
     - 1544
     - 928.0
-    rotation: 0
-    state: enabled
-- name: digital_crc_append_0
-  id: digital_crc_append
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    final_xor: crc.finalXorValue
-    initial_value: crc.initRegisterValue
-    input_reflected: 'False'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    num_bits: crc.Size
-    poly: crc.Polynomial
-    result_reflected: 'False'
-    skip_header_bytes: '0'
-    swap_endianness: 'False'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1288
-    - 332.0
-    rotation: 0
-    state: enabled
-- name: digital_crc_check_0
-  id: digital_crc_check
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    discard_crc: 'False'
-    final_xor: crc.finalXorValue
-    initial_value: crc.initRegisterValue
-    input_reflected: 'False'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    num_bits: crc.Size
-    poly: crc.Polynomial
-    result_reflected: 'False'
-    skip_header_bytes: '0'
-    swap_endianness: 'False'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 896
-    - 1360.0
     rotation: 0
     state: enabled
 - name: digital_diff_decoder_bb_0
@@ -810,112 +685,6 @@ blocks:
     - 12.0
     rotation: 0
     state: enabled
-- name: soarr_bch_encoder_0
-  id: soarr_bch_encoder
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    generator_polynomial: '197'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 536
-    - 460.0
-    rotation: 0
-    state: enabled
-- name: soarr_ccsds_reader_0
-  id: soarr_ccsds_reader
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    data_type: '0'
-    encapsulation_used: 'True'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    sdls_type: '2'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1096
-    - 1340.0
-    rotation: 0
-    state: enabled
-- name: soarr_ccsds_receiver_0
-  id: soarr_ccsds_receiver
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    field_type: '0'
-    fixed_byte_length: '0'
-    maxoutbuf: '0'
-    message_type: '0'
-    minoutbuf: '0'
-    scid: '0'
-    scid_filter_enable: 'False'
-    vcid: '0'
-    vcid_filter_enable: 'False'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 712
-    - 1348.0
-    rotation: 0
-    state: enabled
-- name: soarr_cltu_deframer_0
-  id: soarr_cltu_deframer
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    input_packed: 'False'
-    max_codewords: '147'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    output_packed: 'True'
-    payload_bytes: '8'
-    start_sequence: '60304'
-    tag_name: start
-    tail_sequence: '14251014049101104505'
-    threshold: '2'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 488
-    - 1316.0
-    rotation: 0
-    state: enabled
-- name: soarr_cltu_framer_0
-  id: soarr_cltu_framer
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    start_sequence: '60304'
-    tail_sequence: '14251014049101104505'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 760
-    - 452.0
-    rotation: 0
-    state: enabled
 - name: soarr_data_creator_0
   id: soarr_data_creator
   parameters:
@@ -944,70 +713,6 @@ blocks:
     - 68.0
     rotation: 0
     state: enabled
-- name: soarr_db_client_0
-  id: soarr_db_client
-  parameters:
-    affinity: ''
-    alias: ''
-    auth_key: FFEEDDCCBBAA99887766554433221100FFEEDDCCBBAA99887766554433221100
-    auto_reset_counters: 'False'
-    comment: ''
-    crypt_key: 00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF
-    forward_body: 'True'
-    ip: 127.0.0.1
-    key_state_auth: active
-    key_state_enc: active
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    port: '80'
-    scid: SCID
-    sdls_counter: '0'
-    spi: SPI
-    type: '0'
-    vcid: '18'
-    vcid_counter: '0'
-    yaml_path: ''
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 832
-    - 220.0
-    rotation: 0
-    state: enabled
-- name: soarr_db_client_0_0
-  id: soarr_db_client
-  parameters:
-    affinity: ''
-    alias: ''
-    auth_key: FFEEDDCCBBAA99887766554433221100FFEEDDCCBBAA99887766554433221100
-    auto_reset_counters: 'False'
-    comment: ''
-    crypt_key: 00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF
-    forward_body: 'True'
-    ip: 127.0.0.1
-    key_state_auth: active
-    key_state_enc: active
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    port: '80'
-    scid: SCID
-    sdls_counter: '0'
-    spi: SPI
-    type: '0'
-    vcid: '18'
-    vcid_counter: '0'
-    yaml_path: ''
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1384
-    - 1436.0
-    rotation: 0
-    state: enabled
 - name: soarr_encapsulation_header_0
   id: soarr_encapsulation_header
   parameters:
@@ -1024,174 +729,6 @@ blocks:
     coordinate:
     - 1304
     - 140.0
-    rotation: 0
-    state: enabled
-- name: soarr_inject_db_0
-  id: soarr_inject_db
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    role: '"tx"'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 832
-    - 144.0
-    rotation: 0
-    state: enabled
-- name: soarr_inject_db_0_0
-  id: soarr_inject_db
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    role: '"rx"'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1384
-    - 1360.0
-    rotation: 0
-    state: enabled
-- name: soarr_lfsr_scrambler_0
-  id: soarr_lfsr_scrambler
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    register_length: '8'
-    seed: '255'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 352
-    - 452.0
-    rotation: 0
-    state: enabled
-- name: soarr_sdls_authentication_0
-  id: soarr_sdls_authentication
-  parameters:
-    affinity: ''
-    alias: ''
-    authentication_state: 'True'
-    comment: ''
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    nonce_hex: '0000000000000000000000000000'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 488
-    - 324.0
-    rotation: 0
-    state: enabled
-- name: soarr_sdls_authentication_verify_0
-  id: soarr_sdls_authentication_verify
-  parameters:
-    affinity: ''
-    alias: ''
-    authentication_state: 'True'
-    comment: ''
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    nonce_hex: '0000000000000000000000000000'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1632
-    - 1348.0
-    rotation: 0
-    state: enabled
-- name: soarr_sdls_decryption_0
-  id: soarr_sdls_decryption
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    decryption_state: 'False'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    nonce_hex: '0000000000000000000000000000'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1856
-    - 1348.0
-    rotation: 0
-    state: enabled
-- name: soarr_sdls_encryption_0
-  id: soarr_sdls_encryption
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    encryption_state: 'False'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    nonce_hex: '0000000000000000000000000000'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 264
-    - 324.0
-    rotation: 0
-    state: enabled
-- name: soarr_sdls_header_0
-  id: soarr_sdls_header
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    maxoutbuf: '0'
-    minoutbuf: '0'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 752
-    - 336.0
-    rotation: 0
-    state: enabled
-- name: soarr_tc_primary_header_0
-  id: soarr_tc_primary_header
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    is_crc_used: 'True'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    scid: '0'
-    vcid: '0'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1008
-    - 316.0
     rotation: 0
     state: enabled
 - name: uhd_usrp_sink_0
@@ -1931,21 +1468,6 @@ blocks:
     - 124.0
     rotation: 0
     state: enabled
-- name: virtual_sink_0
-  id: virtual_sink
-  parameters:
-    alias: ''
-    comment: ''
-    stream_id: to_encoding
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1600
-    - 332.0
-    rotation: 0
-    state: enabled
 - name: virtual_sink_0_0
   id: virtual_sink
   parameters:
@@ -1959,51 +1481,6 @@ blocks:
     coordinate:
     - 2272
     - 924.0
-    rotation: 0
-    state: enabled
-- name: virtual_sink_2
-  id: virtual_sink
-  parameters:
-    alias: ''
-    comment: ''
-    stream_id: to_sdls
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 1616
-    - 140.0
-    rotation: 0
-    state: enabled
-- name: virtual_source_0
-  id: virtual_source
-  parameters:
-    alias: ''
-    comment: ''
-    stream_id: to_encoding
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 112
-    - 460.0
-    rotation: 0
-    state: enabled
-- name: virtual_source_1
-  id: virtual_source
-  parameters:
-    alias: ''
-    comment: ''
-    stream_id: to_sdls
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate:
-    - 80
-    - 332.0
     rotation: 0
     state: enabled
 - name: virtual_source_3_0
@@ -2084,6 +1561,136 @@ blocks:
     - 560
     rotation: 0
     state: enabled
+- name: soarr_key_database_0
+  id: soarr_key_database
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    auto_reset_counters: 'False'
+    db_type: '0'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    role: '"tx"'
+    scid: 'SCID'
+    spi: 'SPI'
+    vcid: '18'
+    yaml_path: ''
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 832
+    - 144.0
+    rotation: 0
+    state: enabled
+- name: soarr_sdls_apply_0
+  id: soarr_sdls_apply
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    mode: '2'
+    nonce_hex: '0000000000000000000000000000'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 264
+    - 324.0
+    rotation: 0
+    state: enabled
+- name: soarr_tc_frame_encoder_0
+  id: soarr_tc_frame_encoder
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    scid: '0'
+    vcid: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1008
+    - 316.0
+    rotation: 0
+    state: enabled
+- name: soarr_tc_frame_decoder_0
+  id: soarr_tc_frame_decoder
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    encapsulation_used: 'True'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    scid: '0'
+    scid_filter_enable: 'False'
+    sdls_mode: '2'
+    threshold: '1'
+    vcid: '0'
+    vcid_filter_enable: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 248
+    - 1356.0
+    rotation: 0
+    state: enabled
+- name: soarr_key_database_1
+  id: soarr_key_database
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    auto_reset_counters: 'False'
+    db_type: '0'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    role: '"rx"'
+    scid: 'SCID'
+    spi: 'SPI'
+    vcid: '18'
+    yaml_path: ''
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1384
+    - 1360.0
+    rotation: 0
+    state: enabled
+- name: soarr_sdls_process_0
+  id: soarr_sdls_process
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    mode: '2'
+    nonce_hex: '0000000000000000000000000000'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 1632
+    - 1348.0
+    rotation: 0
+    state: enabled
+
 connections:
 - - analog_agc_xx_0
   - '0'
@@ -2097,10 +1704,6 @@ connections:
   - '0'
   - digital_diff_decoder_bb_0
   - '0'
-- - digital_correlate_access_code_tag_xx_0
-  - '0'
-  - soarr_cltu_deframer_0
-  - '0'
 - - digital_costas_loop_cc_0
   - '0'
   - digital_constellation_decoder_cb_0
@@ -2113,14 +1716,6 @@ connections:
   - '0'
   - qtgui_sink_x_0
   - '0'
-- - digital_crc_append_0
-  - out
-  - virtual_sink_0
-  - '0'
-- - digital_crc_check_0
-  - ok
-  - soarr_ccsds_reader_0
-  - ccsds
 - - digital_diff_decoder_bb_0
   - '0'
   - virtual_sink_0_0
@@ -2141,82 +1736,18 @@ connections:
   - '0'
   - digital_symbol_sync_xx_1
   - '0'
-- - soarr_bch_encoder_0
-  - codewords
-  - soarr_cltu_framer_0
-  - in
-- - soarr_ccsds_reader_0
-  - debug
-  - soarr_inject_db_0_0
-  - in
-- - soarr_ccsds_receiver_0
-  - out
-  - digital_crc_check_0
-  - in
-- - soarr_cltu_deframer_0
-  - out
-  - soarr_ccsds_receiver_0
-  - in
 - - soarr_data_creator_0
   - out
-  - soarr_inject_db_0
+  - soarr_key_database_0
   - in
-- - soarr_db_client_0
-  - db_callback
-  - soarr_inject_db_0
-  - db_callback
-- - soarr_db_client_0_0
-  - db_callback
-  - soarr_inject_db_0_0
-  - db_callback
-- - soarr_encapsulation_header_0
-  - out
-  - virtual_sink_2
-  - '0'
-- - soarr_inject_db_0
-  - db_call
-  - soarr_db_client_0
-  - db_call
-- - soarr_inject_db_0
+- - soarr_key_database_0
   - out
   - soarr_encapsulation_header_0
   - in
-- - soarr_inject_db_0_0
-  - db_call
-  - soarr_db_client_0_0
-  - db_call
-- - soarr_inject_db_0_0
-  - out
-  - soarr_sdls_authentication_verify_0
-  - in
-- - soarr_lfsr_scrambler_0
-  - out
-  - soarr_bch_encoder_0
-  - message
-- - soarr_sdls_authentication_0
-  - out
-  - soarr_sdls_header_0
-  - in
-- - soarr_sdls_authentication_verify_0
-  - out
-  - soarr_sdls_decryption_0
-  - in
-- - soarr_sdls_decryption_0
+- - soarr_sdls_process_0
   - out
   - blocks_message_debug_0_0
   - print
-- - soarr_sdls_encryption_0
-  - out
-  - soarr_sdls_authentication_0
-  - in
-- - soarr_sdls_header_0
-  - out
-  - soarr_tc_primary_header_0
-  - in
-- - soarr_tc_primary_header_0
-  - out
-  - digital_crc_append_0
-  - in
 - - uhd_usrp_source_0
   - '0'
   - fir_filter_xxx_0
@@ -2229,19 +1760,11 @@ connections:
   - pressed
   - soarr_data_creator_0
   - ping
-- - virtual_source_0
-  - '0'
-  - soarr_lfsr_scrambler_0
-  - in
-- - virtual_source_1
-  - '0'
-  - soarr_sdls_encryption_0
-  - in
 - - virtual_source_3_0
   - '0'
-  - digital_correlate_access_code_tag_xx_0
+  - soarr_tc_frame_decoder_0
   - '0'
-- - soarr_cltu_framer_0
+- - soarr_tc_frame_encoder_0
   - out
   - soarr_plop_modulator_0
   - in
@@ -2253,6 +1776,23 @@ connections:
   - '0'
   - uhd_usrp_sink_0
   - '0'
+- - soarr_encapsulation_header_0
+  - out
+  - soarr_sdls_apply_0
+  - in
+- - soarr_sdls_apply_0
+  - out
+  - soarr_tc_frame_encoder_0
+  - in
+- - soarr_tc_frame_decoder_0
+  - out
+  - soarr_key_database_1
+  - in
+- - soarr_key_database_1
+  - out
+  - soarr_sdls_process_0
+  - in
+
 metadata:
   file_format: 1
   grc_version: 3.10.12.0
