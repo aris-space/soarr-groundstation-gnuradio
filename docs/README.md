@@ -17,7 +17,7 @@ development setup, and the decision records and PRDs that back them.
    - [0005 — RX path canonical block](adr/0005-rx-path-canonical-block.md)
    - [0006 — Rename gr-sage to gr-soarr](adr/0006-rename-sage-to-soarr.md)
    - [0007 — GRC block tree, labels, and hierarchical blocks](adr/0007-grc-block-tree-and-labels.md)
-5. `prd/` — one requirements doc per block (26 total, written in
+5. `prd/` — one requirements doc per block (27 total, written in
    signal-flow order):
    - [encapsulation_header](prd/encapsulation_header.md)
    - [sdls_encryption](prd/sdls_encryption.md)
@@ -28,6 +28,7 @@ development setup, and the decision records and PRDs that back them.
    - [lfsr_scrambler](prd/lfsr_scrambler.md)
    - [bch_encoder](prd/bch_encoder.md)
    - [cltu_framer](prd/cltu_framer.md)
+   - [tc_frame_encoder](prd/tc_frame_encoder.md) (hierarchical: tc_primary_header through cltu_framer)
    - [plop_modulator](prd/plop_modulator.md)
    - [cltu_burst_builder](prd/cltu_burst_builder.md)
    - [acquisition_idle_sequencer](prd/acquisition_idle_sequencer.md)

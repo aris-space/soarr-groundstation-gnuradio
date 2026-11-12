@@ -46,6 +46,7 @@ gr_python_install(FILES __init__.py
     sdls_apply.py
     sdls_process.py
     key_database.py
+    tc_frame_encoder.py
     acquisition_idle_sequencer.py
     system_tester.py DESTINATION ${GR_PYTHON_DIR}/gnuradio/soarr)
 
@@ -116,6 +117,7 @@ GR_ADD_TEST(qa_sdls_rx_chain ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa
 GR_ADD_TEST(qa_sdls_apply ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_sdls_apply.py)
 GR_ADD_TEST(qa_sdls_process ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_sdls_process.py)
 GR_ADD_TEST(qa_key_database ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_key_database.py)
+GR_ADD_TEST(qa_tc_frame_encoder ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tc_frame_encoder.py)
 
 # Acquisition/idle sequence tests
 GR_ADD_TEST(qa_acquisition_idle_sequencer ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_acquisition_idle_sequencer.py)
