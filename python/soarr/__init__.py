@@ -56,5 +56,6 @@ from .ccsds_receiver import ccsds_receiver
 from .sdls_decryption import sdls_decryption
 from .sdls_authentication_verify import sdls_authentication_verify
 from .sdls_apply import sdls_apply
+from .sdls_process import sdls_process
 from .acquisition_idle_sequencer import acquisition_idle_sequencer
 from .system_tester import system_tester

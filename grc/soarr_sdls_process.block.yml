@@ -1,0 +1,43 @@
+id: soarr_sdls_process
+label: SDLS Process
+category: '[Soarr]/Common/SDLS'
+
+templates:
+  imports: from gnuradio import soarr
+  make: soarr.sdls_process(${mode}, bytes.fromhex('{:028x}'.format(${nonce_hex})))
+
+parameters:
+- id: mode
+  label: SDLS Mode
+  dtype: enum
+  options: ['3', '1', '2']
+  option_labels: [Encryption and Authentication, Encryption only, Authentication only]
+  default: '3'
+- id: nonce_hex
+  label: Nonce
+  dtype: int
+  default: 0
+
+asserts:
+- ${ nonce_hex >= 0 and nonce_hex <= 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF }
+
+inputs:
+- label: in
+  domain: message
+  optional: 0
+
+outputs:
+- label: out
+  domain: message
+  optional: 0
+
+documentation: |-
+  SDLS ProcessSecurity (CCSDS 355.0-B-1), the receiving end, in one block: SDLS MAC Verifier, then SDLS Decryption. A frame whose MAC fails is dropped.
+
+  SDLS Mode and Nonce must match the sender's SDLS Apply; SDLS Mode also matches the TC Frame Parser's SDLS setting.
+
+  Ports:
+  - in: the frame's data field, with crypt_key, auth_key (from the Key Injector) and sdls_counter in the metadata, and the MAC as sdls.security_trailer (from the TC Frame Parser) or at the payload's end.
+  - out: the plaintext, for Encapsulation Parser. The keys are removed from the metadata.
+
+file_format: 1
