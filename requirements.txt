@@ -7,6 +7,8 @@ numpy
 # GNU Radio Python bindings/runtime
 # Prefer installing via conda/radioconda when possible.
 #gnuradio
+# gr-satellites (TM Reed-Solomon) is a GNU Radio module, not on PyPI:
+# conda-forge gnuradio-satellites or apt gr-satellites.
 
 # Test dependency
 pytest

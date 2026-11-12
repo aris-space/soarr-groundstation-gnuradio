@@ -124,6 +124,7 @@ GR_ADD_TEST(qa_tc_frame_encoder ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}
 GR_ADD_TEST(qa_tc_frame_decoder ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tc_frame_decoder.py)
 GR_ADD_TEST(qa_tm_randomizer ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tm_randomizer.py)
 GR_ADD_TEST(qa_tm_cadu_framer ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tm_cadu_framer.py)
+GR_ADD_TEST(qa_tm_reed_solomon ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tm_reed_solomon.py)
 
 # Acquisition/idle sequence tests
 GR_ADD_TEST(qa_acquisition_idle_sequencer ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_acquisition_idle_sequencer.py)

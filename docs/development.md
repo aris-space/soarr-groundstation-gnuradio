@@ -170,7 +170,7 @@ instead, together with the Python dependencies (Ubuntu 24.04 blocks
 
 ```bash
 sudo apt install gnuradio gnuradio-dev cmake g++ \
-    python3-construct python3-yaml python3-pycryptodome python3-pytest
+    python3-construct python3-yaml python3-pycryptodome python3-pytest     gr-satellites
 ```
 
 With no conda env active, the script
@@ -224,6 +224,15 @@ From [`requirements.txt`](../requirements.txt):
 
 GNU Radio itself is not installed via this file — install it through
 `radioconda`/conda instead.
+
+The TM chain also needs [gr-satellites](https://github.com/daniestevez/gr-satellites)
+5.x (tested with 5.9.0), a GNU Radio module rather than a pip package: its
+`encode_rs`/`decode_rs` blocks do the CCSDS Reed-Solomon coding
+(RS(255,223), dual basis, interleaving). radioconda includes it
+(conda-forge package `gnuradio-satellites`); on Ubuntu it is the
+`gr-satellites` apt package. [`qa_tm_reed_solomon.py`](../python/soarr/qa_tm_reed_solomon.py)
+pins the behaviour the TM chain relies on and is skipped where
+gr-satellites is missing; the TC chain does not use it.
 
 ## Branches
 

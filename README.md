@@ -127,6 +127,10 @@ layers. Each block has a requirements document in [docs/prd/](docs/prd/).
 - A C/C++ compiler (GCC, Clang, MSVC)
 - Python packages from [requirements.txt](requirements.txt): `construct`,
   `PyYAML`, `pycryptodome`, `numpy`, and `pytest` for the tests
+- [gr-satellites](https://github.com/daniestevez/gr-satellites) 5.x
+  (tested with 5.9.0) for the TM chain's Reed-Solomon coding: conda-forge
+  package `gnuradio-satellites` (included in radioconda), or `gr-satellites`
+  from apt. The TC chain runs without it.
 
 ## Installation
 
