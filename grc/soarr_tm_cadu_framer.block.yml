@@ -1,0 +1,53 @@
+id: soarr_tm_cadu_framer
+label: TM CADU Framer
+category: '[Soarr]/TM (Telemetry)/CADU'
+
+templates:
+  imports: from gnuradio import soarr
+  make: soarr.tm_cadu_framer(${asm}, ${length_check}, ${codeblock_length})
+
+parameters:
+- id: asm
+  label: ASM
+  dtype: enum
+  options: ['"1ACFFC1D"', '"034776C7272895B0"', '"25D5C0CE8990F6C9461BF79C"', '"034776C7272895B0FCB88938D8D76A4F"',
+    '"25D5C0CE8990F6C9461BF79CDA2A3F31766F0936B9E40863"', '"352EF853"']
+  option_labels: ['32-bit 1ACFFC1D (uncoded, convolutional, Reed-Solomon, LDPC 7/8)', '64-bit (Turbo 1/2, LDPC 1/2, 2/3, 4/5)',
+    '96-bit (Turbo 1/3)', '128-bit (Turbo 1/4)', '192-bit (Turbo 1/6)', '32-bit 352EF853 (embedded data stream)']
+  default: '"1ACFFC1D"'
+- id: length_check
+  label: Length Check
+  dtype: enum
+  options: ['False', 'True']
+  option_labels: [Disabled, Enabled]
+  default: 'False'
+- id: codeblock_length
+  label: Codeblock Length (bytes)
+  dtype: int
+  default: 255
+  hide: ${ 'none' if length_check == 'True' else 'all' }
+
+asserts:
+- ${ length_check == 'False' or codeblock_length >= 1 }
+
+inputs:
+- label: in
+  domain: message
+  optional: 0
+
+outputs:
+- label: out
+  domain: message
+  optional: 0
+
+documentation: |-
+  Builds a CCSDS TM Channel Access Data Unit (131.0-B-5 section 9): the Attached Sync Marker followed by the codeblock, codeword or Transfer Frame.
+
+  ASM: chosen by the coding (131.0-B-5 9.3); 1ACFFC1D for uncoded, convolutional, Reed-Solomon, concatenated and rate-7/8 LDPC data. The CADU has nothing else: CCSDS allows no bits between consecutive CADUs (9.4.2), so for a burst with preamble and tail put Burst Builder after this block.
+  Length Check: drop PDUs that aren't Codeblock Length bytes (e.g. 255 x interleaving depth for Reed-Solomon).
+
+  Ports:
+  - in: one (randomized) codeblock, codeword or Transfer Frame as packed bytes, e.g. from TM Randomizer.
+  - out: the CADU (ASM + codeblock); metadata unchanged.
+
+file_format: 1
