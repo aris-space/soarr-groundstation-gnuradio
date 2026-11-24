@@ -917,6 +917,34 @@ entries:
 
         self.assertEqual(len(block._pending), 0)
 
+    def test_035_frames_without_bypass_and_control_are_looked_up(self):
+        # A TM frame has no bypass or control flag (TC frame fields): the
+        # lookup goes ahead without them, the database answers with its
+        # defaults, and the frame's own counter is kept with role "rx".
+        from gnuradio.soarr import db_client
+
+        block, client = inject_db(role="rx"), db_client()
+        original_pub, published = self._capture_pub(block)
+        original_client_pub, client_published = self._capture_pub(client)
+        try:
+            meta = self._mk_meta({"scid": 0x155, "vcid": 2})
+            meta = pmt.dict_add(meta, pmt.intern("sdls"), self._mk_nested_sdls({"spi": 1, "sdls_counter": 7}))
+            block.send_db_call(pmt.cons(meta, pmt.init_u8vector(2, [0xC, 0xD])))
+            for call in self._db_calls(published):
+                client.make_db_call(call)
+            for _, response in client_published:
+                block.send_msg_out(response)
+
+            # Present but not a boolean is still refused.
+            bad = pmt.dict_add(meta, pmt.intern("bypass"), pmt.intern("yes"))
+            block.send_db_call(pmt.cons(bad, pmt.init_u8vector(1, [0xE])))
+        finally:
+            self._restore_pub(block, original_pub)
+            self._restore_pub(client, original_client_pub)
+
+        self.assertEqual(self._outputs(published), [(bytes([0xC, 0xD]), 7)])
+        self.assertEqual(len(self._db_calls(published)), 1)
+
 
 if __name__ == '__main__':
     gr_unittest.run(qa_inject_db)

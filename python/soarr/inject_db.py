@@ -12,7 +12,7 @@ from collections import OrderedDict
 from gnuradio import gr
 import pmt
 
-NULLABLE_TYPES = frozenset({"int_or_nil", "secret_or_nil"})
+NULLABLE_TYPES = frozenset({"int_or_nil", "bool_or_nil", "secret_or_nil"})
 
 # Metadata key carrying a query's id on db_call; the database echoes it on
 # db_callback so each response is paired with its own request.
@@ -112,14 +112,15 @@ class inject_db(gr.basic_block):
             dict_msg (pmt_dict): metadata dict, used only for logging context.
             key (str): metadata key being checked, used only for logging context.
             value (pmt_any): the already-resolved value to type-check.
-            expected_type (str): one of "int", "bool", "int_or_nil", "secret_or_nil".
+            expected_type (str): one of "int", "bool", "int_or_nil",
+                "bool_or_nil", "secret_or_nil".
 
         Returns:
             bool: True if value matches expected_type; otherwise logs at
                 error and returns False.
 
         Raises:
-            ValueError: expected_type is not one of the four supported values.
+            ValueError: expected_type is not one of the five supported values.
         """
         if expected_type == "int":
             if self._is_integer_pmt(value):
@@ -129,7 +130,9 @@ class inject_db(gr.basic_block):
             )
             return False
 
-        if expected_type == "bool":
+        if expected_type in ("bool", "bool_or_nil"):
+            if expected_type == "bool_or_nil" and pmt.eqv(value, pmt.PMT_NIL):
+                return True
             if pmt.is_bool(value):
                 return True
             if self._is_integer_pmt(value):
@@ -362,14 +365,14 @@ class inject_db(gr.basic_block):
         Args:
             dict_msg (pmt_dict): metadata dict to validate.
             key_specs (dict[str, str]): key name -> expected type (one of
-                "int", "bool", "int_or_nil", "secret_or_nil").
+                "int", "bool", "int_or_nil", "bool_or_nil", "secret_or_nil").
 
         Returns:
             bool: True if every key resolves (see _resolve_key) to a value
                 matching its expected type. A key resolving to PMT_NIL is
                 only treated as missing (logged at error, returns False)
                 for non-nullable types - a nullable type (int_or_nil,
-                secret_or_nil) defers the PMT_NIL/absent decision entirely
+                bool_or_nil, secret_or_nil) defers the PMT_NIL/absent decision entirely
                 to _check_key_type, since for those types "absent" and
                 "present but nil" are both valid.
         """
@@ -387,8 +390,10 @@ class inject_db(gr.basic_block):
         """
         Args:
             msg (pmt_pair): PDU with metadata dict and u8vector payload.
-                Metadata must include `scid`/`spi` (int) and `bypass`/
-                `control` (bool), each checked at the top level first,
+                Metadata must include `scid`/`spi` (int); `bypass`/
+                `control` (bool) are optional, since a TM frame has no
+                such flags (the database then answers with its defaults).
+                Each is checked at the top level first,
                 falling back to the nested `telecommand.tc_header`/
                 `sdls.security_header` path (see _resolve_key). This is a
                 fixed, simplified query, not necessarily every field a
@@ -405,7 +410,7 @@ class inject_db(gr.basic_block):
 
         Drops when:
             - msg is not a PDU pair, metadata is not a dict, or payload is not a u8vector (error - malformed input, not raw RF noise)
-            - a required key is missing or the wrong type (error - same)
+            - a required key is missing, or a key is the wrong type (error - same)
             - an internal failure occurs while building or publishing the query (error - same)
         """
         try:
@@ -419,8 +424,8 @@ class inject_db(gr.basic_block):
                 {
                     "scid": "int",
                     "spi": "int",
-                    "bypass": "bool",
-                    "control": "bool",
+                    "bypass": "bool_or_nil",
+                    "control": "bool_or_nil",
                 },
             ):
                 return

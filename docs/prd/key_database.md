@@ -28,7 +28,7 @@ below doesn't cover (e.g. custom dummy keys, or a separately placed store).
 
 | Port | Direction | PMT shape | Example |
 |---|---|---|---|
-| `in` | input | PDU as `inject_db` takes it: metadata with `scid`/`spi`/`bypass`/`control`, top level or nested (see [inject_db.md](inject_db.md)). | `pmt.cons({telecommand: {tc_header: {scid: 341, …}}, sdls: {security_header: {spi: 1}}}, u8vector(payload))` |
+| `in` | input | PDU as `inject_db` takes it: metadata with `scid`/`spi` and, optionally, `bypass`/`control`, top level or nested (see [inject_db.md](inject_db.md)). | `pmt.cons({telecommand: {tc_header: {scid: 341, …}}, sdls: {security_header: {spi: 1}}}, u8vector(payload))` |
 | `out` | output | The same PDU with the entry's `crypt_key`/`auth_key`, `vcid` and counters merged in (TX: the store's counters; RX: the frame's kept). | `pmt.cons({…, crypt_key: "0011…", auth_key: "FFEE…"}, u8vector(payload))` |
 
 ## Parameters

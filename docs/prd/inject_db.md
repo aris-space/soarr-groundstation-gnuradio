@@ -38,7 +38,7 @@ RX chain diagram only — not independently wired or tested in this repo.
 
 | Port | Direction | PMT shape | Example |
 |---|---|---|---|
-| `in` | input | PDU: `(metadata_dict . payload_u8vector)`. Metadata must include `scid`/`spi` (int) and `bypass`/`control` (bool) — each checked at the top level first, falling back to the nested `telecommand.tc_header`/`sdls.security_header` path (see Behavior). | `pmt.cons({scid: 0x155, ...}, u8vector(payload))` |
+| `in` | input | PDU: `(metadata_dict . payload_u8vector)`. Metadata must include `scid`/`spi` (int); `bypass`/`control` (bool) are optional — each checked at the top level first, falling back to the nested `telecommand.tc_header`/`sdls.security_header` path (see Behavior). | `pmt.cons({scid: 0x155, ...}, u8vector(payload))` |
 | `db_call` | output | The PDU received on `in`, with `db_request_id` (uint64, unique per request) and `db_role` (symbol, this block's `role`) added to its metadata, forwarded to `db_client` as a query. `db_client` doesn't count an `"rx"` lookup. | `pmt.cons({scid: 0x155, ..., db_request_id: 7}, u8vector(payload))` |
 | `db_callback` | input | PDU: `(metadata_dict . payload_or_PMT_NIL)` — `db_client`'s query response, carrying the query's `db_request_id` back. The payload need not be a u8vector as long as a pending request supplies one instead (see Behavior) — e.g. `db_client(forward_body=False)`'s `PMT_NIL` payload. Metadata must include everything `in` requires, plus `auth_key`/`crypt_key` (symbol hex string or `PMT_NIL`) and `vcid`/`vcid_counter`/`sdls_counter` (int). | `pmt.cons({auth_key: "...", ...}, u8vector(payload))` |
 | `out` | output | The `db_callback` PDU's metadata, merged with the metadata of the `in` PDU it answers (`in`'s keys win, except the counters in the TX role — see Behavior), paired with that *original* `in` PDU's payload (not `db_callback`'s). `db_request_id` is removed. | `pmt.cons({merged}, u8vector(original_payload))` |
@@ -110,21 +110,25 @@ source of truth other blocks' PRDs (`sdls_encryption`, `sdls_authentication`,
 `sdls_header`, `tc_primary_header`) cite when describing which of their
 own metadata keys arrive nested vs. top-level in the real pipeline.
 
-**Key validation** (`_check_keys`/`_check_key_type`): four supported
+**Key validation** (`_check_keys`/`_check_key_type`): five supported
 types — `int` (or `uint64`), `bool` (a real PMT boolean, or an integer
-`0`/`1`), `int_or_nil` (unused by either handler currently), and
+`0`/`1`), `bool_or_nil` (the same, or absent — used for `bypass`/`control`
+on `in`), `int_or_nil` (unused by either handler currently), and
 `secret_or_nil` (`PMT_NIL` or a PMT symbol — used for `auth_key`/
 `crypt_key`, which may legitimately be absent or explicitly nil). For
-these two nullable types, a key resolving to `PMT_NIL` is *not* treated
+these nullable types, a key resolving to `PMT_NIL` is *not* treated
 as "missing" — the nil/absent decision is deferred entirely to
 `_check_key_type`, which accepts it. For `int`/`bool`, a key resolving to
 `PMT_NIL` is still correctly treated as missing (dropped, logged). A
 missing or wrong-type required key drops the message (logged, no
 publish).
 
-**`send_db_call`'s required keys**: `scid`, `spi` (int), `bypass`,
-`control` (bool) — its own docstring notes this is a fixed, simplified
-query, not necessarily every field a real database lookup would need.
+**`send_db_call`'s required keys**: `scid`, `spi` (int) — its own
+docstring notes this is a fixed, simplified query, not necessarily every
+field a real database lookup would need. `bypass` and `control`
+(`bool_or_nil`) are checked only if present: they are TC frame flags,
+and a TM frame has none. `db_client` then answers with its default
+(`False`), so `send_msg_out` still finds both.
 
 **`send_msg_out`'s required keys**: everything `send_db_call` requires,
 plus `auth_key`, `crypt_key` (`secret_or_nil`), `vcid`, `vcid_counter`,
@@ -153,8 +157,8 @@ None currently.
 
 ## Test coverage
 
-- `python/soarr/qa_inject_db.py` — 35 test methods (`test_instance` +
-  `test_001`–`test_034`): a valid `in` PDU (with nested `telecommand`/
+- `python/soarr/qa_inject_db.py` — 36 test methods (`test_instance` +
+  `test_001`–`test_035`): a valid `in` PDU (with nested `telecommand`/
   `sdls` metadata) emitting a `db_call`, a missing required key and a
   non-integer `scid` each emitting nothing, a `db_callback` with valid
   symbol-hex `auth_key`/`crypt_key` emitting `out`, a genuinely nil
@@ -195,4 +199,7 @@ None currently.
   against a real `db_client` continuing past its 16-bit counter limit
   (`test_032`), an answer delivered during the `db_call` publish still
   paired with its request (`test_033`), and a failed publish leaving no
-  pending request (`test_034`).
+  pending request behind (`test_034`). A TM frame's metadata, without
+  `bypass`/`control`, looked up against a real `db_client` with
+  `role="rx"` and its own counter kept, while a `bypass` that isn't a
+  boolean is still refused (`test_035`).
