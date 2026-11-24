@@ -1,0 +1,74 @@
+id: soarr_tm_frame_decoder
+label: TM Frame Decoder
+category: '[Soarr]/TM (Telemetry)/Frame'
+
+templates:
+  imports: from gnuradio import soarr
+  make: soarr.tm_frame_decoder(${fecf}, ${scid_filter_enable}, ${scid}, ${vcid_filter_enable}, ${vcid})
+
+parameters:
+- id: fecf
+  label: FECF (CRC-16)
+  dtype: enum
+  options: ['False', 'True']
+  option_labels: [Disabled, Enabled]
+  default: 'False'
+- id: scid_filter_enable
+  label: SCID Filter
+  dtype: enum
+  options: ['False', 'True']
+  option_labels: [Disabled, Enabled]
+  default: 'False'
+- id: scid
+  label: SCID
+  dtype: int
+  default: 0
+  hide: ${ 'none' if scid_filter_enable == 'True' else 'all' }
+- id: vcid_filter_enable
+  label: VCID Filter
+  dtype: enum
+  options: ['False', 'True']
+  option_labels: [Disabled, Enabled]
+  default: 'False'
+- id: vcid
+  label: VCID
+  dtype: int
+  default: 0
+  hide: ${ 'none' if vcid_filter_enable == 'True' else 'all' }
+
+asserts:
+- ${ scid >= 0 and scid < 2**10 }
+- ${ vcid >= 0 and vcid < 2**3 }
+
+inputs:
+- label: in
+  domain: message
+  optional: 0
+
+outputs:
+- label: out
+  domain: message
+  optional: 1
+- label: space_packets
+  domain: message
+  optional: 1
+- label: ocf
+  domain: message
+  optional: 1
+
+documentation: |-
+  Extracts packets from CCSDS TM Transfer Frames (132.0-B-3): joins the parts of a packet split across frames using the First Header Pointer and the packet's own length field, and skips idle packets.
+
+  A gap in the virtual channel frame count (a lost frame, e.g. a codeblock the Reed-Solomon decoder couldn't correct) discards the packet in progress, as does a First Header Pointer contradicting its length. Each SCID and VCID is decoded separately.
+  The OCF flag and the secondary header come from the frame itself.
+
+  FECF: frames end with a CRC-16/CCITT, checked and removed; must match the TM Frame Generator's setting.
+  SCID / VCID Filter: keep only frames of this spacecraft / virtual channel; others give nothing, not even their OCF.
+
+  Ports:
+  - in: one frame per PDU, e.g. from the Reed-Solomon decoder (gr-satellites).
+  - out: one encapsulation packet per PDU, header included, for Encapsulation Parser. Metadata: scid, vcid, mc_frame_count, vc_frame_count of the frame the packet starts in, and its secondary_header and ocf where present.
+  - space_packets: one Space Packet per PDU, whole and unparsed, metadata as on out.
+  - ocf: the 4 OCF bytes of every frame that has one, with scid, vcid and the frame counts.
+
+file_format: 1

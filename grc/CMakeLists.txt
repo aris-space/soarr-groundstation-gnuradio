@@ -36,5 +36,6 @@ install(FILES
     soarr_tm_randomizer.block.yml
     soarr_tm_cadu_framer.block.yml
     soarr_tm_frame_generator.block.yml
+    soarr_tm_frame_decoder.block.yml
     soarr_acquisition_idle_sequencer.block.yml
     soarr_system_tester.block.yml DESTINATION share/gnuradio/grc/blocks)

@@ -68,7 +68,8 @@ no packets, no frame count kept.
 **OCF**: a frame that passes the checks and filter and has the OCF flag
 set publishes its OCF on `ocf`, whatever its data field holds and before
 its packets are read. A frame with synchronization flag `1` still
-publishes its OCF; only its data field is dropped (logged).
+publishes its OCF; only its data field, and any packet in progress, is
+dropped (logged).
 
 **Per virtual channel**: the decoder keeps a packet in progress and the
 last virtual channel frame count, separately for each SCID and VCID.
@@ -96,8 +97,9 @@ it exactly, the packet is published. If they leave it incomplete and no
 packet starts in the frame, it stays in progress. Otherwise the frame
 contradicts the packet's length field, either because a packet starts
 before it's complete or because it ends with bytes left over and no
-packet start after them. The packet is then discarded and logged, and
-decoding continues at the First Header Pointer.
+packet start after them. An idle-only frame (`11111111110`) contradicts
+it too. The packet is then discarded and logged, and decoding continues
+at the First Header Pointer.
 
 **Starting packets**: without a packet in progress, the bytes before the
 First Header Pointer are the end of a packet whose start wasn't received,
@@ -113,7 +115,9 @@ packet in progress.
 **Packets that can't be delimited**: a version other than `111` or
 `000`, or an encapsulation `packet_length` shorter than its header, gives
 no usable length. The rest of the data field is dropped and logged, and
-decoding resumes at the next frame's First Header Pointer.
+decoding resumes at the next frame's First Header Pointer. A First Header
+Pointer beyond the data field drops the data field and any packet in
+progress (logged).
 
 **Error handling** (catch-log-drop,
 [ADR-0003](../adr/0003-message-handler-error-policy.md)): a non-PDU, a
