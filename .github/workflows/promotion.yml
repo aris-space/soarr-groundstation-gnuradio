@@ -1,0 +1,31 @@
+# Checks that a pull request into a protected branch comes from the
+# allowed branch (docs/development.md, "Branches"). Its job,
+# source-branch, is a required status check on testing and main. It is a
+# workflow of its own, triggered by pull requests only: a job skipped on a
+# push would count as passed for the required check.
+name: promotion
+
+on:
+  pull_request:
+    branches: [testing, main]
+
+permissions: {}
+
+jobs:
+  source-branch:
+    name: source-branch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check the pull request's source branch
+        env:  # passed as variables, never pasted into the script
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+        run: |
+          case "$BASE:$HEAD" in
+            testing:release/*|main:testing)
+              echo "$HEAD -> $BASE is allowed." ;;
+            *)
+              echo "::error::Pull requests into testing come from release/X.Y.Z, into main from testing; got $HEAD -> $BASE."
+              exit 1 ;;
+          esac

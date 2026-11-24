@@ -144,12 +144,15 @@ environment with the GNU Radio and gr-satellites versions radioconda has
 early warning, and on every pull request into `testing` and `main`; it
 can also be started by hand from the Actions tab.
 
-On pull requests a second job, `source-branch`, checks where the pull
-request comes from: into `testing` only from `release/X.Y.Z`, into `main`
-only from `testing` (see [Branches](#branches)). Both jobs, `pytest` and
-`source-branch`, are required status checks on `testing` and `main`, so
-neither can be merged into unless all tests pass and the source branch is
-the right one.
+[`.github/workflows/promotion.yml`](../.github/workflows/promotion.yml)
+runs only on pull requests into `testing` and `main`. Its job,
+`source-branch`, checks where the pull request comes from: into `testing`
+only from `release/X.Y.Z`, into `main` only from `testing` (see
+[Branches](#branches)). It is a workflow of its own because GitHub counts
+a skipped job as passed: as a skipped job on pushes it would let any pull
+request through. Both jobs, `pytest` and `source-branch`, are required
+status checks on `testing` and `main`, so neither can be merged into
+unless all tests pass and the source branch is the right one.
 
 ## WSL/Linux one-shot rebuild: `install_gr_soarr.sh`
 
