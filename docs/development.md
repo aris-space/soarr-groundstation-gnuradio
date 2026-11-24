@@ -135,6 +135,22 @@ VS Code's Test Explorer and the command-line invocation agree.
 `cmake.ctest.testExplorerIntegrationEnabled: false` keeps CMake Tools'
 CTest tree out of the same Testing panel, so it shows pytest only.
 
+### On GitHub
+
+[`.github/workflows/tests.yml`](../.github/workflows/tests.yml) runs the
+same `pytest` on a GitHub-hosted Ubuntu runner, in a conda-forge
+environment with the GNU Radio and gr-satellites versions radioconda has
+(3.10.12, 5.9.0). It runs on every push to `dev` and `release/**`, as an
+early warning, and on every pull request into `testing` and `main`; it
+can also be started by hand from the Actions tab.
+
+On pull requests a second job, `source-branch`, checks where the pull
+request comes from: into `testing` only from `release/X.Y.Z`, into `main`
+only from `testing` (see [Branches](#branches)). Both jobs, `pytest` and
+`source-branch`, are required status checks on `testing` and `main`, so
+neither can be merged into unless all tests pass and the source branch is
+the right one.
+
 ## WSL/Linux one-shot rebuild: `install_gr_soarr.sh`
 
 `tools/install_gr_soarr.sh` is the WSL/Linux counterpart to
