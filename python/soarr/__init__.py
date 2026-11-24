@@ -45,6 +45,7 @@ from .sdls_authentication import sdls_authentication
 from .sdls_encryption import sdls_encryption
 from .inject_db import inject_db
 from .sdls_header import sdls_header
+from .sdls_header_parser import sdls_header_parser
 from .encapsulation_header import encapsulation_header
 from .encapsulation_parser import encapsulation_parser
 from .ccsds_reader import ccsds_reader

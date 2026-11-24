@@ -5,7 +5,7 @@ CCSDS Telecommand (TC) uplink for ARIS's SOARR mission: encode, secure,
 frame, and transmit a telecommand on TX, and detect, correct, verify, and
 decrypt it again on RX.
 
-All 32 blocks are pure Python and appear in GNU Radio Companion under the
+All 33 blocks are pure Python and appear in GNU Radio Companion under the
 **[Soarr]** category: TC (Telecommand), by function (Frame, Randomizer,
 BCH, CLTU, PLOP), TM (Telemetry), by function (Frame, Randomizer, CADU),
 Common (shared by TC and TM: SDLS, Encapsulation, Key Database, Burst),
@@ -105,6 +105,7 @@ description.
 | `cltu_deframer` | TC CLTU Deframer | TC / CLTU | Finds CLTUs in the received stream |
 | `ccsds_receiver` | TC Frame Receiver | TC / Frame | BCH-corrects, de-randomizes, and reassembles TC transfer frames |
 | `ccsds_reader` | TC Frame Parser | TC / Frame | Parses a reassembled frame into its header fields and payload |
+| `sdls_header_parser` | SDLS Header Parser | Common / SDLS | Reads and strips the SDLS security header (SPI + IV) into the metadata, for chains without `ccsds_reader` such as TM |
 | `sdls_authentication_verify` | SDLS MAC Verifier | Common / SDLS | Verifies and strips the AES-CMAC tag |
 | `sdls_decryption` | SDLS Decryption | Common / SDLS | Decrypts the payload with AES-256-CTR |
 | `sdls_process` | SDLS Process | Common / SDLS | SDLS ProcessSecurity in one block: MAC verification, decryption, by SDLS mode |

@@ -32,6 +32,7 @@ gr_python_install(FILES __init__.py
     sdls_encryption.py
     inject_db.py
     sdls_header.py
+    sdls_header_parser.py
     sdls_constants.py
     encapsulation_header.py
     encapsulation_packet.py
@@ -121,6 +122,8 @@ GR_ADD_TEST(qa_sdls_authentication_round_trip ${PYTHON_EXECUTABLE} ${CMAKE_CURRE
 GR_ADD_TEST(qa_sdls_rx_chain ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_sdls_rx_chain.py)
 GR_ADD_TEST(qa_sdls_apply ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_sdls_apply.py)
 GR_ADD_TEST(qa_sdls_process ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_sdls_process.py)
+GR_ADD_TEST(qa_sdls_header_parser ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_sdls_header_parser.py)
+GR_ADD_TEST(qa_tm_sdls_chain ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tm_sdls_chain.py)
 GR_ADD_TEST(qa_key_database ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_key_database.py)
 GR_ADD_TEST(qa_tc_frame_encoder ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tc_frame_encoder.py)
 GR_ADD_TEST(qa_tc_frame_decoder ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tc_frame_decoder.py)

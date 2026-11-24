@@ -18,6 +18,7 @@ install(FILES
     soarr_sdls_encryption.block.yml
     soarr_inject_db.block.yml
     soarr_sdls_header.block.yml
+    soarr_sdls_header_parser.block.yml
     soarr_encapsulation_header.block.yml
     soarr_encapsulation_parser.block.yml
     soarr_ccsds_reader.block.yml
