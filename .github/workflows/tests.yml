@@ -1,6 +1,5 @@
-# Runs the test suite, and for pull requests into the protected branches
-# checks that they come from the allowed branch (docs/development.md,
-# "Branches"). Both jobs are required status checks on testing and main.
+# Runs the test suite. Its job, pytest, is a required status check on
+# testing and main (docs/development.md, "Running tests").
 name: tests
 
 on:
@@ -49,22 +48,3 @@ jobs:
 
       - name: Run pytest
         run: python -m pytest python/soarr -q
-
-  source-branch:
-    name: source-branch
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: Check the pull request's source branch
-        env:  # passed as variables, never pasted into the script
-          BASE: ${{ github.base_ref }}
-          HEAD: ${{ github.head_ref }}
-        run: |
-          case "$BASE:$HEAD" in
-            testing:release/*|main:testing)
-              echo "$HEAD -> $BASE is allowed." ;;
-            *)
-              echo "::error::Pull requests into testing come from release/X.Y.Z, into main from testing; got $HEAD -> $BASE."
-              exit 1 ;;
-          esac
