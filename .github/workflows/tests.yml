@@ -25,11 +25,11 @@ jobs:
       run:
         shell: bash -el {0}  # login shell, so the micromamba environment is active
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The same packages as radioconda (conda-forge), pinned to the
       # versions the suite is developed against.
-      - uses: mamba-org/setup-micromamba@v2
+      - uses: mamba-org/setup-micromamba@v3
         with:
           environment-name: soarr
           condarc: |
