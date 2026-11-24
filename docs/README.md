@@ -17,7 +17,7 @@ development setup, and the decision records and PRDs that back them.
    - [0005 — RX path canonical block](adr/0005-rx-path-canonical-block.md)
    - [0006 — Rename gr-sage to gr-soarr](adr/0006-rename-sage-to-soarr.md)
    - [0007 — GRC block tree, labels, and hierarchical blocks](adr/0007-grc-block-tree-and-labels.md)
-5. `prd/` — one requirements doc per block (31 total, written in
+5. `prd/` — one requirements doc per block (32 total, written in
    signal-flow order):
    - [encapsulation_header](prd/encapsulation_header.md)
    - [sdls_encryption](prd/sdls_encryption.md)
@@ -50,6 +50,7 @@ development setup, and the decision records and PRDs that back them.
    - [tm_frame_generator](prd/tm_frame_generator.md) (TM)
    - [tm_randomizer](prd/tm_randomizer.md) (TM)
    - [tm_cadu_framer](prd/tm_cadu_framer.md) (TM)
+   - [tm_frame_decoder](prd/tm_frame_decoder.md) (TM)
 
 Open bugs, design questions, and test-coverage gaps are tracked as
 [GitHub issues](https://github.com/aris-space/soarr-groundstation-gnuradio/issues).
