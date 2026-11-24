@@ -68,3 +68,7 @@ CONTEXT.md
 
 # Per-developer CMake presets (local toolchain paths)
 CMakeUserPresets.json
+
+# Type stubs for GNU Radio's compiled modules, generated per developer
+# from the local GNU Radio version (docs/development.md, "Dependencies")
+typings/

@@ -253,6 +253,26 @@ The TM chain also needs [gr-satellites](https://github.com/daniestevez/gr-satell
 pins the behaviour the TM chain relies on and is skipped where
 gr-satellites is missing; the TC chain does not use it.
 
+### Type stubs for VS Code
+
+`pmt` and GNU Radio's `gr`, `blocks`, `digital` and `pdu` are compiled
+modules (`.pyd`/`.so`). Pylance reads source code only, so without stubs
+it reports every call into them as an unknown attribute
+(`reportAttributeAccessIssue`, e.g. `"intern" is not a known attribute
+of module "pmt"`), although the code runs. Generate stubs once per
+environment into `typings/`, where Pylance looks for them by default:
+
+```powershell
+conda activate radioconda
+pip install pybind11-stubgen
+pybind11-stubgen pmt gnuradio.gr gnuradio.blocks gnuradio.digital gnuradio.pdu -o typings
+```
+
+The `ERROR` lines it prints about C++ types such as `gr::message` are
+harmless: those few functions just get no exact type. Regenerate the
+stubs after updating GNU Radio. `typings/` is not committed: the stubs
+come from the local GNU Radio version.
+
 ## Branches
 
 ```
