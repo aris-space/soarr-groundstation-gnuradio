@@ -186,7 +186,7 @@ class qa_cltu_burst_builder(gr_unittest.TestCase):
         generator, framer = tm_frame_generator(frame_length=223), tm_cadu_framer()
         frames = []
         generator.message_port_pub = lambda port, m: frames.append(m)
-        generator.build_frames(self._pdu(bytes(500)))
+        generator.build_frames(self._pdu(bytes.fromhex("fe0001f4") + bytes(496)))  # a 500-byte encapsulation packet
         cadus = []
         framer.message_port_pub = lambda port, m: cadus.append(m)
         for frame in frames:

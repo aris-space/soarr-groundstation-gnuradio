@@ -23,6 +23,25 @@ IDLE = 0xE0  # CCSDS 133.1-B: a one-byte Encapsulation Idle Packet
 NO_PACKET_START = 0x7FF  # 132.0-B-3 4.1.2.7.6.4
 
 
+def _packet(length, start=0):
+    """An encapsulation packet (CCSDS 133.1-B, version 111, protocol ID
+    111) of length bytes in total, header included, with the smallest
+    header that holds the length; length is at least 2."""
+    if length <= 0xFF:
+        header = bytes([0xFD, length])
+    elif length <= 0xFFFF:
+        header = bytes([0xFE, 0x00]) + length.to_bytes(2, "big")
+    else:
+        header = bytes([0xFF, 0x00, 0x00, 0x00]) + length.to_bytes(4, "big")
+    return header + bytes((start + i) % 251 for i in range(length - len(header)))
+
+
+def _space_packet(data_length):
+    """A Space Packet (CCSDS 133.0-B-2, version 000): 6-byte primary
+    header with APID 0x64, packet data length field data_length - 1."""
+    return bytes([0x08, 0x64, 0xC0, 0x00]) + (data_length - 1).to_bytes(2, "big") + bytes(i % 256 for i in range(data_length))
+
+
 def _crc16(data):
     """CRC-16/CCITT-FALSE bit by bit (132.0-B-3 4.1.6.2), independent of
     the GNU Radio CRC the block uses."""
@@ -80,7 +99,7 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
     # for packets: synchronization flag 0, packet order flag 0, segment
     # length identifier 11 (4.1.2.7.3-4.1.2.7.5).
     def test_001_primary_header(self):
-        (frame,) = self._run(tm_frame_generator(scid=0x2AB, vcid=5), self._pdu(bytes(10)))
+        (frame,) = self._run(tm_frame_generator(scid=0x2AB, vcid=5), self._pdu(_packet(10)))
         self.assertEqual(_header(self._payload(frame)), {
             "version": 0, "scid": 0x2AB, "vcid": 5, "ocf_flag": 0, "mc_count": 0, "vc_count": 0,
             "secondary_header_flag": 0, "sync_flag": 0, "packet_order_flag": 0,
@@ -90,7 +109,7 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
     # A packet shorter than the data field: one frame of frame_length
     # bytes, the rest filled with Encapsulation Idle Packets (4.2.2.5).
     def test_002_one_frame_filled_with_idle_packets(self):
-        packet = bytes(range(1, 11))
+        packet = _packet(10)
         (frame,) = self._run(tm_frame_generator(frame_length=223), self._pdu(packet))
         payload = self._payload(frame)
         self.assertEqual(len(payload), 223)
@@ -102,7 +121,7 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
     # all ones where only its continuation is, and the first idle packet in
     # the last frame (4.1.2.7.6). burst_more marks every frame but the last.
     def test_003_split_across_frames(self):
-        packet = bytes(i % 251 for i in range(500))
+        packet = _packet(500)
         frames = self._run(tm_frame_generator(frame_length=223), self._pdu(packet))
         self.assertEqual(len(frames), 3)
         payloads = [self._payload(f) for f in frames]
@@ -114,39 +133,39 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
     # Exactly filling its frames, a packet needs no idle packets, so no
     # packet starts in the last frame.
     def test_004_exact_fit_has_no_fill(self):
-        packet = bytes(i % 7 for i in range(2 * 217))
+        packet = _packet(2 * 217)
         frames = self._run(tm_frame_generator(frame_length=223), self._pdu(packet))
         payloads = [self._payload(f) for f in frames]
         self.assertEqual([_header(p)["fhp"] for p in payloads], [0, NO_PACKET_START])
         self.assertEqual(b"".join(p[6:] for p in payloads), packet)
-        (single,) = self._run(tm_frame_generator(frame_length=223), self._pdu(bytes(217)))
-        self.assertEqual(self._payload(single)[6:], bytes(217))
+        (single,) = self._run(tm_frame_generator(frame_length=223), self._pdu(_packet(217)))
+        self.assertEqual(self._payload(single)[6:], _packet(217))
 
     # Both counts run modulo 256 over all frames of the block (4.1.2.5,
     # 4.1.2.6); the VC count is kept per virtual channel, the MC count per
     # spacecraft.
     def test_005_frame_counts(self):
         block = tm_frame_generator(frame_length=20)  # 14-byte data field
-        headers = [_header(self._payload(f)) for f in self._run(block, self._pdu(bytes(30)))]
+        headers = [_header(self._payload(f)) for f in self._run(block, self._pdu(_packet(30)))]
         self.assertEqual([(h["mc_count"], h["vc_count"]) for h in headers], [(0, 0), (1, 1), (2, 2)])
 
-        (frame,) = self._run(block, self._pdu(bytes(1), self._meta(vcid=3)))
+        (frame,) = self._run(block, self._pdu(_packet(2), self._meta(vcid=3)))
         self.assertEqual((_header(self._payload(frame))["mc_count"], _header(self._payload(frame))["vc_count"]), (3, 0))
-        (frame,) = self._run(block, self._pdu(bytes(1)))
+        (frame,) = self._run(block, self._pdu(_packet(2)))
         self.assertEqual((_header(self._payload(frame))["mc_count"], _header(self._payload(frame))["vc_count"]), (4, 3))
-        (frame,) = self._run(block, self._pdu(bytes(1), self._meta(scid=7)))
+        (frame,) = self._run(block, self._pdu(_packet(2), self._meta(scid=7)))
         self.assertEqual((_header(self._payload(frame))["mc_count"], _header(self._payload(frame))["vc_count"]), (0, 0))
 
-        counts = [_header(self._payload(f))["vc_count"] for f in self._run(block, self._pdu(bytes(14 * 260)))]
+        counts = [_header(self._payload(f))["vc_count"] for f in self._run(block, self._pdu(_packet(14 * 260)))]
         self.assertEqual(counts, [(4 + i) % 256 for i in range(260)])
-        (frame,) = self._run(block, self._pdu(bytes(1)))  # the wrap carries over to the next PDU
+        (frame,) = self._run(block, self._pdu(_packet(2)))  # the wrap carries over to the next PDU
         self.assertEqual(_header(self._payload(frame))["vc_count"], (4 + 260) % 256)
 
     # SCID and VCID from the metadata replace the block's; the metadata is
     # passed on, with burst_more added.
     def test_006_metadata_overrides_scid_vcid_and_is_kept(self):
         meta = self._meta(scid=0x3FF, vcid=7, frame=12)
-        (frame,) = self._run(tm_frame_generator(scid=1, vcid=1), self._pdu(bytes(5), meta))
+        (frame,) = self._run(tm_frame_generator(scid=1, vcid=1), self._pdu(_packet(5), meta))
         header = _header(self._payload(frame))
         self.assertEqual((header["scid"], header["vcid"]), (0x3FF, 7))
         self.assertTrue(pmt.equal(pmt.dict_delete(pmt.car(frame), pmt.intern("burst_more")), meta))
@@ -155,15 +174,16 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
     # the header (4.1.2.4); the metadata may carry a new value per PDU.
     def test_007_operational_control_field(self):
         block = tm_frame_generator(frame_length=30, ocf=True, ocf_value=0x01020304)
-        (frame,) = self._run(block, self._pdu(bytes([9]) * 5))
+        packet = _packet(5)
+        (frame,) = self._run(block, self._pdu(packet))
         payload = self._payload(frame)
         self.assertEqual(len(payload), 30)
         self.assertEqual(_header(payload)["ocf_flag"], 1)
-        self.assertEqual(payload[6:26], bytes([9]) * 5 + bytes([IDLE]) * 15)
+        self.assertEqual(payload[6:26], packet + bytes([IDLE]) * 15)
         self.assertEqual(payload[26:], bytes.fromhex("01020304"))
-        (frame,) = self._run(block, self._pdu(bytes(5), self._meta(ocf=pmt.from_uint64(0xA1B2C3D4))))
+        (frame,) = self._run(block, self._pdu(_packet(5), self._meta(ocf=pmt.from_uint64(0xA1B2C3D4))))
         self.assertEqual(self._payload(frame)[26:], bytes.fromhex("A1B2C3D4"))
-        (frame,) = self._run(block, self._pdu(bytes(5), self._meta(ocf=0x7FFFFFFF)))  # a pmt long works too
+        (frame,) = self._run(block, self._pdu(_packet(5), self._meta(ocf=0x7FFFFFFF)))  # a pmt long works too
         self.assertEqual(self._payload(frame)[26:], bytes.fromhex("7FFFFFFF"))
 
     # Secondary header: identification byte (version 00, total length
@@ -171,13 +191,14 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
     # metadata may carry new data of the same length per PDU.
     def test_008_secondary_header(self):
         block = tm_frame_generator(frame_length=30, secondary_header=True, secondary_header_data="AABBCC")
-        (frame,) = self._run(block, self._pdu(bytes([1]) * 3))
+        packet = _packet(3)
+        (frame,) = self._run(block, self._pdu(packet))
         payload = self._payload(frame)
         self.assertEqual(_header(payload)["secondary_header_flag"], 1)
         self.assertEqual(payload[6:10], bytes([0b00_000011]) + bytes.fromhex("AABBCC"))
-        self.assertEqual(payload[10:], bytes([1]) * 3 + bytes([IDLE]) * 17)
+        self.assertEqual(payload[10:], packet + bytes([IDLE]) * 17)
         self.assertEqual(_header(payload)["fhp"], 0)  # counted from the data field
-        (frame,) = self._run(block, self._pdu(bytes(3), self._meta(secondary_header=bytes.fromhex("010203"))))
+        (frame,) = self._run(block, self._pdu(_packet(3), self._meta(secondary_header=bytes.fromhex("010203"))))
         self.assertEqual(self._payload(frame)[7:10], bytes.fromhex("010203"))
 
     # The FECF is the last 2 bytes: CRC-16/CCITT-FALSE over everything
@@ -186,7 +207,8 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
         self.assertEqual(_crc16(b"123456789"), 0x29B1)  # the CRC's check value
         block = tm_frame_generator(frame_length=40, fecf=True, ocf=True, ocf_value=0x11223344,
                                    secondary_header=True, secondary_header_data="55")
-        frames = self._run(block, self._pdu(bytes(range(40))))
+        packet = _packet(40)
+        frames = self._run(block, self._pdu(packet))
         self.assertEqual(len(frames), 2)  # data field: 40 - 6 - 2 - 4 - 2 = 26 bytes
         for frame in frames:
             payload = self._payload(frame)
@@ -195,19 +217,19 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
             self.assertEqual(payload[34:38], bytes.fromhex("11223344"))
             self.assertEqual(int.from_bytes(payload[38:], "big"), _crc16(payload[:38]))
         data = b"".join(self._payload(f)[8:34] for f in frames)
-        self.assertEqual(data, bytes(range(40)) + bytes([IDLE]) * 12)
+        self.assertEqual(data, packet + bytes([IDLE]) * 12)
         self.assertEqual([_header(self._payload(f))["fhp"] for f in frames], [0, 14])
 
     def test_010_malformed_input_is_dropped(self):
         block = tm_frame_generator(ocf=True, secondary_header=True, secondary_header_data="0000")
         for msg in (pmt.intern("not a pdu"), pmt.cons(pmt.intern("no dict"), pmt.init_u8vector(1, [0])),
                     pmt.cons(pmt.make_dict(), pmt.intern("not bytes")), self._pdu(b""),
-                    self._pdu(bytes(1), self._meta(scid=0x400)), self._pdu(bytes(1), self._meta(vcid=8)),
-                    self._pdu(bytes(1), self._meta(vcid=pmt.intern("x"))),
-                    self._pdu(bytes(1), self._meta(ocf=pmt.from_uint64(1 << 32))),
-                    self._pdu(bytes(1), self._meta(secondary_header=bytes(3)))):
+                    self._pdu(_packet(2), self._meta(scid=0x400)), self._pdu(_packet(2), self._meta(vcid=8)),
+                    self._pdu(_packet(2), self._meta(vcid=pmt.intern("x"))),
+                    self._pdu(_packet(2), self._meta(ocf=pmt.from_uint64(1 << 32))),
+                    self._pdu(_packet(2), self._meta(secondary_header=bytes(3)))):
             self.assertEqual(self._run(block, msg), [], str(msg))
-        (frame,) = self._run(block, self._pdu(bytes(1)))
+        (frame,) = self._run(block, self._pdu(_packet(2)))
         self.assertEqual(_header(self._payload(frame))["mc_count"], 0)  # dropped PDUs used no counts
 
     def test_011_publish_failure_is_dropped_not_raised(self):
@@ -217,7 +239,7 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
             raise RuntimeError("simulated publish failure")
 
         block.message_port_pub = _raise
-        block.build_frames(self._pdu(bytes(10)))  # must not raise
+        block.build_frames(self._pdu(_packet(10)))  # must not raise
 
     def test_012_invalid_settings_raise(self):
         for kwargs in ({"scid": 0x400}, {"scid": -1}, {"vcid": 8}, {"frame_length": 6},
@@ -242,7 +264,7 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
         tb.msg_connect((generator, "out"), (rs, "in"))
         tb.msg_connect((rs, "out"), (sink, "store"))
         tb.start()
-        generator.to_basic_block()._post(pmt.intern("in"), self._pdu(bytes(300)))
+        generator.to_basic_block()._post(pmt.intern("in"), self._pdu(_packet(300)))
         deadline = time.time() + 2.0
         while sink.num_messages() < 2 and time.time() < deadline:
             time.sleep(0.01)
@@ -251,6 +273,29 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
         codeblocks = [sink.get_message(i) for i in range(sink.num_messages())]
         self.assertEqual([len(self._payload(c)) for c in codeblocks], [255, 255])
         self.assertEqual([self._burst_more(c) for c in codeblocks], [True, False])
+
+    # The receiver finds where a packet ends only from its length field,
+    # so the payload must be one encapsulation packet or Space Packet whose
+    # length field gives the PDU length; anything else is dropped.
+    def test_014_only_one_delimitable_packet_is_accepted(self):
+        block = tm_frame_generator(frame_length=223)
+        for packet in (_packet(2), _packet(255), _packet(256), _packet(0x10000), _space_packet(1),
+                       _space_packet(300)):
+            frames = self._run(block, self._pdu(packet))
+            self.assertEqual(b"".join(self._payload(f)[6:] for f in frames)[:len(packet)], packet, len(packet))
+
+        block = tm_frame_generator(frame_length=223)
+        for payload in (bytes(10),                      # version 000, length field gives 7
+                        bytes([0x40]) + bytes(9),       # version 010: no known length field
+                        _packet(10)[:-1],               # shorter than its length field
+                        _packet(10) + bytes(1),         # longer than its length field
+                        _packet(10) + _packet(5),       # two packets: the second would start unmarked
+                        bytes([0xFE, 0x00, 0x00]),      # header cut short
+                        _space_packet(4)[:-1], _space_packet(4) + bytes(1),
+                        _space_packet(4)[:5]):          # Space Packet header cut short
+            self.assertEqual(len(self._run(block, self._pdu(payload))), 0, payload.hex())
+        (frame,) = self._run(block, self._pdu(_packet(2)))
+        self.assertEqual(_header(self._payload(frame))["mc_count"], 0)  # dropped PDUs used no counts
 
 
 if __name__ == '__main__':

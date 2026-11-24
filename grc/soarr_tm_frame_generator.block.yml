@@ -77,7 +77,7 @@ documentation: |-
   FECF: CRC-16/CCITT over the whole frame, as on TC; usually off with Reed-Solomon.
 
   Ports:
-  - in: one packet per PDU, e.g. from Encapsulation Header Adder.
+  - in: one packet per PDU, an encapsulation packet (e.g. from Encapsulation Header Adder) or a Space Packet, exactly as long as its length field; anything else is dropped, since the receiver finds the end of a packet only from that field.
   - out: one frame per PDU, in order, for the Reed-Solomon encoder (gr-satellites), TM Randomizer and TM CADU Framer.
 
 file_format: 1

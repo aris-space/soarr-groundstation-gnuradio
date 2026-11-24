@@ -26,7 +26,7 @@ burst.
 
 | Port | Direction | PMT shape | Example |
 |---|---|---|---|
-| `in` | input | PDU: `(metadata_dict . u8vector)`, one packet (e.g. an encapsulation packet). Optional metadata: `scid`, `vcid`, `ocf` (integer; `ocf` above `0x7FFFFFFF` as `uint64`, since a PMT long is 32 bits on Windows), `secondary_header` (u8vector of the configured length) replace the block's values for this PDU. | `pmt.cons({vcid: 2}, u8vector(500 bytes))` |
+| `in` | input | PDU: `(metadata_dict . u8vector)`, one encapsulation packet or Space Packet, exactly as long as its length field. Optional metadata: `scid`, `vcid`, `ocf` (integer; `ocf` above `0x7FFFFFFF` as `uint64`, since a PMT long is 32 bits on Windows), `secondary_header` (u8vector of the configured length) replace the block's values for this PDU. | `pmt.cons({vcid: 2}, u8vector(500 bytes))` |
 | `out` | output | One PDU per frame, `frame_length` bytes, in order; the input metadata plus `burst_more` (bool). | `pmt.cons({vcid: 2, burst_more: #t}, u8vector(223 bytes))` |
 
 ## Parameters
@@ -56,6 +56,17 @@ packets: secondary header flag, synchronization flag `0`, packet order
 flag `0`, segment length identifier `11` (4.1.2.7.3–4.1.2.7.5), and the
 First Header Pointer.
 
+**Packet check**: the payload must be one packet whose length field
+gives the PDU length: an encapsulation packet (version `111`, CCSDS
+133.1-B, `packet_length`) or a Space Packet (version `000`, CCSDS
+133.0-B-2, the 6-byte primary header plus the packet data length field
+plus 1). The receiver finds where a packet ends only from that field, so
+any other payload is dropped: another version, a length field that
+doesn't match, a header cut short, or several packets back to back,
+since the First Header Pointer would mark only the first.
+`packet_header_length` and `packet_length` are module functions, for the
+receiver to use the same rules.
+
 **Splitting and fill**: the packet is split across as many frames as it
 needs (4.2.2.2); the space left in the last frame is filled with
 one-byte Encapsulation Idle Packets, `0xE0` (CCSDS 133.1-B; allowed by
@@ -78,7 +89,7 @@ no counts.
 non-dict metadata, a non-u8vector or empty payload, a metadata override
 out of range, of the wrong type, or (for `secondary_header`) of another
 length than configured, or any failure while building or publishing, is
-dropped and logged at `error` — a TX block, not exposed to raw RF data
+dropped and logged at `error`, as is a payload failing the packet check — a TX block, not exposed to raw RF data
 ([coding-standards.md](../coding-standards.md)). If a publish fails
 partway, the frames already published stay sent.
 
@@ -93,15 +104,12 @@ the one-byte Encapsulation Idle Packet.
 
 ## Known issues / TODOs
 
-- Each PDU must hold exactly one packet: the First Header Pointer marks
-  only where the PDU starts, so a second packet concatenated into the
-  same PDU would start unmarked.
 - No OID frames: the block sends frames only for PDUs, never on a timer.
 
 ## Test coverage
 
-- `python/soarr/qa_tm_frame_generator.py` — 13 test methods
-  (`test_001`–`test_013`): the primary header fields decoded bit by bit
+- `python/soarr/qa_tm_frame_generator.py` — 14 test methods
+  (`test_001`–`test_014`): the primary header fields decoded bit by bit
   (`test_001`), a short packet in one idle-filled frame (`test_002`),
   splitting with the First Header Pointer and `burst_more` per frame
   (`test_003`), an exact fit without fill (`test_004`), the frame counts
@@ -115,4 +123,6 @@ the one-byte Encapsulation Idle Packet.
   (`test_010`), a publish failure caught (`test_011`), invalid settings
   raising (`test_012`), and 223-byte frames through gr-satellites'
   Reed-Solomon encoder with the burst marker kept (`test_013`, skipped
-  without gr-satellites).
+  without gr-satellites), and only one encapsulation packet or Space
+  Packet as long as its length field accepted, every other payload
+  dropped without using counts (`test_014`).

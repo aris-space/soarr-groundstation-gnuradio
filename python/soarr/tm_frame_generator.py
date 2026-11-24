@@ -9,6 +9,7 @@
 from gnuradio import digital, gr
 import pmt
 
+from .encapsulation_packet import PACKET_VERSION_NUMBER, header_length, parse_header
 from .tc_frame_encoder import FECF_CRC
 
 SCID_MAX = 0x3FF  # 10 bits
@@ -22,7 +23,49 @@ FRAME_LENGTH_MAX = 2048  # bytes; keeps every data field offset below the reserv
 FHP_NO_PACKET_START = 0x7FF  # 132.0-B-3 4.1.2.7.6.4
 SEGMENT_LENGTH_ID = 0b11     # 132.0-B-3 4.1.2.7.5.2, synchronization flag 0
 IDLE_PACKET = 0xE0  # CCSDS 133.1-B: a one-byte Encapsulation Idle Packet
+SPACE_PACKET_VERSION = 0b000  # CCSDS 133.0-B-2 4.1.3.2
+SPACE_PACKET_HEADER_BYTES = 6
 BURST_MORE = pmt.intern("burst_more")
+
+
+def packet_header_length(first_octet: int):
+    """
+    Args:
+        first_octet (int): the first byte of a packet.
+
+    Returns:
+        int or None: how many bytes of the packet hold its length - the
+            encapsulation header (CCSDS 133.1-B, version 111) or the Space
+            Packet primary header (133.0-B-2, version 000); None for any
+            other version.
+    """
+    version = first_octet >> 5
+    if version == PACKET_VERSION_NUMBER:
+        return header_length(first_octet & 0b11)
+    if version == SPACE_PACKET_VERSION:
+        return SPACE_PACKET_HEADER_BYTES
+    return None
+
+
+def packet_length(header: bytes):
+    """
+    Args:
+        header (bytes): the start of a packet, at least
+            packet_header_length bytes of it.
+
+    Returns:
+        int or None: the packet's total length in bytes, header included;
+            None if its version has no known length field or the length is
+            shorter than the header.
+    """
+    needed = packet_header_length(header[0])
+    if needed is None:
+        return None
+    if header[0] >> 5 == SPACE_PACKET_VERSION:
+        total = SPACE_PACKET_HEADER_BYTES + int.from_bytes(header[4:6], "big") + 1
+    else:
+        total = parse_header(header[:needed])["packet_length"] or 1  # the 1-byte idle packet has no length field
+    return total if total >= needed else None
 
 
 class tm_frame_generator(gr.basic_block):
@@ -30,6 +73,10 @@ class tm_frame_generator(gr.basic_block):
     Build CCSDS TM Transfer Frames (132.0-B-3) of a fixed length from one
     packet per PDU: primary header, optional secondary header, data field,
     optional Operational Control Field and Frame Error Control Field.
+
+    The packet is an encapsulation packet or a Space Packet whose length
+    field gives the PDU length: the receiver finds where it ends only from
+    that field.
 
     Each PDU is one burst: a packet longer than the data field is split
     across frames (4.2.2.2), the last frame filled with Encapsulation Idle
@@ -136,7 +183,8 @@ class tm_frame_generator(gr.basic_block):
         """
         Args:
             msg (pmt_pair): PDU with metadata dict and u8vector payload, one
-                packet (e.g. from Encapsulation Header Adder). Optional
+                encapsulation packet (e.g. from Encapsulation Header Adder)
+                or Space Packet, exactly as long as its length field. Optional
                 metadata: `scid`, `vcid`, `ocf` (int) and `secondary_header`
                 (u8vector of the configured length) replace the block's
                 values for this PDU.
@@ -149,6 +197,7 @@ class tm_frame_generator(gr.basic_block):
         Drops when:
             - msg is not a pair, its metadata not a dict, or its payload not a u8vector (error - malformed input at the TX boundary, not raw RF noise)
             - the payload is empty (error - same, nothing to send)
+            - the payload isn't one encapsulation packet or Space Packet exactly as long as its length field (error - same; the receiver couldn't find where it ends)
             - a metadata override is out of range or of the wrong type or length (error - same)
             - building or publishing fails (error - same); frames already published stay sent
         """
@@ -160,6 +209,11 @@ class tm_frame_generator(gr.basic_block):
             packet = bytes(pmt.u8vector_elements(pmt.cdr(msg)))
             if not packet:
                 self.logger.error("Received an empty PDU; nothing to send.")
+                return
+            needed = packet_header_length(packet[0])
+            if needed is None or len(packet) < needed or packet_length(packet) != len(packet):
+                self.logger.error(f"Payload ({len(packet)} bytes) is not one encapsulation packet or Space Packet "
+                                  f"as long as its length field; dropped.")
                 return
 
             scid = self._metadata_int(meta, "scid", self.scid, SCID_MAX)
