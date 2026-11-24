@@ -6,6 +6,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
+from typing import TypedDict
+
 from gnuradio import digital, gr
 
 from .bch_encoder import bch_encoder
@@ -13,10 +15,22 @@ from .cltu_framer import cltu_framer
 from .lfsr_scrambler import lfsr_scrambler
 from .tc_primary_header import tc_primary_header
 
+
+class CrcParameters(TypedDict):
+    """The arguments of digital.crc, crc_append and crc_check, by name."""
+    num_bits: int
+    poly: int
+    initial_value: int
+    final_xor: int
+    input_reflected: bool
+    result_reflected: bool
+    swap_endianness: bool
+
+
 # CCSDS 232.0-B FECF: CRC-16/CCITT, preset all ones, no final XOR
 # (CRC-16/CCITT-FALSE), as digital.crc_append/crc_check arguments.
-FECF_CRC = dict(num_bits=16, poly=0x1021, initial_value=0xFFFF, final_xor=0x0000,
-                input_reflected=False, result_reflected=False, swap_endianness=False)
+FECF_CRC: CrcParameters = {"num_bits": 16, "poly": 0x1021, "initial_value": 0xFFFF, "final_xor": 0x0000,
+                           "input_reflected": False, "result_reflected": False, "swap_endianness": False}
 
 
 class tc_frame_encoder(gr.hier_block2):
