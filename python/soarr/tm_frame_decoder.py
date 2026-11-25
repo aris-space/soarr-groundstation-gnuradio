@@ -108,7 +108,8 @@ class tm_frame_decoder(gr.basic_block):
         Drops when:
             - msg is not a pair, its metadata not a dict, or its payload not a u8vector (warn - right after the channel decoder, can be the link)
             - the frame is too short, its version or secondary header version isn't 00, or its FECF doesn't match (warn - same); its frame count isn't kept
-            - the frame is of another SCID or VCID with the filter on (silent)
+            - the frame is of another SCID or VCID with the filter on (debug - expected with a filter)
+            - its data field holds only idle data, or only the end of a packet whose start wasn't received (debug - expected after a loss or at start-up, which is logged where it is detected)
             - the synchronization flag is 1 (warn - same); the OCF is still published, the data field dropped
             - frames were lost, or the First Header Pointer contradicts the packet in progress (warn - same); the packet is discarded
             - a packet has no usable length field (warn - same); the rest of the data field is dropped
@@ -128,6 +129,7 @@ class tm_frame_decoder(gr.basic_block):
             scid = ((frame[0] & 0x3F) << 4) | (frame[1] >> 4)
             vcid = (frame[1] >> 1) & 0b111
             if (self.scid is not None and scid != self.scid) or (self.vcid is not None and vcid != self.vcid):
+                self.logger.debug(f"Frame of SCID {scid} VCID {vcid} filtered out; dropped.")
                 return
             fields = self._fields(frame)
             if fields is None:
@@ -217,9 +219,13 @@ class tm_frame_decoder(gr.basic_block):
             return
         if fhp == FHP_ONLY_IDLE_DATA:
             self._discard(channel, "only idle data in the next frame")
+            self.logger.debug(f"SCID {channel[0]} VCID {channel[1]}: frame of only idle data.")
             return
 
         partial = self._partials.pop(channel, None)
+        if partial is None and (no_start or fhp > 0):
+            self.logger.debug(f"SCID {channel[0]} VCID {channel[1]}: {len(data) if no_start else fhp} bytes end a "
+                              f"packet whose start wasn't received; dropped.")
         if partial is not None:
             partial.data += data[:len(data) if no_start else fhp]
             if not partial.update_total():

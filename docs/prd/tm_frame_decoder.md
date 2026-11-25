@@ -62,8 +62,8 @@ last two bytes. A frame failing any check is dropped. Its virtual channel
 frame count isn't taken over, so the next frame sees the gap.
 
 **SCID/VCID filter**: with a filter enabled, a frame of another SCID or
-VCID is dropped silently, before anything else is read from it: no OCF,
-no packets, no frame count kept.
+VCID is dropped (logged at `debug`), before anything else is read from
+it: no OCF, no packets, no frame count kept.
 
 **OCF**: a frame that passes the checks and filter and has the OCF flag
 set publishes its OCF on `ocf`, whatever its data field holds and before
@@ -104,8 +104,9 @@ at the First Header Pointer.
 **Starting packets**: without a packet in progress, the bytes before the
 First Header Pointer are the end of a packet whose start wasn't received,
 and are dropped. A frame with no packet start (`11111111111`) or only
-idle data (`11111111110`) has its data field dropped whole. Neither is
-logged, since any loss behind it already was. From the First Header
+idle data (`11111111110`) has its data field dropped whole. Both are
+logged at `debug` only, since any loss behind them was already logged
+where it was detected. From the First Header
 Pointer on, packets are read one after the other. Idle packets are
 skipped: an encapsulation packet with protocol ID `000` (such as the
 1-byte `0xE0`) and a Space Packet with APID `11111111111`. A packet, or
@@ -126,7 +127,9 @@ non-dict metadata or non-u8vector payload, a frame failing the checks
 above, lost frames, a discarded packet, or any failure while decoding or
 publishing is logged at `warn`. This block sits right after the channel
 decoder, and every one of these can be caused by the link
-([coding-standards.md](../coding-standards.md)). Packets and OCFs already
+([coding-standards.md](../coding-standards.md)). The expected drops —
+a filtered frame, a frame of only idle data, the end of a packet whose
+start wasn't received — are logged at `debug`. Packets and OCFs already
 published stay sent.
 
 ## CCSDS reference
@@ -151,7 +154,7 @@ None currently.
   with an exact fit and with fill, from `tm_frame_encoder` (`test_003`),
   a packet header split across two frames (`test_004`), an idle-only
   (`11111111110`) frame and a continuation without its start dropped
-  silently (`test_005`), a lost frame in the middle of a packet discarding
+  without a packet (`test_005`), a lost frame in the middle of a packet discarding
   it while the next packet comes through (`test_006`), a First Header
   Pointer contradicting the packet in progress (`test_007`), the secondary
   header read from its flag and published, and a wrong FECF dropped
