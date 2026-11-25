@@ -26,6 +26,9 @@ class sdls_header_parser(gr.basic_block):
     """
 
     def __init__(self):
+        """
+        Args: none.
+        """
         gr.basic_block.__init__(self, name="SDLS Header Parser", in_sig=None, out_sig=None)
         self.message_port_register_in(pmt.intern("in"))
         self.message_port_register_out(pmt.intern("out"))

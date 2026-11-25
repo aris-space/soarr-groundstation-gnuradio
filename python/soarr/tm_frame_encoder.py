@@ -110,9 +110,19 @@ class tm_frame_encoder(gr.basic_block):
         self.set_msg_handler(pmt.intern("in"), self.build_frames)
 
     def _metadata_int(self, meta, key, default, maximum):
-        """The integer (pmt long or uint64) under key, default if absent;
-        None (logged) if it isn't an integer in 0-maximum. A 4-byte OCF above
-        0x7FFFFFFF needs uint64: a pmt long is 32 bits on Windows."""
+        """
+        Args:
+            meta (pmt_dict): the input PDU's metadata.
+            key (str): the metadata key, e.g. "scid".
+            default (int): the block's own value, used when key is absent.
+            maximum (int): the largest value the field holds.
+
+        Returns:
+            int or None: the integer under key (a PMT long or uint64; a
+                4-byte OCF above 0x7FFFFFFF needs uint64, since a PMT long
+                is 32 bits on Windows), default if key is absent, or None
+                (logged at error) if it isn't an integer in 0-maximum.
+        """
         value = pmt.dict_ref(meta, pmt.intern(key), pmt.PMT_NIL)
         if pmt.eq(value, pmt.PMT_NIL):
             return default
@@ -124,8 +134,16 @@ class tm_frame_encoder(gr.basic_block):
         return number
 
     def _metadata_secondary_header(self, meta):
-        """The secondary header data from the metadata, the configured one if
-        absent; None (logged) if it isn't bytes of the configured length."""
+        """
+        Args:
+            meta (pmt_dict): the input PDU's metadata.
+
+        Returns:
+            bytes or None: the u8vector under "secondary_header", the
+                configured secondary header data if the key is absent, or
+                None (logged at error) if it isn't a u8vector of the
+                configured length (fixed per channel, 132.0-B-3 4.1.3.1.6).
+        """
         value = pmt.dict_ref(meta, pmt.intern("secondary_header"), pmt.PMT_NIL)
         if pmt.eq(value, pmt.PMT_NIL):
             return self._secondary_header_data

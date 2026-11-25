@@ -30,8 +30,13 @@ class _Partial:
         self.update_total()
 
     def update_total(self):
-        """Read the total length once the header is complete; False if the
-        header has no usable length."""
+        """
+        Read the total length into self.total once the header is complete.
+
+        Returns:
+            bool: False if the complete header has no usable length field,
+                True otherwise (also while the header is still incomplete).
+        """
         if self.total is None:
             needed = packet_header_length(self.data[0])
             if needed is not None and len(self.data) >= needed:
@@ -204,14 +209,24 @@ class tm_frame_decoder(gr.basic_block):
         return frame[start:end], secondary, ocf, (status >> 14) & 1, status & 0x7FF
 
     def _discard(self, channel, reason):
+        """Drop the packet in progress of channel, if any, logged at warn with reason."""
         partial = self._partials.pop(channel, None)
         if partial is not None:
             self.logger.warn(f"SCID {channel[0]} VCID {channel[1]}: {reason}; packet in progress "
                              f"({len(partial.data)} bytes) discarded.")
 
     def _extract(self, channel, data, fhp, meta):
-        """Continue the packet in progress with the bytes before the First
-        Header Pointer, then read the packets starting from it."""
+        """
+        Continue the packet in progress with the bytes before the First
+        Header Pointer, then read the packets starting from it.
+
+        Args:
+            channel (tuple[int, int]): the frame's (SCID, VCID).
+            data (bytes): the frame's data field.
+            fhp (int): the frame's First Header Pointer.
+            meta (pmt_dict): the metadata for packets starting in this
+                frame (see decode_frame's Publishes).
+        """
         no_start = fhp in (FHP_NO_PACKET_START, FHP_ONLY_IDLE_DATA)
         if not no_start and fhp >= len(data):
             self._discard(channel, f"First Header Pointer {fhp} beyond the data field")
@@ -258,7 +273,17 @@ class tm_frame_decoder(gr.basic_block):
             offset += total
 
     def _publish(self, packet, meta):
-        """Publish a complete packet on its port; idle packets are skipped."""
+        """
+        Publish a complete packet on its port; idle packets are skipped.
+
+        Args:
+            packet (bytes): one whole packet, header included.
+            meta (pmt_dict): the metadata of the frame it starts in.
+
+        Publishes:
+            "out" (pmt_pair): an encapsulation packet, (meta . u8vector).
+            "space_packets" (pmt_pair): a Space Packet, (meta . u8vector).
+        """
         if is_idle(packet):
             return
         port = SPACE_PACKETS if is_space_packet(packet[0]) else OUT
