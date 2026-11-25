@@ -12,8 +12,8 @@ removing its latency. On TM it is a CADU from
 consecutive CADUs (9.4.2), so a preamble belongs to the burst, not the
 CADU; the CADUs of one packet, marked by
 [tm_frame_encoder](tm_frame_encoder.md), go out together as one
-burst. GRC label **Burst Builder**, category `[Soarr]/Common/Burst`; the
-id stays `soarr_cltu_burst_builder`. See [architecture.md](../architecture.md).
+burst. GRC label **Burst Builder**, category `[Soarr]/Common/Burst`,
+block id `soarr_cltu_burst_builder`. See [architecture.md](../architecture.md).
 
 ## Pipeline position
 
@@ -53,7 +53,9 @@ Stream, and the modulator, and adds switchable PLOP-2.
 **Burst** (`build_burst`): concatenates the precomputed acquisition
 bytes, the PDU, and the precomputed tail, and publishes the result with
 the input metadata. A PDU without `burst_more` (or with it `False`) and
-nothing held gives one burst, its metadata unchanged — every TC CLTU.
+nothing held gives one burst with its metadata, `burst_more` removed if
+present — every TC CLTU, which carries no marker, comes out with its
+metadata unchanged.
 
 **Joined bursts**: a PDU with `burst_more` = `True` is held instead.
 The next PDU without it closes the burst: acquisition bytes, all held
@@ -61,8 +63,9 @@ PDUs and that PDU back to back, tail — one burst with the closing PDU's
 metadata, `burst_more` removed. On TM these are the CADUs of one packet,
 whose frames `tm_frame_encoder` marks. If `max_burst_pdus` PDUs are
 held and the marker is still set, they go out as a burst, logged at
-`warn`, and the PDUs after them start the next burst; nothing is held
-forever. A marker that is not a PMT boolean counts as absent.
+`warn`, and the PDUs after them start the next burst. There is no
+timeout: held PDUs wait for the next PDU, however long that takes. A
+marker that is not a PMT boolean counts as absent.
 
 **Why it removes the latency**: the stock `pdu_to_tagged_stream`
 produces stream items only when a burst arrives, so the stream carries
@@ -101,8 +104,13 @@ unit; `acquisition_idle_sequencer` the PLOP-2 stream.
 
 ## Known issues / TODOs
 
-None currently. Burst transmission over a real USRP is verified in the
-lab, not by the test suite.
+- Held PDUs have no timeout. If the PDU that closes a burst never
+  comes — e.g. `tm_frame_encoder` fails partway through a packet, after
+  publishing frames marked `burst_more` — they wait for the next PDU and
+  go out at the front of its burst.
+
+Burst transmission over a real USRP is verified in the lab, not by the
+test suite.
 
 ## Test coverage
 
