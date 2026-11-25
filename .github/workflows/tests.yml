@@ -27,8 +27,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The same packages as radioconda (conda-forge), pinned to the
-      # versions the suite is developed against.
+      # The same packages as radioconda (conda-forge). Python, GNU Radio and
+      # gr-satellites are pinned to the versions the suite is developed
+      # against; the pure-Python packages take conda-forge's current ones.
       - uses: mamba-org/setup-micromamba@v3
         with:
           environment-name: soarr
