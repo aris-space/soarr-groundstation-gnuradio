@@ -40,7 +40,7 @@ burst.
 | `secondary_header_data` | str | `"00"` | Its data field in hexadecimal, 1–63 bytes, used when the metadata carries none; only with `secondary_header`. Otherwise `ValueError`. GRC shows it only while the secondary header is enabled. |
 | `ocf` | bool | `False` | Adds a 4-byte Operational Control Field (4.1.5) and sets its flag. |
 | `ocf_value` | int | `0` | Its content (e.g. a CLCW), 0–`0xFFFFFFFF`, used when the metadata carries none; only with `ocf`. Otherwise `ValueError`. GRC shows it only while the OCF is enabled. |
-| `fecf` | bool | `False` | Adds the 2-byte FECF (4.1.6): CRC-16/CCITT-FALSE over the whole frame before it, the same CRC as the TC FECF (`FECF_CRC` in `tc_frame_encoder`). Usually off with Reed-Solomon. |
+| `fecf` | bool | `False` | Adds the 2-byte FECF (4.1.6): CRC-16/CCITT-FALSE over the whole frame before it, the same CRC as the TC FECF (`fecf.fecf_crc`). Usually off with Reed-Solomon. |
 
 ## Behavior / edge cases / current error handling
 
@@ -64,8 +64,9 @@ plus 1). The receiver finds where a packet ends only from that field, so
 any other payload is dropped: another version, a length field that
 doesn't match, a header cut short, or several packets back to back,
 since the First Header Pointer would mark only the first.
-`packet_header_length` and `packet_length` are module functions, for the
-receiver to use the same rules.
+The length rules are `tm_packets.packet_header_length` and
+`tm_packets.packet_length`, shared with `tm_frame_decoder`, so both
+delimit packets the same way.
 
 **Splitting and fill**: the packet is split across as many frames as it
 needs (4.2.2.2); the space left in the last frame is filled with

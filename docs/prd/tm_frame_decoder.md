@@ -44,7 +44,7 @@ them back.
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `fecf` | bool | `False` | Frames end with a 2-byte FECF. It is checked (CRC-16/CCITT-FALSE, `tc_frame_encoder.FECF_CRC`, as on TX) and removed before the data field is read. Must match the TX setting: the frame doesn't signal whether it has a FECF. |
+| `fecf` | bool | `False` | Frames end with a 2-byte FECF. It is checked (CRC-16/CCITT-FALSE, `fecf.fecf_crc`, as on TX) and removed before the data field is read. Must match the TX setting: the frame doesn't signal whether it has a FECF. |
 | `scid_filter_enable`, `scid` | bool, int | `False`, `0` | Keep only frames of this SCID. `scid` outside 10 bits (0–1023) raises `ValueError`. GRC shows `scid` only while the filter is enabled. |
 | `vcid_filter_enable`, `vcid` | bool, int | `False`, `0` | Keep only frames of this VCID. `vcid` outside 3 bits (0–7) raises `ValueError`. GRC shows `vcid` only while the filter is enabled. |
 
@@ -84,11 +84,11 @@ it is caught when the First Header Pointer contradicts the packet in
 progress, and otherwise goes unnoticed, as the frame count gives no more.
 
 **Packet length**: the first byte of a packet gives its version, and with
-it the length field. An encapsulation packet (`111`) is `packet_length`
-bytes in total, header included (`encapsulation_packet.parse_header`). A
-Space Packet (`000`) is its 6-byte primary header plus the packet data
-length field (bytes 4–5) plus 1. Either is published whole; nothing
-beyond the length is read from a Space Packet.
+it the length field (`tm_packets`, the rules `tm_frame_encoder` uses
+too). An encapsulation packet (`111`) is `packet_length` bytes in total,
+header included. A Space Packet (`000`) is its 6-byte primary header
+plus the packet data length field (bytes 4–5) plus 1. Either is
+published whole; nothing beyond the length is read from a Space Packet.
 
 **Continuing a packet**: with a packet in progress, the bytes of the
 data field before the First Header Pointer (all of it if the pointer is

@@ -36,6 +36,8 @@ gr_python_install(FILES __init__.py
     sdls_constants.py
     encapsulation_header.py
     encapsulation_packet.py
+    fecf.py
+    tm_packets.py
     encapsulation_parser.py
     ccsds_reader.py
     data_creator.py
@@ -108,6 +110,8 @@ GR_ADD_TEST(qa_sdls_constants ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/q
 # Encapsulation tests
 GR_ADD_TEST(qa_encapsulation_header ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_encapsulation_header.py)
 GR_ADD_TEST(qa_encapsulation_packet ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_encapsulation_packet.py)
+GR_ADD_TEST(qa_fecf ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_fecf.py)
+GR_ADD_TEST(qa_tm_packets ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_tm_packets.py)
 GR_ADD_TEST(qa_encapsulation_parser ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_encapsulation_parser.py)
 
 # Reception tests

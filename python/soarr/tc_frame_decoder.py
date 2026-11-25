@@ -13,7 +13,7 @@ from gnuradio import digital, gr
 from .ccsds_reader import ccsds_reader
 from .ccsds_receiver import ccsds_receiver
 from .cltu_deframer import cltu_deframer
-from .tc_frame_encoder import FECF_CRC
+from .fecf import FECF_CRC
 
 # The CLTU start sequence (CCSDS 231.0-B), as cltu_deframer's default.
 START_SEQUENCE = inspect.signature(cltu_deframer.__init__).parameters["start_sequence"].default

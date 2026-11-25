@@ -44,7 +44,7 @@ Built in, as CCSDS fixes them: the access code (`cltu_deframer`'s
 default start sequence `EB90`, so correlator and deframer search for the
 same pattern), the CLTU tail, the 8-byte codeword, `max_codewords`, the
 BCH code and randomizer inside `ccsds_receiver`, and the FECF CRC
-(`tc_frame_encoder.FECF_CRC`, shared with TX). Only `crc_check`'s `ok`
+(`fecf.FECF_CRC`, shared with TX and TM). Only `crc_check`'s `ok`
 output is wired, so a frame failing the FECF check is dropped.
 
 ## Behavior / edge cases / current error handling

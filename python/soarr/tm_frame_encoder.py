@@ -6,66 +6,23 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-from gnuradio import digital, gr
+from gnuradio import gr
 import pmt
 
-from .encapsulation_packet import PACKET_VERSION_NUMBER, header_length, parse_header
-from .tc_frame_encoder import FECF_CRC
+from .fecf import FECF_BYTES, fecf_crc
+from .tm_packets import packet_header_length, packet_length
 
 SCID_MAX = 0x3FF  # 10 bits
 VCID_MAX = 0x7    # 3 bits
 OCF_MAX = 0xFFFFFFFF  # 4 bytes
 PRIMARY_HEADER_BYTES = 6
 OCF_BYTES = 4
-FECF_BYTES = 2
 SECONDARY_HEADER_DATA_MAX = 63  # bytes, after the identification byte
 FRAME_LENGTH_MAX = 2048  # bytes; keeps every data field offset below the reserved FHP values
 FHP_NO_PACKET_START = 0x7FF  # 132.0-B-3 4.1.2.7.6.4
 SEGMENT_LENGTH_ID = 0b11     # 132.0-B-3 4.1.2.7.5.2, synchronization flag 0
 IDLE_PACKET = 0xE0  # CCSDS 133.1-B: a one-byte Encapsulation Idle Packet
-SPACE_PACKET_VERSION = 0b000  # CCSDS 133.0-B-2 4.1.3.2
-SPACE_PACKET_HEADER_BYTES = 6
 BURST_MORE = pmt.intern("burst_more")
-
-
-def packet_header_length(first_octet: int):
-    """
-    Args:
-        first_octet (int): the first byte of a packet.
-
-    Returns:
-        int or None: how many bytes of the packet hold its length - the
-            encapsulation header (CCSDS 133.1-B, version 111) or the Space
-            Packet primary header (133.0-B-2, version 000); None for any
-            other version.
-    """
-    version = first_octet >> 5
-    if version == PACKET_VERSION_NUMBER:
-        return header_length(first_octet & 0b11)
-    if version == SPACE_PACKET_VERSION:
-        return SPACE_PACKET_HEADER_BYTES
-    return None
-
-
-def packet_length(header: bytes):
-    """
-    Args:
-        header (bytes): the start of a packet, at least
-            packet_header_length bytes of it.
-
-    Returns:
-        int or None: the packet's total length in bytes, header included;
-            None if its version has no known length field or the length is
-            shorter than the header.
-    """
-    needed = packet_header_length(header[0])
-    if needed is None:
-        return None
-    if header[0] >> 5 == SPACE_PACKET_VERSION:
-        total = SPACE_PACKET_HEADER_BYTES + int.from_bytes(header[4:6], "big") + 1
-    else:
-        total = parse_header(header[:needed])["packet_length"] or 1  # the 1-byte idle packet has no length field
-    return total if total >= needed else None
 
 
 class tm_frame_encoder(gr.basic_block):
@@ -144,8 +101,7 @@ class tm_frame_encoder(gr.basic_block):
         self.frame_length = int(frame_length)
         self._data_field_length = self.frame_length - overhead
 
-        self._crc = digital.crc(FECF_CRC["num_bits"], FECF_CRC["poly"], FECF_CRC["initial_value"],
-                                FECF_CRC["final_xor"], FECF_CRC["input_reflected"], FECF_CRC["result_reflected"])
+        self._crc = fecf_crc()
         self._mc_counts = {}  # per SCID (master channel)
         self._vc_counts = {}  # per (SCID, VCID)
 

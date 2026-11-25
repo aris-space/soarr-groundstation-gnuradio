@@ -6,16 +6,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-from gnuradio import digital, gr
+from gnuradio import gr
 import pmt
 
-from .encapsulation_packet import PACKET_VERSION_NUMBER, PROTOCOL_ID_IDLE
-from .tc_frame_encoder import FECF_CRC
-from .tm_frame_encoder import (FECF_BYTES, FHP_NO_PACKET_START, OCF_BYTES, PRIMARY_HEADER_BYTES, SCID_MAX,
-                                 SPACE_PACKET_VERSION, VCID_MAX, packet_header_length, packet_length)
+from .fecf import FECF_BYTES, fecf_crc
+from .tm_frame_encoder import FHP_NO_PACKET_START, OCF_BYTES, PRIMARY_HEADER_BYTES, SCID_MAX, VCID_MAX
+from .tm_packets import is_idle, is_space_packet, packet_header_length, packet_length
 
 FHP_ONLY_IDLE_DATA = 0x7FE  # 132.0-B-3 4.1.2.7.6.5
-SPACE_PACKET_IDLE_APID = 0x7FF  # CCSDS 133.0-B-2 4.1.3.3.4.4
 OUT = pmt.intern("out")
 SPACE_PACKETS = pmt.intern("space_packets")
 OCF = pmt.intern("ocf")
@@ -79,8 +77,7 @@ class tm_frame_decoder(gr.basic_block):
         self.scid = int(scid) if scid_filter_enable else None
         self.vcid = int(vcid) if vcid_filter_enable else None
 
-        self._crc = digital.crc(FECF_CRC["num_bits"], FECF_CRC["poly"], FECF_CRC["initial_value"],
-                                FECF_CRC["final_xor"], FECF_CRC["input_reflected"], FECF_CRC["result_reflected"])
+        self._crc = fecf_crc()
         self._counts = {}    # (SCID, VCID) -> last virtual channel frame count
         self._partials = {}  # (SCID, VCID) -> _Partial
 
@@ -256,13 +253,7 @@ class tm_frame_decoder(gr.basic_block):
 
     def _publish(self, packet, meta):
         """Publish a complete packet on its port; idle packets are skipped."""
-        version = packet[0] >> 5
-        if version == PACKET_VERSION_NUMBER:
-            if (packet[0] >> 2) & 0b111 == PROTOCOL_ID_IDLE:
-                return
-            port = OUT
-        else:  # SPACE_PACKET_VERSION: packet_length knows no other
-            if ((packet[0] & 0b111) << 8) | packet[1] == SPACE_PACKET_IDLE_APID:
-                return
-            port = SPACE_PACKETS
+        if is_idle(packet):
+            return
+        port = SPACE_PACKETS if is_space_packet(packet[0]) else OUT
         self.message_port_pub(port, pmt.cons(meta, pmt.init_u8vector(len(packet), list(packet))))

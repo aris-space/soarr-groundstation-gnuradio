@@ -35,9 +35,9 @@ The individual blocks stay in the tree for debugging and custom chains.
 | `scid` | int | `0` | Spacecraft ID (10 bits), used when the metadata carries none; validated by `tc_primary_header` (`ValueError`). |
 | `vcid` | int | `0` | Virtual Channel ID (6 bits), same rule. |
 
-Built in, as CCSDS fixes them: the FECF (`FECF_CRC`: CRC-16/CCITT, poly
+Built in, as CCSDS fixes them: the FECF (`fecf.FECF_CRC`: CRC-16/CCITT, poly
 `0x1021`, preset `0xFFFF`, no final XOR, no reflection — shared with the
-RX side), and the defaults of `lfsr_scrambler` (seed `0xFF`),
+RX side and TM), and the defaults of `lfsr_scrambler` (seed `0xFF`),
 `bch_encoder` (`0xC5`) and `cltu_framer` (`EB90` / `C5C5C5C5C5C5C579`).
 `tc_primary_header` runs with `is_crc_used=True`, so `frame_length`
 counts the FECF.
