@@ -189,7 +189,8 @@ instead, together with the Python dependencies (Ubuntu 24.04 blocks
 
 ```bash
 sudo apt install gnuradio gnuradio-dev cmake g++ \
-    python3-construct python3-yaml python3-pycryptodome python3-pytest     gr-satellites
+    python3-construct python3-yaml python3-pycryptodome python3-pytest \
+    gr-satellites
 ```
 
 With no conda env active, the script
