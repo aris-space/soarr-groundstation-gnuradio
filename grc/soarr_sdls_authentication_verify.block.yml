@@ -1,6 +1,6 @@
 id: soarr_sdls_authentication_verify
-label: SDLS Authentication Verify
-category: '[soarr]/SDLS'
+label: SDLS MAC Verifier
+category: '[Soarr]/Common/SDLS'
 
 templates:
   imports: from gnuradio import soarr

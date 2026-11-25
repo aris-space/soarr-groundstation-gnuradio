@@ -1,6 +1,6 @@
 id: soarr_acquisition_idle_sequencer
-label: Acquisition and Idle Sequencer
-category: '[soarr]'
+label: TC Acquisition and Idle Sequencer
+category: '[Soarr]/TC (Telecommand)/PLOP'
 
 templates:
   imports: from gnuradio import soarr

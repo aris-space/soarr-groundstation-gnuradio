@@ -37,7 +37,7 @@ header (`ccsds_reader` leaves it in place), which
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `decryption_state` | bool | `True` | `False` makes the block a pure passthrough after its shape checks — input republished on `out` unchanged, no key/counter validation, no metadata mutation. Named to mirror `sdls_encryption`'s `encryption_state`. |
+| `decryption_state` | bool | `True` | `False` makes the block a passthrough after its shape checks — the payload republished on `out` unchanged, no key/counter validation; only `crypt_key` is removed from the metadata (nothing downstream needs it, and it would otherwise reach every later block and sink). Named to mirror `sdls_encryption`'s `encryption_state`. |
 | `nonce` | bytes | `b"\x00" * 14` (all-zero) | Fixed for the block's lifetime, combined with the per-message `sdls_counter` into the same 16-byte AES-CTR counter block `sdls_encryption` used to encrypt. Must match `sdls_encryption`'s own `nonce` out-of-band, or the recovered plaintext is garbage rather than the original data (`qa_sdls_encryption_round_trip.py::test_005_nonce_mismatch_changes_plaintext`). Validated in `__init__` (`TypeError`/`ValueError` if not exactly 14 bytes). |
 
 ## Behavior / edge cases / current error handling
@@ -47,7 +47,8 @@ checks first, unconditionally, before ever looking at
 `decryption_state` — logged at `error` and dropped on failure exactly
 as it would for `decryption_state=True` (see Error handling below); only
 past those does it check the flag and, if `False`, republish the input
-PDU on `out` completely unchanged, with no key/counter extraction.
+payload on `out` unchanged, with no key/counter extraction and only
+`crypt_key` removed from the metadata.
 **Same order as the TX sibling**: `sdls_encryption.add_encryption` also
 checks shape first, `encryption_state` second — a malformed message is
 rejected regardless of either flag's value. Both blocks wrap their

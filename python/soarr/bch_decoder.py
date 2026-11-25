@@ -18,15 +18,19 @@ INPUT_DATA_SIZE = INPUT_SIZE - FILLER_BITS
 
 class bch_decoder(gr.basic_block):
     """
-    Corrects up to 2 bit errors in a CCSDS 231.0-B-4 (63,56) BCH codeword,
+    Corrects a single bit error in a CCSDS 231.0-B-4 (63,56) BCH codeword,
     recovering the 56-bit information field, or drops the message if the
-    codeword can't be corrected within that bound.
+    codeword has more errors. The code's minimum distance is 4, so it
+    corrects one error and detects two; a word with three or more errors
+    may be within one bit of another codeword and is then miscorrected,
+    which the frame's FECF catches downstream.
     """
     def __init__(self, mode:int = 0, generator_polynomial:int=0xC5):
         """
         Args:
-            mode (int): Decode mode. Only 0 (brute-force search over all
-                0-, 1-, and 2-bit corrections) is implemented.
+            mode (int): Decode mode. Only 0 (single-error correction:
+                a search over all 0- and 1-bit corrections) is
+                implemented.
             generator_polynomial (int): BCH generator polynomial g(x), as
                 an 8-bit value. Default 0xC5 matches bch_encoder's own
                 default, CCSDS 231.0-B-4's g(x) = x^7 + x^6 + x^2 + 1.
@@ -84,7 +88,11 @@ class bch_decoder(gr.basic_block):
         return list(expected_parity) == parity_bits
 
     def _decode(self, data) -> list[int] | None:
-        """Decode a BCH(63,56) codeword by searching for a valid correction."""
+        """Decode a BCH(63,56) codeword, correcting at most one bit error.
+
+        No 2-bit search: with minimum distance 4, a 2-bit error is never
+        within one bit of another codeword, and any 2-bit "correction"
+        found would usually belong to a different codeword."""
         if len(data) != INPUT_SIZE:
             raise ValueError(f"Input data must be {INPUT_SIZE} bits long, got {len(data)} bits.")
         
@@ -101,15 +109,6 @@ class bch_decoder(gr.basic_block):
             if self._codeword_is_valid(corrected):
                 self.logger.info(f"1-bit error corrected at position: {first_pos}")
                 return corrected[:OUTPUT_SIZE]
-
-        for first_pos in range(INPUT_DATA_SIZE - 1):
-            for second_pos in range(first_pos + 1, INPUT_DATA_SIZE):
-                corrected = list(data)
-                corrected[first_pos] ^= 1
-                corrected[second_pos] ^= 1
-                if self._codeword_is_valid(corrected):
-                    self.logger.info(f"2-bit error(s) corrected at positions: [{first_pos}, {second_pos}]")
-                    return corrected[:OUTPUT_SIZE]
 
         return None
 
@@ -148,7 +147,7 @@ class bch_decoder(gr.basic_block):
             - payload is not a u8vector (warn - same)
             - metadata is not a dict (warn - same)
             - payload is not exactly 8 bytes, or any other decoding error (warn - same)
-            - no 0-, 1-, or 2-bit correction produces a valid codeword (warn - uncorrectable, same)
+            - no 0- or 1-bit correction produces a valid codeword, i.e. two or more bit errors (warn - uncorrectable, same)
         """
         try:
             # Expecting a PDU with dict and payload

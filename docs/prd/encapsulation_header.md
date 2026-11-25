@@ -36,7 +36,8 @@ format *is* consumed on RX — see Known Issues below.
 [ADR-0003](../adr/0003-message-handler-error-policy.md)): `add_header`
 rejects and logs at `error` level, without publishing, for a non-PDU
 input, non-dict metadata, a non-u8vector payload, or a header-packing
-failure (e.g. an oversized payload — see `_determine_length_of_length`).
+failure (e.g. an oversized payload, which
+`encapsulation_packet.header_for_payload` rejects).
 `user_defined_field` is range-checked once, in the constructor (raises
 `ValueError` at flowgraph-build time if outside 0–15), rather than only
 incidentally when a large-enough payload happens to make the field get
@@ -77,8 +78,9 @@ VCA/Bitstream encapsulation, is unimplemented).
 None currently. The header's wire format is defined once, in
 `python/soarr/encapsulation_packet.py` (`build_header`, `parse_header`,
 `HEADER_STRUCT`, `LENGTH_OF_LENGTH_TABLE`), and shared with
-`ccsds_reader` and `sdls_authentication_verify`; this block's
-`LENGTH_OF_LENGTH_TABLE` and `_determine_length_of_length` refer to it.
+`ccsds_reader` and `sdls_authentication_verify`; this block builds
+its header with `header_for_payload` and exposes the shared
+`LENGTH_OF_LENGTH_TABLE` as a class attribute.
 
 ## Test coverage
 

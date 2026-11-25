@@ -7,7 +7,7 @@
 #
 
 from gnuradio import gr, gr_unittest
-from gnuradio.soarr import ccsds_receiver
+from gnuradio.soarr import bch_encoder, ccsds_receiver, lfsr_scrambler
 import pmt
 
 class qa_ccsds_receiver(gr_unittest.TestCase):
@@ -250,6 +250,72 @@ class qa_ccsds_receiver(gr_unittest.TestCase):
             ccsds_receiver(fixed_byte_length=-1)
         with self.assertRaises(ValueError):
             ccsds_receiver(fixed_byte_length=1024)
+
+    # A fixed frame length of 0 would publish an empty frame per codeword
+    # and discard its data; only Fixed Length mode uses the length.
+    def test_013_fixed_mode_requires_a_nonzero_length(self):
+        with self.assertRaises(ValueError):
+            ccsds_receiver(message_type=2, fixed_byte_length=0)
+        ccsds_receiver(message_type=2, fixed_byte_length=1)
+        ccsds_receiver(message_type=0, fixed_byte_length=0)
+
+    # SCID is 10 bits and VCID 6 bits in the TFPH; a filter value outside
+    # that range could never match a frame.
+    def test_014_scid_and_vcid_must_fit_their_fields(self):
+        for kwargs in ({"vcid": 64}, {"vcid": -1}, {"scid": 1024}, {"scid": -1}):
+            with self.assertRaises(ValueError, msg=str(kwargs)):
+                ccsds_receiver(**kwargs)
+        ccsds_receiver(scid=1023, vcid=63, scid_filter_enable=True, vcid_filter_enable=True)
+
+    def _codewords(self, data):
+        """Scramble data from a fresh LFSR sequence and BCH-encode it, as the
+        TX chain does for one frame; return its 8-byte codewords."""
+        scrambled = bytes(lfsr_scrambler().apply_scrambling(data))
+        encoder = bch_encoder()
+        published = []
+        encoder.message_port_pub = lambda port, msg: published.append(msg)
+        encoder.encode_bch(pmt.cons(pmt.make_dict(), pmt.init_u8vector(len(scrambled), list(scrambled))))
+        encoded = bytes(pmt.u8vector_elements(pmt.cdr(published[0])))
+        return [encoded[i:i + 8] for i in range(0, len(encoded), 8)]
+
+    def _cltu(self, codewords):
+        """Codeword PDUs as cltu_deframer publishes one CLTU: scramble_reset
+        is True on the first codeword only."""
+        return [pmt.cons(pmt.dict_add(pmt.make_dict(), pmt.intern("scramble_reset"), pmt.from_bool(i == 0)),
+                         pmt.init_u8vector(8, list(cw)))
+                for i, cw in enumerate(codewords)]
+
+    def _frame(self, data_len, fsn, frame_length=None):
+        frame_length = 5 + data_len + 2 - 1 if frame_length is None else frame_length
+        header = self.receiver.tc_header().build(dict(
+            tfvn=0, bypass_flag=0, control_flag=0, reserve=0, scid=0x155, vcid=0x12,
+            frame_length=frame_length, frame_sequence_number=fsn))
+        return header + bytes(range(data_len)) + bytes(2)  # FECF: not checked here
+
+    def _receive(self, pdus):
+        published = []
+        self.receiver.message_port_pub = lambda port, msg: published.append(bytes(pmt.u8vector_elements(pmt.cdr(msg))))
+        for pdu in pdus:
+            self.receiver.receiver(pdu)
+        return published
+
+    # A frame whose CLTU ends before the frame is complete is dropped; the
+    # next CLTU starts a new frame instead of being read as its continuation.
+    def test_011_frame_cut_short_by_next_cltu_is_dropped(self):
+        cut_frame = self._frame(30, fsn=1)
+        good_frame = self._frame(10, fsn=2)
+        pdus = self._cltu(self._codewords(cut_frame)[:2]) + self._cltu(self._codewords(good_frame))
+        self.assertEqual(self._receive(pdus), [good_frame])
+
+    # Only a CLTU's first codeword can start a frame: a later codeword of a
+    # CLTU whose first codeword was rejected is never read as a header, even
+    # if it would parse as one, so it can't swallow the following frames.
+    def test_012_header_is_only_searched_at_a_cltu_start(self):
+        rejected_start = self._codewords(bytes([0xC0]) + bytes(6))[0]  # TFVN 3: not a header
+        false_header = self._codewords(self._frame(0, fsn=9, frame_length=500)[:7])[0]
+        good_frame = self._frame(10, fsn=2)
+        pdus = self._cltu([rejected_start, false_header]) + self._cltu(self._codewords(good_frame))
+        self.assertEqual(self._receive(pdus), [good_frame])
 
 
 if __name__ == '__main__':

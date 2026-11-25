@@ -17,6 +17,9 @@ NULLABLE_TYPES = frozenset({"int_or_nil", "secret_or_nil"})
 # Metadata key carrying a query's id on db_call; the database echoes it on
 # db_callback so each response is paired with its own request.
 REQUEST_ID_KEY = "db_request_id"
+# Metadata key telling the database which side asks (this block's role): an
+# "rx" lookup only needs the keys, so the database doesn't count it.
+ROLE_KEY = "db_role"
 
 # Per-frame counters. On TX the database assigns and increments them, so its
 # values replace the request's (a counter reused under the same key would
@@ -393,7 +396,8 @@ class inject_db(gr.basic_block):
 
         Publishes:
             "db_call" (pmt_pair): the input PDU with `db_request_id`
-                (uint64, unique per request) added to its metadata. Also
+                (uint64, unique per request) and `db_role` (symbol, this
+                block's role) added to its metadata. Also
                 stores the unmodified input as a pending request under that
                 id (self._pending) for send_msg_out to merge with the
                 matching db_callback response. If MAX_PENDING_REQUESTS are
@@ -424,17 +428,23 @@ class inject_db(gr.basic_block):
             request_id = self._next_request_id
             self._next_request_id += 1
             query_meta = pmt.dict_add(dict_msg, pmt.intern(REQUEST_ID_KEY), pmt.from_uint64(request_id))
-            self.message_port_pub(pmt.intern("db_call"), pmt.cons(query_meta, payload_u8vector))
+            query_meta = pmt.dict_add(query_meta, pmt.intern(ROLE_KEY), pmt.intern(self.role))
 
-            # Stored after publishing: the response is handled on this
-            # block's own thread, so it can't arrive before this returns.
             if len(self._pending) >= self.MAX_PENDING_REQUESTS:
                 dropped_id, _ = self._pending.popitem(last=False)
                 self.logger.warn(
                     f"{self.MAX_PENDING_REQUESTS} database requests pending; discarding the oldest "
                     f"(db_request_id {dropped_id}), which was never answered."
                 )
+            # Pending before the query goes out: in a flowgraph the answer is
+            # queued for this block's thread anyway, but a synchronous
+            # delivery (a direct call) arrives during the publish itself.
             self._pending[request_id] = (dict_msg, payload_u8vector)
+            try:
+                self.message_port_pub(pmt.intern("db_call"), pmt.cons(query_meta, payload_u8vector))
+            except Exception:
+                self._pending.pop(request_id, None)
+                raise
         except Exception as exc:
             self.logger.error(f"Failed to build or publish db_call: {exc}")
 

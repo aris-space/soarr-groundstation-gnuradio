@@ -1,0 +1,73 @@
+id: soarr_tc_frame_decoder
+label: TC Frame Decoder
+category: '[Soarr]/TC (Telecommand)'
+
+templates:
+  imports: from gnuradio import soarr
+  make: soarr.tc_frame_decoder(${threshold}, ${scid_filter_enable}, ${scid}, ${vcid_filter_enable}, ${vcid}, ${sdls_mode}, ${encapsulation_used})
+
+parameters:
+- id: threshold
+  label: Start Sequence Errors
+  dtype: int
+  default: 1
+- id: scid_filter_enable
+  label: SCID Filter
+  dtype: enum
+  options: ['False', 'True']
+  option_labels: [Disabled, Enabled]
+  default: 'False'
+- id: scid
+  label: SCID
+  dtype: int
+  default: 0
+  hide: ${ 'none' if scid_filter_enable == 'True' else 'all' }
+- id: vcid_filter_enable
+  label: VCID Filter
+  dtype: enum
+  options: ['False', 'True']
+  option_labels: [Disabled, Enabled]
+  default: 'False'
+- id: vcid
+  label: VCID
+  dtype: int
+  default: 0
+  hide: ${ 'none' if vcid_filter_enable == 'True' else 'all' }
+- id: sdls_mode
+  label: SDLS Mode
+  dtype: enum
+  options: ['3', '1', '2', '0']
+  option_labels: [Encryption and Authentication, Encryption only, Authentication only, No SDLS]
+  default: '3'
+- id: encapsulation_used
+  label: Encapsulation
+  dtype: enum
+  options: ['True', 'False']
+  option_labels: [Used, Not used]
+  default: 'True'
+
+asserts:
+- ${ threshold >= 0 and threshold <= 16 }
+- ${ scid >= 0 and scid < 2**10 }
+- ${ vcid >= 0 and vcid < 2**6 }
+
+inputs:
+- label: in
+  domain: stream
+  dtype: byte
+
+outputs:
+- label: out
+  domain: message
+  optional: 0
+
+documentation: |-
+  Received bit stream to parsed TC transfer frames (CCSDS 231.0-B / 232.0-B) in one block: start-sequence correlator, TC CLTU Deframer, TC Frame Receiver (BCH, derandomizer, reassembly), FECF check, TC Frame Parser. A frame that fails the FECF check is dropped.
+
+  Everything CCSDS fixes is built in: the CLTU sequences, the BCH code, the randomizer, the FECF CRC. Start Sequence Errors is the number of bit errors allowed in the CLTU start (and tail) sequence. SDLS Mode and Encapsulation must match the sender.
+
+  Ports:
+  - in: unpacked bits (one bit per byte, 0/1), e.g. from a Binary Slicer after the demodulator.
+  - out: one PDU per frame, the data field with the parsed header fields in the metadata, for the Key Database (RX) and SDLS Process.
+
+file_format: 1

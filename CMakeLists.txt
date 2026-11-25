@@ -38,9 +38,11 @@ list(INSERT CMAKE_MODULE_PATH 0 ${PROJECT_SOURCE_DIR}/cmake/Modules)
 # Find gnuradio to get access to the cmake modules
 find_package(Gnuradio "3.10" REQUIRED)
 
-# Set the version information here
+# Set the version information here. A release tag vX.Y.Z maps to
+# MAJOR=X, API=Y, PATCH=Z; ABI stays 0, since this module has no compiled
+# library (see docs/development.md, Releases).
 # cmake-format: off
-set(VERSION_MAJOR 1)
+set(VERSION_MAJOR 2)
 set(VERSION_API   0)
 set(VERSION_ABI   0)
 set(VERSION_PATCH 0)
@@ -155,5 +157,5 @@ configure_package_config_file(
     INSTALL_DESTINATION ${GR_CMAKE_DIR})
 
 install(FILES MANIFEST.yml
-    RENAME MANIFEST-${VERSION_MAJOR}.${VERSION_API}.${VERSION_ABI}${VERSION_PATCH}.yml
+    RENAME MANIFEST-${VERSION_MAJOR}.${VERSION_API}.${VERSION_PATCH}.yml
     DESTINATION share/gnuradio/manifests/soarr)

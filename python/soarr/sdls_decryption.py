@@ -12,10 +12,7 @@ import pmt
 from Crypto.Cipher import AES
 
 
-COUNTER_MIN = 0
-COUNTER_MAX = 0xFFFF  # 2-byte counter max value
-COUNTER_SIZE = 2  # 2 bytes for the counter
-NONCE_LEN = 14
+from .sdls_constants import NONCE_LEN, SDLS_COUNTER_MAX as COUNTER_MAX, SDLS_COUNTER_MIN as COUNTER_MIN
 
 class sdls_decryption(gr.basic_block):
     """
@@ -30,8 +27,8 @@ class sdls_decryption(gr.basic_block):
         """
         Args:
             decryption_state (bool): if False, decrypt_message becomes a
-                pure passthrough after its shape checks - no validation,
-                no metadata mutation.
+                passthrough after its shape checks - no validation; only
+                `crypt_key` is removed from the metadata.
             nonce (bytes): fixed 14-byte value combined with the
                 per-message sdls_counter into the same 16-byte AES-CTR
                 counter block sdls_encryption used to encrypt. Must match
@@ -50,7 +47,7 @@ class sdls_decryption(gr.basic_block):
         if not isinstance(nonce, (bytes, bytearray)):
             raise TypeError("nonce must be bytes-like")
         if len(nonce) != NONCE_LEN:
-            raise ValueError("nonce must be exactly 14 bytes")
+            raise ValueError(f"nonce must be exactly {NONCE_LEN} bytes")
         self.nonce = bytes(nonce)
 
         # Register message ports
@@ -136,7 +133,7 @@ class sdls_decryption(gr.basic_block):
 
         if counter < COUNTER_MIN or counter > COUNTER_MAX:
             self.logger.error(
-                f"sdls_counter exceeds 2-byte range (0..65535); aborting message processing. Value: {counter}"
+                f"sdls_counter exceeds its range ({COUNTER_MIN}..{COUNTER_MAX}); aborting message processing. Value: {counter}"
             )
             return None
 
@@ -157,10 +154,10 @@ class sdls_decryption(gr.basic_block):
                 - both are already validated before this is called).
         """
         if len(self.nonce) != NONCE_LEN:
-            raise ValueError("nonce must be exactly 14 bytes")
+            raise ValueError(f"nonce must be exactly {NONCE_LEN} bytes")
 
         if counter < COUNTER_MIN or counter > COUNTER_MAX:
-            raise ValueError("sdls_counter must be in range 0..65535")
+            raise ValueError(f"sdls_counter must be in range {COUNTER_MIN}..{COUNTER_MAX}")
 
         cipher = AES.new(key, AES.MODE_CTR, nonce=self.nonce, initial_value=counter)
         plaintext = cipher.decrypt(payload)
@@ -179,7 +176,8 @@ class sdls_decryption(gr.basic_block):
             "out" (pmt_pair): PDU with `crypt_key` removed from metadata
                 and the payload replaced by its AES-256-CTR plaintext. If
                 decryption_state is False, republishes the input
-                unchanged instead (after the same shape checks).
+                payload undecrypted instead (after the same shape checks),
+                still with `crypt_key` removed.
 
         Drops when:
             - msg is not a PDU pair (error - malformed input, this block sits downstream of ccsds_reader)
@@ -209,8 +207,9 @@ class sdls_decryption(gr.basic_block):
                 return
 
             if self.decryption_state is False:
-                # If decryption is disabled, pass the message through unchanged
-                self.message_port_pub(pmt.intern("out"), msg)
+                # Disabled: pass the payload through, but still drop the key -
+                # nothing downstream needs it.
+                self.message_port_pub(pmt.intern("out"), pmt.cons(pmt.dict_delete(dict_msg, pmt.intern("crypt_key")), payload_u8vector))
                 return
 
             # Extract the decryption key from the dict message

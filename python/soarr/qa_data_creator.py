@@ -6,6 +6,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
+from unittest.mock import patch
+
 from gnuradio import gr, gr_unittest
 import numpy as np
 import pmt
@@ -220,6 +222,40 @@ class qa_data_creator(gr_unittest.TestCase):
         self.assertEqual(instance.control, False)
         self.assertEqual(instance.scid, 100)
         self.assertEqual(instance.spi, 50)
+
+    # The random payload is drawn once and repeated: every message of a run
+    # carries the same bytes.
+    def test_017_random_payload_is_the_same_in_every_message(self):
+        instance = data_creator(mode=0, data=None, data_length_bytes=16)
+        captured = []
+        original_pub = self._capture_specific_port(instance, "out", captured)
+        try:
+            for _ in range(3):
+                instance._choose_mode(pmt.PMT_NIL)
+        finally:
+            self._restore_port(instance, original_pub)
+
+        payloads = {bytes(pmt.u8vector_elements(pmt.cdr(msg))) for msg in captured}
+        self.assertEqual(len(captured), 3)
+        self.assertEqual(len(payloads), 1)
+
+    # pmt.init_u8vector has an (k, int) "fill" overload next to (k, list).
+    # The payload must be passed as a list: NumPy < 2 converts a 1-byte
+    # array to a scalar for the fill overload (deprecated, an error later),
+    # so which overload runs would depend on the NumPy version.
+    def test_018_payload_is_passed_as_a_list(self):
+        instance = data_creator(mode=0, data=np.array([0xAB], dtype=np.uint8))
+        captured = []
+        original_pub = self._capture_specific_port(instance, "out", captured)
+        try:
+            with patch.object(pmt, "init_u8vector", wraps=pmt.init_u8vector) as init_u8vector:
+                instance.generate_message(pmt.PMT_NIL)
+        finally:
+            self._restore_port(instance, original_pub)
+
+        self.assertEqual(init_u8vector.call_args.args, (1, [0xAB]))
+        self.assertIs(type(init_u8vector.call_args.args[1]), list)
+        self.assertEqual(bytes(pmt.u8vector_elements(pmt.cdr(captured[0]))), bytes([0xAB]))
 
 
 if __name__ == '__main__':

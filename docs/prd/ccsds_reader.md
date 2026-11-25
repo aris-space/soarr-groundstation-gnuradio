@@ -14,21 +14,16 @@ RX chain, after the stock `digital.crc_check` block:
 
 ```
 ccsds_receiver.out → digital.crc_check.in (stock block, checks the FECF)
-digital.crc_check.{fail,ok} → ccsds_reader.ccsds
+digital.crc_check.ok → ccsds_reader.ccsds
 ccsds_reader.debug → inject_db (RX instance)
 ```
 
-[architecture.md](../architecture.md) documents two facts about this
-wiring that belong to the flowgraph, not this block's own code: (1) in
-the confirmed external flowgraph, **both** of `digital.crc_check`'s
-`fail` and `ok` output ports are wired to `ccsds_reader`'s input —
-"that's how the flowgraph was left, not a documented design decision —
-don't read architectural intent into it";
-(2) this block's output port is named `debug`, but it's confirmed to be
-its real, only, production output — not a diagnostic-only tap. No `.grc`
-flowgraph file exists anywhere in this repo (`find . -iname "*.grc"`
-returns nothing) to independently confirm either fact from inside this
-repo alone.
+Two facts about this wiring belong to the flowgraph, not this block's
+own code, and every example flowgraph with an RX chain
+([examples/](../../examples/)) shows both: (1) only `digital.crc_check`'s
+`ok` output is wired to `ccsds_reader`, so a frame that fails the FECF
+check is dropped there; (2) this block's output port is named `debug`,
+but it is its real, only output, wired onward to the RX `inject_db`.
 
 ## Message ports
 

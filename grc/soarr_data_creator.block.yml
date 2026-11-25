@@ -1,6 +1,6 @@
 id: soarr_data_creator
 label: Data Creator
-category: '[soarr]/Testing'
+category: '[Soarr]/Utilities'
 
 templates:
   imports: from gnuradio import soarr
@@ -19,7 +19,7 @@ parameters:
   dtype: enum
   default: random
   options: [random, manual]
-  option_labels: ['Random (length-based)', 'Manual data']
+  option_labels: ['Random (drawn once, length-based)', 'Manual data']
 
 - id: data
   label: Data (manual int/bytes/list)
@@ -81,6 +81,8 @@ outputs:
 
 documentation: |-
   Generates test payloads, with the transfer frame and SDLS header fields set in the metadata, as an alternative to a real command source.
+
+  A random payload is drawn once when the flowgraph starts and sent unchanged in every message.
 
   Ports:
   - ping: any message triggers one payload (e.g. from system_tester's trigger).

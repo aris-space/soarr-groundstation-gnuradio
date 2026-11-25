@@ -1,6 +1,6 @@
 id: soarr_ccsds_reader
-label: CCSDS Reader
-category: '[soarr]/Reception'
+label: TC Frame Parser
+category: '[Soarr]/TC (Telecommand)/Frame'
 
 templates:
   imports: from gnuradio import soarr

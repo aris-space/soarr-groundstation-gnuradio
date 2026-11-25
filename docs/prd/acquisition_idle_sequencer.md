@@ -46,7 +46,7 @@ independently exercised here.
 | Name | Type | Default | Notes |
 |---|---|---|---|
 | `idle_sequence` | int | `0xAA` | Byte value repeated when idle. Validated in `__init__` (raises `ValueError` if outside `0–255`). |
-| `acquisition_sequence` | list[int] \| None | `None` (defaults to `[0xAA] * 16`) | Bytes streamed once, with priority, when an acquisition is pending. Each element validated in `__init__` (raises `ValueError` if outside `0–255`). |
+| `acquisition_sequence` | list[int] \| None | `None` (defaults to `[0xAA] * 16`) | Bytes streamed once, with priority, when an acquisition is pending. Each element validated in `__init__` (raises `ValueError` if outside `0–255`). Fixed for the block's lifetime: there is no setter or GRC callback, since it is a link constant tied to `diff_encoded`. |
 | `initial_acquisition` | bool | `False` | If `True`, `pending_acquisition` starts set — an acquisition burst is emitted before the first PDU/idle byte. |
 | `diff_encoded` | bool | `False` | If `True`, overrides `idle_sequence` to `0xFF` and `acquisition_sequence` to `[0xFF] * len(acquisition_sequence)` — the *values* passed for both are discarded; only `acquisition_sequence`'s length is kept. |
 | `tsb_tag_name` | str \| None | `None` | Tag key used to mark stream-tagged-burst boundaries (`add_item_tag`). `None` means no tag is emitted at all — every `add_item_tag` call site checks `tsb_tag_key is not None` first. The GRC yaml's own default is `"packet_len"`, differing from the Python constructor's default of `None`; a flowgraph built through GRC always gets a real tag name, direct/programmatic instantiation gets no tagging unless one is passed explicitly. |
@@ -95,14 +95,7 @@ every handler method name are already snake_case.
 
 ## Known issues / TODOs
 
-- **The acquisition sequence is fixed at construction, with no public
-  attribute to reassign at all.** `_acq_bytes` (private) is built once in
-  `__init__` from the constructor's `acquisition_sequence` argument;
-  nothing keeps that argument's value on the instance afterward. This
-  differs from `cltu_framer`'s `start_sequence`/`tail_sequence`, which are
-  public attributes re-read fresh on every message. No test in this repo
-  exercises runtime reassignment of this block's acquisition bytes either
-  way.
+None currently.
 
 ## Test coverage
 

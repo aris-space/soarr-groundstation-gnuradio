@@ -2,9 +2,9 @@
 
 ## Purpose
 
-Corrects up to 2 bit errors in a CCSDS 231.0-B-4 (63,56) BCH codeword,
+Corrects a single bit error in a CCSDS 231.0-B-4 (63,56) BCH codeword,
 recovering the 56-bit information field, or drops the message if the
-codeword can't be corrected within that bound. The RX-side counterpart to
+codeword has two or more errors. The RX-side counterpart to
 `bch_encoder`. See [architecture.md](../architecture.md).
 
 ## Pipeline position
@@ -65,10 +65,18 @@ bit is dropped). `_codeword_is_valid` checks the 63 bits by recomputing
 the expected 7 parity bits from the first 56 (via `_compute_parity_bits`,
 the same GF(2) polynomial long division `bch_encoder._compute_parity_bits`
 uses) and comparing. If that fails, every single-bit flip of the 63 bits
-is tried (63 checks); if none validates, every 2-bit-flip combination is
-tried (1953 checks). The first flip combination that produces a valid
-codeword is accepted as the correction. If no 0-, 1-, or 2-bit correction
-validates, `_decode` returns `None` — the codeword is uncorrectable.
+is tried (63 checks); a flip that produces a valid codeword is the
+correction. If no 0- or 1-bit correction validates, `_decode` returns
+`None` — the codeword is uncorrectable.
+
+**Why only one bit**: the code's minimum distance is 4, so it corrects
+one error and detects two (SEC-DED). A 2-bit error is never within one
+bit of any codeword, so it is always detected and dropped. Searching
+2-bit flips would instead "correct" it to whichever codeword is found
+first, usually not the transmitted one. A word with three or more
+errors can lie within one bit of another codeword and is then
+miscorrected; that is inherent to the code, and the frame's FECF
+catches it downstream.
 
 **On success**: `error_correction_mode` builds a new PDU from the
 corrected 56 information bits and the original metadata dict, publishes
@@ -88,8 +96,7 @@ catch-log-drop, so nothing escapes the handler.
 `ccsds_receiver`'s direct call already validates shape and length before
 calling this method (Pipeline position above), so in practice only the
 message port and direct unit-test calls exercise these drop paths
-(`qa_bch_decoder.py::test_003`, `test_004`, `test_006`, `test_007`,
-`test_008`, `test_014`).
+(`qa_bch_decoder.py::test_003`-`test_008`).
 
 **Error handling** (compliant with
 [coding-standards.md](../coding-standards.md),
@@ -118,7 +125,8 @@ every method name are already snake_case.
 
 CCSDS 231.0-B-4 (TC Synchronization and Channel Coding) — the (63,56) BCH
 code: generator polynomial `g(x) = x^7 + x^6 + x^2 + 1` (`0xC5`), matching
-`bch_encoder`'s own default and citation. Stated per the code's own
+`bch_encoder`'s own default and citation. Minimum distance 4 (checked by
+`qa_bch_decoder.py`'s exhaustive `test_015`/`test_016`). Stated per the code's own
 pre-existing parity-computation logic (identical to `bch_encoder`'s); not
 independently verified against the standard from this repo alone (same
 caveat as `bch_encoder.md`'s CCSDS reference). `qa_bch_round_trip.py`
@@ -128,8 +136,8 @@ this block, rather than relying on a hand-derived known-answer vector.
 
 ## Test coverage
 
-- `python/soarr/qa_bch_decoder.py` — 14 test methods (`test_instance` +
-  `test_001`-`test_004`, `test_006`-`test_014`): construction and its
+- `python/soarr/qa_bch_decoder.py` — 16 test methods (`test_instance` +
+  `test_001`-`test_016`): construction and its
   default parameter values, invalid `generator_polynomial` raising at
   construction, the five malformed/
   wrong-length-input conditions (not a pair, payload not a u8vector,
@@ -137,10 +145,13 @@ this block, rather than relying on a hand-derived known-answer vector.
   cleanly (`None`, no publish, no raise) through the handler, a valid
   8-byte length not raising, and — using `bch_encoder` to produce real
   codewords — no-error passthrough (all-`0xFF`, all-zero), 1-bit-error
-  correction, and metadata preservation.
+  correction, metadata preservation, every one of the 63 single-bit
+  errors corrected (`test_015`), and every one of the 1953 double-bit
+  errors rejected (`test_016`).
 - `python/soarr/qa_bch_round_trip.py` — 6 test methods (`test_instance`
   + `test_001`-`test_005`): encoder→decoder round trip for a valid
-  codeword, 1-bit and 2-bit corrected errors, metadata preservation, and
+  codeword, a 1-bit error corrected, a 2-bit error rejected,
+  metadata preservation, and
   a regression case pinned to a specific observed flowgraph vector.
 - `python/soarr/qa_lfsr_receive_chain.py` — full TX-then-RX chain
   (`lfsr_scrambler → bch_encoder → cltu_framer` producing frames, then

@@ -1,6 +1,6 @@
 id: soarr_sdls_encryption
 label: SDLS Encryption
-category: '[soarr]/SDLS'
+category: '[Soarr]/Common/SDLS'
 
 templates:
   imports: from gnuradio import soarr

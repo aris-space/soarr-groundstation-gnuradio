@@ -67,6 +67,9 @@ class qa_sdls_decryption(gr_unittest.TestCase):
 
         out_payload = bytes(pmt.u8vector_elements(pmt.cdr(out_msg)))
         self.assertEqual(out_payload, bytes([9, 8]))
+        # Disabled, the block still drops its own key: nothing downstream
+        # needs it, and it would otherwise reach every later block and sink.
+        self.assertFalse(pmt.dict_has_key(pmt.car(out_msg), pmt.intern("crypt_key")))
 
     def test_002_aes_ctr_decrypts_payload_and_removes_key(self):
         self.block.decryption_state = True

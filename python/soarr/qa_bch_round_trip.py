@@ -82,7 +82,10 @@ class qa_bch_round_trip(gr_unittest.TestCase):
         self.assertEqual(decoded_bytes, payload_bytes)
         self.assertFalse(pmt.dict_has_key(pmt.car(decoded), pmt.intern("bch_error")))
 
-    def test_003_two_bit_error_is_corrected(self):
+    # The (63,56) code has minimum distance 4: it corrects one bit error and
+    # detects two, so a 2-bit error is dropped rather than "corrected" into
+    # a different codeword.
+    def test_003_two_bit_error_is_rejected(self):
         payload_bytes = bytes([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE])
         encoded = self._encode(payload_bytes)
         original_codeword = bytes(pmt.u8vector_elements(pmt.cdr(encoded)))
@@ -91,10 +94,8 @@ class qa_bch_round_trip(gr_unittest.TestCase):
         corrupted[1] ^= 0x20
         corrupted_pdu = pmt.cons(pmt.car(encoded), pmt.init_u8vector(len(corrupted), list(corrupted)))
 
-        decoded = self._decode(corrupted_pdu)
-        decoded_bytes = bytes(pmt.u8vector_elements(pmt.cdr(decoded)))
-        self.assertEqual(decoded_bytes, payload_bytes)
-        self.assertFalse(pmt.dict_has_key(pmt.car(decoded), pmt.intern("bch_error")))
+        captured = self._capture_message_port(self.decoder, "error_correction_mode", corrupted_pdu)
+        self.assertEqual(captured, [])
 
     def test_004_metadata_is_preserved(self):
         meta = pmt.make_dict()

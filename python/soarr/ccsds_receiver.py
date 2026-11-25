@@ -22,6 +22,9 @@ MESSAGE_TYPE_FIXED = 2
 LENGTH_TYPE_TC_FIELD = 0
 LENGTH_TYPE_ENCAPSULATION_FIELD = 1
 
+SCID_MAX = 0x3FF  # 10-bit TFPH field
+VCID_MAX = 0x3F   # 6-bit TFPH field
+
 DESCRAMBLING_ACTIVE = True
 
 
@@ -51,7 +54,10 @@ class ccsds_receiver(gr.basic_block):
 
         Raises:
             ValueError: message_type is outside 0-2, field_type is
-                outside 0-1, or fixed_byte_length is outside 0-1023.
+                outside 0-1, fixed_byte_length is outside 0-1023 (or 0
+                with message_type=2, where a 0-byte frame would discard
+                every codeword), scid is outside 0-1023 (10 bits), or
+                vcid is outside 0-63 (6 bits).
         """
         gr.basic_block.__init__(self,
             name="ccsds_receiver",
@@ -69,6 +75,13 @@ class ccsds_receiver(gr.basic_block):
         # Matches the GRC yaml's own asserts (0 <= fixed_byte_length < 1024).
         if fixed_byte_length < 0 or fixed_byte_length >= 1024:
             raise ValueError(f"Invalid fixed byte length: {fixed_byte_length}. Must be between 0 and 1023.")
+        if message_type == MESSAGE_TYPE_FIXED and fixed_byte_length == 0:
+            raise ValueError("Fixed Length mode needs a fixed_byte_length of at least 1.")
+        # TFPH field widths: a filter value outside them could never match.
+        if not (0 <= scid <= SCID_MAX):
+            raise ValueError(f"Invalid scid: {scid}. Must be between 0 and {SCID_MAX} (10 bits).")
+        if not (0 <= vcid <= VCID_MAX):
+            raise ValueError(f"Invalid vcid: {vcid}. Must be between 0 and {VCID_MAX} (6 bits).")
 
         self.message_type = message_type
         self.field_type = field_type
@@ -273,6 +286,30 @@ class ccsds_receiver(gr.basic_block):
         self.message_port_pub(pmt.intern("out"), pmt.cons(metadata, pmt.init_u8vector(len(frame_data), list(frame_data))))
         self.frame_buffer = bytearray()  # Clear buffer for next frame
 
+    def _cltu_start(self, msg):
+        """
+        Args:
+            msg (pmt_any): codeword PDU, as cltu_deframer publishes it.
+
+        Returns:
+            bool | None: the `scramble_reset` metadata flag - True on a
+                CLTU's first codeword, False on the others - or None if
+                msg carries no such flag.
+        """
+        if not pmt.is_pair(msg) or not pmt.is_dict(pmt.car(msg)):
+            return None
+        flag = pmt.dict_ref(pmt.car(msg), pmt.intern("scramble_reset"), pmt.PMT_NIL)
+        if not pmt.is_bool(flag):
+            return None
+        return pmt.to_bool(flag)
+
+    def _abort_frame(self):
+        self.length_found = False
+        self.remaining_frame_length = 0
+        self.total_frame_length = 0
+        self.frame_buffer = bytearray()
+        self.lfsr_descrambler.reset_sequence()
+
     def receiver(self, msg):
         """
         Args:
@@ -288,6 +325,11 @@ class ccsds_receiver(gr.basic_block):
             - the codeword fails shape validation, BCH correction, or
               descrambling (warn - see _readInputMsg; also aborts and
               resets any frame already in progress)
+            - (TC mode) a new CLTU starts while a frame is in progress:
+              the unfinished frame is aborted (warn - its CLTU ended early)
+            - (TC mode) the codeword is not a CLTU's first and no frame is
+              in progress - the rest of a CLTU whose frame was rejected or
+              aborted (debug - expected, never searched for a header)
             - message_type selects TM, or field_type selects
               Encapsulation Field (warn - not implemented)
             - any other exception occurs while searching for a TFPH or
@@ -295,15 +337,22 @@ class ccsds_receiver(gr.basic_block):
               before any structural check has passed)
         """
         try:
+            # A frame starts at a CLTU's first codeword (cltu_deframer's
+            # scramble_reset). Without the key, every codeword between
+            # frames is a candidate, as for a source that doesn't mark CLTUs.
+            cltu_start = self._cltu_start(msg) if self.message_type == MESSAGE_TYPE_TC else None
+            if cltu_start and self.length_found:
+                self.logger.warn("New CLTU started before the current frame was complete. Aborting current frame.")
+                self._abort_frame()
+            if cltu_start is False and not self.length_found:
+                self.logger.debug("Codeword is not a CLTU start and no frame is in progress; skipping it.")
+                return
+
             payload_bytes = self._readInputMsg(msg)
             if payload_bytes is None:
                 if self.length_found:
                     self.logger.warn("Error during frame accumulation. Aborting current frame.")
-                    self.length_found = False
-                    self.remaining_frame_length = 0
-                    self.total_frame_length = 0
-                    self.frame_buffer = bytearray()
-                    self.lfsr_descrambler.reset_sequence()
+                    self._abort_frame()
                 return  # Message was invalid or not processable, ignore it
 
             if not self.length_found: # Only search if not found yet

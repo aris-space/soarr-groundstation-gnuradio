@@ -1,6 +1,6 @@
 id: soarr_cltu_burst_builder
-label: CLTU Burst Builder
-category: '[soarr]/CLTU'
+label: TC CLTU Burst Builder
+category: '[Soarr]/TC (Telecommand)/CLTU'
 
 templates:
   imports: from gnuradio import soarr

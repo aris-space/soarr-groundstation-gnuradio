@@ -22,8 +22,8 @@ sdls_authentication_verify.out → sdls_decryption.in
 Not in [coding-standards.md](../coding-standards.md)'s raw-RF `warn`
 list — this block sits downstream of `ccsds_reader`, where malformed
 input is "no longer plausibly channel noise" per that list's own
-framing. No `.grc` flowgraph file exists anywhere in this repo to
-independently confirm the wiring above; it matches
+framing. Every example flowgraph with an RX chain
+([examples/](../../examples/)) wires it this way, matching
 [architecture.md](../architecture.md)'s documented RX chain.
 
 ## Message ports
@@ -37,7 +37,7 @@ independently confirm the wiring above; it matches
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `authentication_state` | bool | `True` | `False` makes the block a pure passthrough after its shape checks — input republished on `out` unchanged, no key/counter validation, no metadata mutation. Matches `sdls_authentication`'s own parameter name (same convention, not new). |
+| `authentication_state` | bool | `True` | `False` makes the block a passthrough after its shape checks — the payload republished on `out` unchanged, no key/counter validation; only `auth_key` is removed from the metadata (nothing downstream needs it, and it would otherwise reach every later block and sink). Matches `sdls_authentication`'s own parameter name (same convention, not new). |
 | `nonce` | bytes | `b"\x00" * 14` (all-zero) | Fixed for the block's lifetime, combined with the per-message `sdls_counter` to rebuild the same 16-byte counter block `sdls_authentication` prepended before computing its tag. Must match `sdls_authentication`'s own `nonce` value out-of-band, or every tag fails to verify (`qa_sdls_authentication_round_trip.py::test_005_nonce_mismatch_fails`). Validated in `__init__` (`TypeError`/`ValueError` if not exactly 14 bytes) — the error message hardcodes "14" rather than referencing `NONCE_LEN`, cosmetic only since the two currently agree. |
 
 ## Behavior / edge cases / current error handling
@@ -48,7 +48,8 @@ without publishing, regardless of `authentication_state`. Only past
 those checks does it look at `authentication_state`.
 
 **`authentication_state=False`**: republishes the already-shape-validated
-input PDU on `out` completely unchanged — no key/counter extraction.
+input payload on `out` unchanged — no key/counter extraction — with
+only `auth_key` removed from the metadata.
 **Same order as the TX sibling**: `sdls_authentication.add_authentication`
 also checks shape first, `authentication_state` second.
 
@@ -88,12 +89,13 @@ current implementation.
    `sdls_authentication` originally tagged before `ccsds_reader` split
    the encapsulation header out of the payload.
 
-`sdls_authentication` itself never produces a `security_trailer`-shaped
-output (see [sdls_authentication.md](sdls_authentication.md#known-issues--todos)),
-so this path is untested through the real TX→RX pipeline:
-`qa_sdls_authentication_verify.py::test_013`/`test_014` exercise it
-directly (constructing the metadata shape by hand), but no test in this
-repo produces that shape via the real pipeline.
+`sdls_authentication` appends the tag to the payload; `ccsds_reader`
+then splits it out of the received frame into `sdls.security_trailer`
+whenever `sdls_type` is `2` or `3`. So in the real RX chain the tag
+always arrives as a trailer, and the trailer path is the one received
+frames take. `qa_sdls_rx_chain.py` runs it through the real
+`ccsds_reader`; `qa_sdls_authentication_verify.py::test_013`/`test_014`
+also exercise it directly.
 
 **Tag verification** (`_verify_tag`): `CMAC.new(secret, ciphermod=AES).update(counter_bytes + mac_payload).verify(tag)`
 — on `ValueError` (mismatch), returns `False` rather than propagating,

@@ -23,16 +23,16 @@ class bch_encoder(gr.basic_block):
     Generates 7 parity check bits from 56 information bits using the
     generator polynomial g(x) = x^7 + x^6 + x^2 + 1.
     """
-    def __init__(self, polynomial=0xC5):
+    def __init__(self, generator_polynomial=0xC5):
         """
         Args:
-            polynomial (int): BCH generator polynomial g(x), as an 8-bit
+            generator_polynomial (int): BCH generator polynomial g(x), as an 8-bit
                 value with bit 7 set (the implicit leading x^7 term is
                 stored explicitly, not implied). Default 0xC5 is CCSDS
                 231.0-B-4's g(x) = x^7 + x^6 + x^2 + 1.
 
         Raises:
-            ValueError: polynomial is outside the valid 8-bit,
+            ValueError: generator_polynomial is outside the valid 8-bit,
                 bit-7-set range (0x80-0xFF).
         """
         gr.basic_block.__init__(self,
@@ -41,14 +41,14 @@ class bch_encoder(gr.basic_block):
             out_sig=None
         )
 
-        if not (POLYNOMIAL_MIN <= polynomial <= POLYNOMIAL_MAX):
+        if not (POLYNOMIAL_MIN <= generator_polynomial <= POLYNOMIAL_MAX):
             raise ValueError(
-                f"polynomial must be an 8-bit value with bit 7 set ({POLYNOMIAL_MIN}-{POLYNOMIAL_MAX}), got {polynomial}."
+                f"generator_polynomial must be an 8-bit value with bit 7 set ({POLYNOMIAL_MIN}-{POLYNOMIAL_MAX}), got {generator_polynomial}."
             )
 
         # Generator polynomial g(x) = x^7 + x^6 + x^2 + 1 in binary: 11000101 (0xC5)
         # Represents feedback taps for the LFSR
-        self.polynomial = polynomial
+        self.generator_polynomial = generator_polynomial
 
         # Message Ports
         self.message_port_register_in(pmt.intern("message"))
@@ -60,7 +60,7 @@ class bch_encoder(gr.basic_block):
         Compute complemented parity bits for the CCSDS (63,56) BCH code.
 
         Builds m(x) from the 56 information bits (MSB-first), computes
-        the remainder r(x) of x^7 * m(x) divided by g(x) (`self.polynomial`),
+        the remainder r(x) of x^7 * m(x) divided by g(x) (`self.generator_polynomial`),
         then complements the 7 parity bits per CCSDS 231.0-B-4 Section 3.3.1.
 
         Args:
@@ -75,7 +75,7 @@ class bch_encoder(gr.basic_block):
         # Polynomial long division in GF(2) for 63-bit codeword space.
         for bit_pos in range((INPUT_SIZE + PARITY_BITS) - 1, PARITY_BITS - 1, -1):
             if (dividend >> bit_pos) & 1:
-                dividend ^= self.polynomial << (bit_pos - PARITY_BITS)
+                dividend ^= self.generator_polynomial << (bit_pos - PARITY_BITS)
 
         remainder = dividend & ((1 << PARITY_BITS) - 1)
 

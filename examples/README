@@ -27,7 +27,12 @@ For the USRP flowgraphs, set the usrp_addr variable to your device (for
 example "addr=192.168.10.2"); left empty, UHD uses the first USRP it finds.
 They use the SOARR lab settings: SCID 341, S-band 2.185 GHz, 10 kbit/s.
 
-The USRP transmitters and tc_loopback_plop_sim.grc end in PLOP Modulator,
+The flowgraphs are built from the hierarchical blocks: Key Database,
+SDLS Apply and TC Frame Encoder on TX; TC Frame Decoder, Key Database and
+SDLS Process on RX. Each hides a fixed chain of the individual blocks,
+which stay in the block tree for debugging (see docs/architecture.md).
+
+The USRP transmitters and tc_loopback_plop_sim.grc end in TC PLOP Modulator,
 switchable while running with the PLOP mode chooser:
 
     PLOP-1  each CLTU is one burst (acquisition sequence, CLTU, idle tail);
@@ -35,34 +40,36 @@ switchable while running with the PLOP mode chooser:
     PLOP-2  continuous carrier with the idle sequence; CLTUs are inserted
             as they come.
 
-A CLTU goes out right away in both modes. Set Acquisition Length in PLOP
-Modulator to what the on-board receiver needs to lock on. The USRP sink
-takes its bursts from PLOP Modulator's tx_sob/tx_eob tags, so its Length
-Tag Name stays empty.
+A CLTU goes out right away in both modes. Set Acquisition Length in TC
+PLOP Modulator to what the on-board receiver needs to lock on. The USRP
+sink takes its bursts from TC PLOP Modulator's tx_sob/tx_eob tags, so its
+Length Tag Name stays empty.
 
-tc_loopback_sim.grc works on bytes instead of samples and uses CLTU Burst
-Builder with PDU to Tagged Stream for its PLOP-1 bursts.
+tc_loopback_sim.grc works on bytes instead of samples and uses TC CLTU
+Burst Builder with PDU to Tagged Stream for its PLOP-1 bursts.
 
-All flowgraphs use db_client's dummy entry with the same public test keys
-as db_client_example.yaml. tc_loopback_sim.grc runs full SDLS
-(encryption and authentication); the USRP flowgraphs use the SOARR lab
-setting, authentication only. To enable encryption there, turn on SDLS
-Encryption/Decryption, set the CCSDS Reader's SDLS type to "Both", and add
-an Encapsulation Parser after SDLS Decryption.
+All flowgraphs use the Key Database's dummy entry with the same public
+test keys as db_client_example.yaml. tc_loopback_sim.grc and
+tc_loopback_plop_sim.grc run full SDLS (encryption and authentication);
+the USRP flowgraphs use the SOARR lab setting, authentication only. To
+enable encryption there, set SDLS Mode to "Encryption and Authentication"
+in SDLS Apply, TC Frame Decoder and SDLS Process, and add an Encapsulation
+Parser after SDLS Process. SDLS Mode must be the same in all three.
 
 db_client_example.yaml
 ----------------------
 
-Example key/counter database for the db_client block's local-file mode.
-db_client answers inject_db's lookups (keyed by SCID and SPI) with the
-matching entry's VCID, encryption key, authentication key, SDLS counter,
-and VCID counter. The TX Inject DB (role TX) puts those counters into each
-frame; the RX Inject DB (role RX) keeps the counters read from the frame.
+Example key/counter database for the Key Database's local-file mode.
+It answers each lookup (keyed by SCID and SPI) with the matching entry's
+VCID, encryption key, authentication key, SDLS counter, and VCID counter.
+A Key Database with role TX puts those counters into each frame; one with
+role RX keeps the counters read from the frame.
 
-To use it in GNU Radio Companion, set the db_client block's parameters to:
+To use it in GNU Radio Companion, set the Key Database block's parameters
+to (the same in the separate Key Store block: type = 1, yaml_path):
 
-    type      = 1
-    yaml_path = <path to this file>
+    Database        = Local YAML
+    Local YAML File = <path to this file>
 
 Each entry needs SCID and SPI; the other fields are:
 

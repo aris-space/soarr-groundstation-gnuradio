@@ -27,7 +27,7 @@ Confirmed via `python/soarr/qa_tx_chain.py`'s `msg_connect` wiring
 
 | Port | Direction | PMT shape | Example |
 |---|---|---|---|
-| `db_call` | input | PDU: `(metadata_dict . payload_u8vector_or_PMT_NIL)`. Metadata must include `scid`/`spi` (int), each checked at the top level first, falling back to `telecommand.tc_header.scid`/`sdls.security_header.spi` (see Behavior). | `pmt.cons({scid: 0x155, spi: 1}, u8vector(payload))` |
+| `db_call` | input | PDU: `(metadata_dict . payload_u8vector_or_PMT_NIL)`. Metadata must include `scid`/`spi` (int), each checked at the top level first, falling back to `telecommand.tc_header.scid`/`sdls.security_header.spi` (see Behavior). Optional `db_role` (symbol): `"rx"` marks an RX lookup, which doesn't count (see Behavior); `inject_db` always sets it. | `pmt.cons({scid: 0x155, spi: 1}, u8vector(payload))` |
 | `db_callback` | output | PDU: `(metadata_dict . payload_or_PMT_NIL)`. Metadata carries the looked-up `scid`/`spi`/`bypass`/`control` (echoed from the query), plus `vcid`/`crypt_key`/`auth_key`/`sdls_counter`/`vcid_counter` (looked up), plus the query's `db_request_id` if it has one — `inject_db` uses it to pair the response with its request. Payload is the query's own payload if `forward_body=True` and it's a u8vector; otherwise `PMT_NIL`. | `pmt.cons({vcid: 0x12, crypt_key: "...", ...}, u8vector(payload))` |
 
 ## Parameters
@@ -38,7 +38,7 @@ Confirmed via `python/soarr/qa_tx_chain.py`'s `msg_connect` wiring
 | `ip`, `port` | str, int | `"127.0.0.1"`, `80` | Reserved for `type=2`'s remote DB mode; unused since that mode isn't implemented. |
 | `yaml_path` | str | `""` | Path to the YAML file for `type=1`. Missing file, missing PyYAML, a parse failure, a non-mapping root, or zero valid entries all fall back to dummy (logged at `error`). |
 | `forward_body` | bool | `True` | If `True` and the query's payload is a u8vector, echoes it back on `db_callback`; otherwise the response payload is `PMT_NIL`. Currently has no real effect on `inject_db`, the only consumer in this repo — it always uses its own independently-tracked pending payload instead (see Behavior). Kept for a future consumer that might not track its own pending payload. |
-| `auto_reset_counters` | bool | `False` | `type=0` only: if `True`, `sdls_counter` resets to `0` after its max value is served instead of the entry being refused — reusing AES-CTR counters, so for test use only. Has no effect on `vcid_counter`, which always wraps. |
+| `auto_reset_counters` | bool | `False` | `type=0` only: if `True`, `sdls_counter` resets to `0` after its max value is served instead of the entry being refused — reusing AES-CTR counters, for long test runs. Only allowed with the built-in test keys (`TEST_CRYPT_KEY`/`TEST_AUTH_KEY`, the `crypt_key`/`auth_key` defaults); with any other key the constructor raises `ValueError`. Has no effect on `vcid_counter`, which always wraps. |
 | `scid`, `spi`, `vcid`, `crypt_key`, `auth_key`, `sdls_counter`, `vcid_counter`, `key_state_enc`, `key_state_auth` | — | see code | The dummy (`type=0`) entry's fields, each independently configurable. |
 
 ## Behavior / edge cases / current error handling
@@ -83,8 +83,8 @@ affected. The two counters overflow differently:
   independent of `auto_reset_counters`. It has no security role, so
   wrapping needs no new key.
 - **`sdls_counter`**: `_checked_increment` raises `OverflowError` at its
-  max; with `type=0 and auto_reset_counters` it resets to `0` (test use
-  only — see below), otherwise the entry is marked exhausted.
+  max; with `type=0 and auto_reset_counters` it resets to `0` (test keys
+  only — see Parameters), otherwise the entry is marked exhausted.
 
 **`sdls_counter` exhaustion**: without auto-reset, an `sdls_counter`
 overflow marks the entry `sdls_counter_exhausted`, and every later query
@@ -92,6 +92,13 @@ for that SCID/SPI is refused (logged at `error`, no publish) instead of
 re-serving the max value — re-serving it would reuse a (key, counter)
 pair, which breaks AES-CTR confidentiality. Other entries are unaffected.
 The entry stays refused until the block is restarted with a new key.
+
+**RX lookups don't count**: a query with `db_role` `"rx"` (from
+`inject_db(role="rx")`) is served without advancing either counter and
+is answered even for an exhausted entry. RX reads its counters from the
+received frame and needs only the keys from the database; counting its
+lookups would exhaust the RX database after 65,536 received frames. Any
+other (or missing) `db_role` counts as a TX lookup.
 
 **`forward_body=False` (or a non-u8vector query payload)**: the
 `db_callback` response's payload becomes `PMT_NIL`. This is harmless in
@@ -132,8 +139,8 @@ None — this block is pure key/counter lookup, not a CCSDS-defined layer.
 
 ## Test coverage
 
-- `python/soarr/qa_db_client.py` — 23 test methods (`test_instance` +
-  `test_001`–`test_023`): a dummy-mode lookup returning every expected
+- `python/soarr/qa_db_client.py` — 27 test methods (`test_instance` +
+  `test_001`–`test_026`): a dummy-mode lookup returning every expected
   field and incrementing both counters across two calls, a missing
   `scid`/`spi` and an unknown `scid`/`spi` each emitting nothing, YAML
   mode loading a flat-layout entry and using it (`test_004`), an
@@ -157,5 +164,9 @@ None — this block is pure key/counter lookup, not a CCSDS-defined layer.
   (`test_019`), a stored `sdls_counter` above 16 bits refused
   (`test_020`), an exhausted entry refused while another entry keeps
   being served (`test_021`), `db_request_id` echoed back when the
-  query carries one and absent otherwise (`test_022`), and
-  `vcid_counter` served as `254, 255, 0, 1` in YAML mode (`test_023`).
+  query carries one and absent otherwise (`test_022`),
+  `vcid_counter` served as `254, 255, 0, 1` in YAML mode (`test_023`),
+  `auto_reset_counters` refused with a non-test `crypt_key` or
+  `auth_key` (`test_024`), custom keys accepted with it off
+  (`test_025`), and an RX lookup served without counting, even for an
+  exhausted entry (`test_026`).

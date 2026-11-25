@@ -34,7 +34,7 @@ consume it but never remove it.
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `iv_length_bytes` | int | `2` | Fixed byte width `sdls_counter` is padded/validated to. Must be `2` — `sdls_encryption`/`sdls_decryption`'s AES-CTR counter width and `sdls_authentication`/`sdls_authentication_verify`'s CMAC counter width are both fixed at exactly 2 bytes, so any other value would desync the wire-transmitted field width from what TX/RX actually use cryptographically. Validated in `__init__` (raises `ValueError` if not `2`); not GRC-exposed (hardcoded to `2` in the `make` template, matching `bch_decoder`'s fixed `mode` parameter). |
+| `iv_length_bytes` | int | `2` | Fixed byte width `sdls_counter` is padded/validated to. Must be `2` (`sdls_constants.SDLS_COUNTER_BYTES`) — the same constant sets the AES counter block width in `sdls_encryption`/`sdls_decryption` and `sdls_authentication`/`sdls_authentication_verify`, so any other value would desync the wire-transmitted field width from what TX/RX actually use cryptographically. Validated in `__init__` (raises `ValueError` if not `2`); not GRC-exposed (the `make` template leaves it at its default, matching `bch_decoder`'s fixed `mode` parameter). |
 
 ## Behavior / edge cases / current error handling
 
@@ -87,29 +87,7 @@ value.
 
 ## Known issues / TODOs
 
-- **The nested `sdls.security_header.<key>` fallback lookup has zero test
-  coverage, and it's not an edge case for either key — it's the only path
-  both `spi` and `sdls_counter` take in the real pipeline.** `sdls_counter`
-  is assigned *by* the `db_client` response, never known beforehand, so
-  `inject_db.py`'s merge logic (`_merge_key_into_nested`) always nests
-  it under
-  `sdls.security_header.sdls_counter` — confirmed directly in that file.
-  `spi` is nested from the start too: `data_creator.py` (the one real
-  message-generator in this repo) builds it directly under
-  `sdls.security_header.spi` (`generate_message`) — it never
-  produces a top-level `spi` at all, so `inject_db`'s merge logic never
-  even gets a chance to run on it; `qa_inject_db.py`'s own tests confirm
-  the same (every one constructs `spi` nested, never top-level). No test
-  anywhere exercises the nested shape: every unit test in
-  `qa_sdls_header.py` (and the sibling blocks') constructs both keys at
-  the top level directly, bypassing `inject_db`/`data_creator` entirely,
-  and `qa_tx_chain.py::test_002_end_to_end_message_routing` — the one
-  test that *does* run the real wired topology — shims every block's
-  real handler out, including `inject_db`'s own two handlers and
-  `db_client`'s, so it never exercises real merge or extraction logic
-  either. In short: the code path this block's `spi`/`sdls_counter`
-  handling actually takes in production has never been run by any test
-  in this repo.
+None currently.
 
 ## Test coverage
 
@@ -130,3 +108,8 @@ value.
   `msg_connect` wiring (covered separately by
   `test_002_end_to_end_message_routing`, with this block's handler
   shimmed out).
+- `python/soarr/qa_tx_chain.py::test_013_real_chain_reads_nested_metadata`
+  — runs one `data_creator` PDU through the real, wired `inject_db`/
+  `db_client` and SDLS/TC handlers, so this block receives metadata in
+  the nested shape the pipeline actually produces, and checks that its
+  nested `spi` and `sdls_counter` reach the wire correctly.

@@ -30,7 +30,7 @@ class qa_cltu_deframer(gr_unittest.TestCase):
 
         dut.message_port_pub = _capture
         try:
-            dut.process_bytes(chunk)
+            dut._process_bytes(chunk)
         finally:
             dut.message_port_pub = original_pub
 

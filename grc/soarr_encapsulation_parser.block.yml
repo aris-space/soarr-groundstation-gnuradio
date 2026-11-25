@@ -1,6 +1,6 @@
 id: soarr_encapsulation_parser
 label: Encapsulation Parser
-category: '[soarr]/Encapsulation'
+category: '[Soarr]/Common/Encapsulation'
 
 templates:
   imports: from gnuradio import soarr

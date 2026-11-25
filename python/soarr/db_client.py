@@ -9,15 +9,22 @@ from pathlib import Path
 from gnuradio import gr
 import pmt
 
+# SDLS counter is transmitted as the IV in the SDLS security header
+# (sdls_header), so its range is the shared SDLS counter width.
+from .sdls_constants import SDLS_COUNTER_MAX
+
 try:
     import yaml
 except ImportError:
     yaml = None
 
-# SDLS counter is transmitted as the 2-byte IV in the SDLS security header
-# (sdls_header), so it is modeled as uint16.
-SDLS_COUNTER_MAX = 0xFFFF
 VCID_COUNTER_MAX = 0xFF
+
+# Built-in dummy-mode keys. They are public (in this repo), so they protect
+# nothing - which is what makes them the only keys auto_reset_counters may
+# reuse (key, counter) pairs under.
+TEST_CRYPT_KEY = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
+TEST_AUTH_KEY = "FFEEDDCCBBAA99887766554433221100FFEEDDCCBBAA99887766554433221100"
 
 class db_client(gr.basic_block):
     """Database client for unified SDLS/TC material lookup.
@@ -39,8 +46,8 @@ class db_client(gr.basic_block):
         scid: int = 0x155,
         spi: int = 1,
         vcid: int = 0x12,
-        crypt_key: str = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF",
-        auth_key: str = "FFEEDDCCBBAA99887766554433221100FFEEDDCCBBAA99887766554433221100",
+        crypt_key: str = TEST_CRYPT_KEY,
+        auth_key: str = TEST_AUTH_KEY,
         sdls_counter: int = 0,
         vcid_counter: int = 0,
         key_state_enc: str = "active",
@@ -56,8 +63,9 @@ class db_client(gr.basic_block):
             forward_body (bool): if True, echo the query's u8vector
                 payload back on db_callback; otherwise PMT_NIL.
             auto_reset_counters (bool): type=0 only - if True,
-                sdls_counter resets to 0 after its max value is served
-                (reusing AES-CTR counters: test use only). vcid_counter
+                sdls_counter resets to 0 after its max value is served,
+                reusing AES-CTR counters. Only allowed with the built-in
+                test keys (TEST_CRYPT_KEY/TEST_AUTH_KEY). vcid_counter
                 always wraps 255 -> 0, independent of this flag.
             scid (int): dummy-mode entry's SCID.
             spi (int): dummy-mode entry's SPI.
@@ -72,7 +80,9 @@ class db_client(gr.basic_block):
         Raises:
             TypeError | ValueError: type or port isn't convertible to
                 int. Every other parameter is coerced defensively (via
-                _to_int/_to_bool or str()) and cannot raise here.
+                _to_int/_to_bool or str()).
+            ValueError: type=0 with auto_reset_counters=True and a
+                crypt_key or auth_key other than the built-in test keys.
         """
         gr.basic_block.__init__(self,
                 name="db_client",
@@ -104,6 +114,12 @@ class db_client(gr.basic_block):
         self.dummy_key_state_enc = str(key_state_enc)
         self.dummy_key_state_auth = str(key_state_auth)
 
+        if self.type == 0 and self.auto_reset_counters and not self._uses_test_keys():
+            raise ValueError(
+                "auto_reset_counters reuses (key, counter) pairs and is only allowed "
+                "with the built-in test keys; disable it or use the default crypt_key/auth_key."
+            )
+
         # In-memory structure indexed as: {"<SCID>": {"<SPI>": entry}}
         self._db = {}
         self._init_database()
@@ -113,6 +129,15 @@ class db_client(gr.basic_block):
         self.message_port_register_out(pmt.intern("db_callback"))
 
         self.set_msg_handler(pmt.intern("db_call"), self.make_db_call)
+
+    def _uses_test_keys(self):
+        """
+        Returns:
+            bool: True if both dummy-mode keys are the built-in test keys
+                (compared as hex, ignoring case and surrounding whitespace).
+        """
+        return (self.dummy_crypt_key.strip().upper() == TEST_CRYPT_KEY
+                and self.dummy_auth_key.strip().upper() == TEST_AUTH_KEY)
 
     def _init_database(self):
         if self.type == 0:
@@ -485,7 +510,9 @@ class db_client(gr.basic_block):
                 Metadata must resolve `scid`/`spi` to a known DB entry
                 (see _resolve_scid_spi); `bypass`/`control` are optional,
                 echoed back from the query if present (see
-                _resolve_bypass_control).
+                _resolve_bypass_control). `db_role` (symbol, optional):
+                "rx" serves the entry without advancing its counters
+                (inject_db sets it); anything else counts as TX.
 
         Publishes:
             "db_callback" (pmt_pair): metadata with the query's
@@ -503,7 +530,7 @@ class db_client(gr.basic_block):
             - the entry's sdls_counter is exhausted: its max value was
               already served and auto-reset is off, so serving again
               would reuse a (key, counter) pair (error - a new key is
-              required)
+              required). Not for an RX lookup (`db_role` "rx").
             - the entry's stored counters are invalid (error - same)
             - an internal failure occurs while building or publishing the response (error - same)
         """
@@ -522,7 +549,13 @@ class db_client(gr.basic_block):
                 self.logger.error("DB query missing or unknown SCID/SPI.")
                 return
 
-            if entry.get("sdls_counter_exhausted", False):
+            # An RX lookup only needs the keys: RX reads its counters from
+            # the received frame, so it neither consumes nor is limited by
+            # the counters, which protect TX against (key, counter) reuse.
+            role = pmt.dict_ref(meta, pmt.intern("db_role"), pmt.PMT_NIL)
+            counts = not (pmt.is_symbol(role) and pmt.symbol_to_string(role) == "rx")
+
+            if counts and entry.get("sdls_counter_exhausted", False):
                 self.logger.error(
                     f"sdls_counter exhausted for SCID {entry.get('SCID')} / SPI {entry.get('SPI')}; "
                     "refusing request to avoid (key, counter) reuse. A new key is required."
@@ -561,6 +594,8 @@ class db_client(gr.basic_block):
             if self.forward_body and pmt.is_u8vector(in_body):
                 body_to_forward = in_body
             self._publish("db_callback", response_meta, body_to_forward)
+            if not counts:
+                return
 
             # Increase counters only after giving out current values.
             # sdls_counter: try to increment; if at max and auto-reset enabled for dummy mode,

@@ -32,7 +32,7 @@ It uses the same `authentication_state` parameter name as this block.
 
 | Name | Type | Default | Notes |
 |---|---|---|---|
-| `authentication_state` | bool | `True` | `False` makes the block a pure passthrough after its shape checks — input republished on `out` unchanged, no key/counter validation, no metadata mutation. Matches `sdls_authentication_verify`'s own `authentication_state` parameter name — not a new convention. |
+| `authentication_state` | bool | `True` | `False` makes the block a passthrough after its shape checks — the payload republished on `out` unchanged, no key/counter validation; only `auth_key` is removed from the metadata (nothing downstream needs it, and it would otherwise reach every later block and sink). Matches `sdls_authentication_verify`'s own `authentication_state` parameter name — not a new convention. |
 | `nonce` | bytes | `b"\x00" * 14` (all-zero) | Fixed for the block's lifetime, combined with the per-message `sdls_counter` into the 16-byte block prepended to the payload before CMAC (see Behavior). Never transmitted — RX's `sdls_authentication_verify` must be configured with the identical value out-of-band. **Independent of `sdls_encryption`'s `nonce`** — a separate parameter, separate key (`auth_key` vs. `crypt_key`), by design: using distinct key/nonce material for encryption vs. authentication is standard practice, not a bug, even though both currently default to the same all-zero value. Validated in `__init__` (`TypeError`/`ValueError` if not exactly 14 bytes). |
 
 ## Behavior / edge cases / current error handling
@@ -43,7 +43,8 @@ without publishing, regardless of `authentication_state`. Only past
 those checks does it look at `authentication_state`.
 
 **`authentication_state=False`**: republishes the already-shape-validated
-input PDU on `out` completely unchanged — no key/counter extraction.
+input payload on `out` unchanged — no key/counter extraction — with
+only `auth_key` removed from the metadata.
 **Same order as the RX sibling**: `sdls_authentication_verify.verify_message`
 also checks shape first, `authentication_state` second.
 
@@ -98,29 +99,6 @@ support for SDLS's other permitted MAC schemes.
 
 - **Default `nonce` is all-zero** (`b"\x00" * 14`) unless explicitly
   overridden — same as `sdls_encryption`.
-- **The nested `sdls_counter` fallback lookup path is not an edge case —
-  it's the only path `sdls_counter` takes in the real pipeline, and it
-  has zero test coverage** (same finding as `sdls_encryption`'s PRD, and
-  verified the same way directly in `inject_db.py`: `sdls_counter` is
-  assigned *by* the `db_client` response, so `inject_db`'s merge logic
-  always nests it under `sdls.security_header.sdls_counter`, never
-  top-level). No test in `qa_sdls_authentication.py` or
-  `qa_sdls_authentication_round_trip.py` constructs that shape, and
-  `qa_tx_chain.py::test_002_end_to_end_message_routing` — the one test
-  that runs the real wired topology — shims this block's real handler
-  out. The code path this block's `sdls_counter` handling actually takes
-  in production has never been run by any test in this repo.
-- **`sdls_authentication_verify.py` (RX) has a known issue of its own,
-  out of scope for this PRD** — its `verify_message` contains an entire
-  alternate MAC-input construction path (triggered when
-  `dict_msg["sdls"]["security_trailer"]` is present, optionally prefixing
-  a reconstructed encapsulation header) that this block never produces —
-  this block always appends the tag directly to the payload and never
-  writes `sdls.security_trailer` or reads `encapsulation_header` metadata
-  for tag construction. Under the current TX→RX pairing (the only path
-  any test exercises) that alternate path is never reached, so there's no
-  observed bug — see [sdls_authentication_verify.md](sdls_authentication_verify.md)
-  for the full detail.
 
 ## Test coverage
 
@@ -154,3 +132,8 @@ support for SDLS's other permitted MAC schemes.
   `msg_connect` wiring (covered separately by
   `test_002_end_to_end_message_routing`, with this block's handler
   shimmed out).
+- `python/soarr/qa_tx_chain.py::test_013_real_chain_reads_nested_metadata`
+  — runs one `data_creator` PDU through the real, wired `inject_db`/
+  `db_client` and SDLS/TC handlers, so this block receives metadata in
+  the nested shape the pipeline actually produces, and checks that its
+  nested `sdls_counter` reaches the wire correctly (the tag verifies with it).

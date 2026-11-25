@@ -56,6 +56,17 @@ class qa_lfsr_descrambler(gr_unittest.TestCase):
         self.assertNotEqual(_run(False), bytes(5))  # sequence continued, not restarted
         self.assertEqual(_run(True), bytes(5))
 
+    # bch_encoder's "filled" says whether fill bits were added; it is not a
+    # CLTU boundary, so it never restarts the sequence, whatever its value.
+    def test_011_filled_key_does_not_restart_sequence(self):
+        scrambled = bytes([0xFF, 0x39, 0x9E, 0x5A, 0x68])  # sequence start XOR zeros
+        self._descramble_and_capture(pmt.make_dict(), pmt.init_u8vector(len(scrambled), list(scrambled)))
+        for filled in (True, False):
+            meta = pmt.dict_add(pmt.make_dict(), pmt.intern("filled"), pmt.from_bool(filled))
+            self._descramble_and_capture(meta, pmt.init_u8vector(len(scrambled), list(scrambled)))
+            out = bytes(pmt.u8vector_elements(pmt.cdr(self.captured_output[0][1])))
+            self.assertNotEqual(out, bytes(5), f"filled={filled} restarted the sequence")
+
     def test_001_default_parameters(self):
         self.assertEqual(self.descrambler.seed, 0xFF)
         self.assertEqual(self.descrambler.register_length, 8)

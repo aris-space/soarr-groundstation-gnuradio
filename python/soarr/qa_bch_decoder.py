@@ -84,13 +84,13 @@ class qa_bch_decoder(gr_unittest.TestCase):
         pair_no_data = pmt.cons(pmt.make_dict(), pmt.PMT_NIL)
         self.assertIsNone(instance.error_correction_mode(pair_no_data))
 
-    def test_006_invalid_pdu_structure_wrong_type(self):
+    def test_005_invalid_pdu_structure_wrong_type(self):
         instance = bch_decoder()
         # Pair with wrong payload type
         pair_no_u8 = pmt.cons(pmt.make_dict(), pmt.init_u16vector(4, [0x00] * 4))
         self.assertIsNone(instance.error_correction_mode(pair_no_u8))
 
-    def test_014_invalid_pdu_structure_no_dict_metadata(self):
+    def test_006_invalid_pdu_structure_no_dict_metadata(self):
         instance = bch_decoder()
         # Pair with valid u8vector payload but non-dict metadata
         # (pmt.PMT_NIL doesn't work as a "not a dict" sentinel here: an
@@ -211,6 +211,35 @@ class qa_bch_decoder(gr_unittest.TestCase):
         # Metadata should be preserved
         self.assertTrue(pmt.dict_has_key(out_dict, pmt.intern("timestamp")))
         self.assertTrue(pmt.dict_has_key(out_dict, pmt.intern("sequence")))
+
+    def _codeword_bits(self, payload):
+        """The 64 codeword bits bch_encoder produces for a 7-byte payload."""
+        codeword = pmt.u8vector_elements(pmt.cdr(self._encode_payload(bch_encoder(), payload)))
+        return [(byte >> (7 - i)) & 1 for byte in codeword for i in range(8)]
+
+    # Every single-bit error in the 63 code bits is corrected.
+    def test_015_every_single_bit_error_is_corrected(self):
+        decoder = bch_decoder()
+        payload = [0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE]
+        bits = self._codeword_bits(payload)
+        expected = bits[:56]
+        for pos in range(63):
+            corrupted = list(bits)
+            corrupted[pos] ^= 1
+            self.assertEqual(decoder._decode(corrupted), expected, f"bit {pos}")
+
+    # The code's minimum distance is 4, so every double-bit error is
+    # detected: none lies within one bit of another codeword. Each must be
+    # rejected - "correcting" it would return a different codeword's data.
+    def test_016_every_double_bit_error_is_rejected(self):
+        decoder = bch_decoder()
+        bits = self._codeword_bits([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE])
+        for first in range(63):
+            for second in range(first + 1, 63):
+                corrupted = list(bits)
+                corrupted[first] ^= 1
+                corrupted[second] ^= 1
+                self.assertIsNone(decoder._decode(corrupted), f"bits {first}, {second}")
 
 
 if __name__ == '__main__':

@@ -13,9 +13,7 @@ import pmt
 from Crypto.Cipher import AES
 
 
-COUNTER_MIN = 0
-COUNTER_MAX = 0xFFFF  # 2-byte counter max value
-NONCE_LEN = 14
+from .sdls_constants import NONCE_LEN, SDLS_COUNTER_MAX as COUNTER_MAX, SDLS_COUNTER_MIN as COUNTER_MIN
 
 class sdls_encryption(gr.basic_block):
     """
@@ -32,8 +30,8 @@ class sdls_encryption(gr.basic_block):
         """
         Args:
             encryption_state (bool): if False, add_encryption becomes a
-                pure passthrough after its shape checks - no validation,
-                no metadata mutation.
+                passthrough after its shape checks - no validation; only
+                `crypt_key` is removed from the metadata.
             nonce (bytes): fixed 14-byte value combined with the
                 per-message sdls_counter into one 16-byte AES-CTR counter
                 block. Never transmitted - RX's sdls_decryption must be
@@ -53,7 +51,7 @@ class sdls_encryption(gr.basic_block):
         if not isinstance(nonce, (bytes, bytearray)):
             raise TypeError("nonce must be bytes-like")
         if len(nonce) != NONCE_LEN:
-            raise ValueError("nonce must be exactly 14 bytes")
+            raise ValueError(f"nonce must be exactly {NONCE_LEN} bytes")
         self.nonce = bytes(nonce)
 
         # Message ports
@@ -140,7 +138,7 @@ class sdls_encryption(gr.basic_block):
 
         # Validate counter range
         if counter < COUNTER_MIN or counter > COUNTER_MAX:
-            self.logger.error(f"sdls_counter exceeds 2-byte range (0..65535); aborting message processing. Value: {counter}")
+            self.logger.error(f"sdls_counter exceeds its range ({COUNTER_MIN}..{COUNTER_MAX}); aborting message processing. Value: {counter}")
             return None
 
         return counter
@@ -161,10 +159,10 @@ class sdls_encryption(gr.basic_block):
         """
         # AES-CTR state is nonce (14 bytes) + 2-byte initial counter value.
         if len(self.nonce) != NONCE_LEN:
-            raise ValueError("nonce must be exactly 14 bytes")
+            raise ValueError(f"nonce must be exactly {NONCE_LEN} bytes")
 
         if counter < COUNTER_MIN or counter > COUNTER_MAX:
-            raise ValueError("sdls_counter must be in range 0..65535")
+            raise ValueError(f"sdls_counter must be in range {COUNTER_MIN}..{COUNTER_MAX}")
 
         # Encrypt the payload using AES-256 in CTR mode
         cipher = AES.new(key, AES.MODE_CTR, nonce=self.nonce, initial_value=counter)
@@ -182,7 +180,8 @@ class sdls_encryption(gr.basic_block):
             "out" (pmt_pair): PDU with `crypt_key` removed from metadata
                 and the payload replaced by its AES-256-CTR ciphertext.
                 If encryption_state is False, republishes the input
-                unchanged instead (after the same shape checks).
+                payload unencrypted instead (after the same shape checks),
+                still with `crypt_key` removed.
 
         Drops when:
             - msg is not a PDU pair (error - malformed input at the TX boundary, not raw RF noise)
@@ -216,7 +215,8 @@ class sdls_encryption(gr.basic_block):
 
             if self.encryption_state is False:
                 self.logger.info(f"No encryption applied since encryption_state is False. Passing through message.")
-                self.message_port_pub(pmt.intern("out"), msg)
+                # Still drop the key: nothing downstream needs it.
+                self.message_port_pub(pmt.intern("out"), pmt.cons(pmt.dict_delete(dict_msg, pmt.intern("crypt_key")), payload_u8vector))
                 return # Early exit if encryption is disabled
 
             # Extract the encryption key from the dict

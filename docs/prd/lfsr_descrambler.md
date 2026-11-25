@@ -49,7 +49,7 @@ Also feeds the separate, internal-testing-only chain documented in
 
 | Port | Direction | PMT shape | Example |
 |---|---|---|---|
-| `in` | input | PDU: `(metadata_dict . payload_u8vector)`. No required metadata keys, but `scramble_reset` or `filled` (either one, if present) trigger a sequence reset via this port's own handler — one of two separate reset paths, see Behavior below. | `pmt.cons({}, u8vector(payload))` |
+| `in` | input | PDU: `(metadata_dict . payload_u8vector)`. No required metadata keys, but a truthy `scramble_reset` triggers a sequence reset via this port's own handler — one of two separate reset paths, see Behavior below. | `pmt.cons({}, u8vector(payload))` |
 | `out` | output | PDU: `(metadata_dict . descrambled_payload_u8vector)`. Metadata passed through unchanged; only the payload bytes are transformed, length preserved. | `pmt.cons({}, u8vector(descrambled))` |
 
 `descramble_msg` (the handler registered on `in`) also **returns** the
@@ -79,18 +79,14 @@ running state.
 `seed` and resets `self._seq_index` to `0`, and is reachable through two
 entirely separate paths:
 
-1. **Metadata-key path, inside `descramble_msg`** — triggered by either
-   `scramble_reset` (only if its value is truthy; a present `False`
-   skips the `filled` check) or `filled` (**on presence alone — its value
-   is never inspected**, unlike `scramble_reset`) on an incoming PDU's
-   metadata. `cltu_deframer` sets `scramble_reset` on every codeword it
+1. **Metadata-key path, inside `descramble_msg`** — triggered by a
+   truthy `scramble_reset` on an incoming PDU's metadata. `cltu_deframer` sets `scramble_reset` on every codeword it
    publishes — `True` on each CLTU's first codeword, `False` on the rest —
    so on the standalone `cltu_deframer → bch_decoder → lfsr_descrambler`
    path the sequence restarts at every CLTU, as CCSDS de-randomization
    requires (`qa_lfsr_receive_chain.py::test_005`). `bch_encoder`'s own
-   `filled` key is never wired to this block — see
-   [bch_encoder.md](bch_encoder.md)'s Message ports section for that
-   key's other, disconnected use.
+   `filled` key (whether fill bits were added) is not a CLTU boundary
+   and never resets the sequence (`qa_lfsr_descrambler.py::test_011`).
 2. **Direct calls from `ccsds_receiver`, bypassing `descramble_msg`
    entirely** — the block's actual, frequently-exercised reset mechanism
    in the one real caller, tied to frame boundaries rather than PDU
@@ -149,15 +145,16 @@ hand-derived vector alone.
 
 ## Test coverage
 
-- `python/soarr/qa_lfsr_descrambler.py` — 11 test methods (`test_instance`
-  + `test_001`-`test_010`): construction with default and custom
+- `python/soarr/qa_lfsr_descrambler.py` — 12 test methods (`test_instance`
+  + `test_001`-`test_011`): construction with default and custom
   parameters, an independent-source known-answer descramble (see CCSDS
   reference above), PDU metadata identity preserved, output length
   preserved, zero-length payload, a non-u8vector body dropped cleanly, an
   invalid `register_length` raising at construction, a mock-forced
   publish failure proven to be caught and dropped rather than raised
-  through the real handler, and `scramble_reset=True` restarting the
-  sequence while `False` keeps it running (`test_010`).
+  through the real handler, `scramble_reset=True` restarting the
+  sequence while `False` keeps it running (`test_010`), and `filled`
+  never restarting it, `True` or `False` (`test_011`).
 - `python/soarr/qa_lfsr_round_trip.py` — 3 test methods
   (`test_instance` + `test_001`-`test_002`): `lfsr_scrambler` →
   `lfsr_descrambler` round trip recovers the original payload and

@@ -1,0 +1,42 @@
+id: soarr_tc_frame_encoder
+label: TC Frame Encoder
+category: '[Soarr]/TC (Telecommand)'
+
+templates:
+  imports: from gnuradio import soarr
+  make: soarr.tc_frame_encoder(${scid}, ${vcid})
+
+parameters:
+- id: scid
+  label: SCID
+  dtype: int
+  default: 0
+- id: vcid
+  label: VCID
+  dtype: int
+  default: 0
+
+asserts:
+- ${ scid >= 0 and scid < 2**10 }
+- ${ vcid >= 0 and vcid < 2**6 }
+
+inputs:
+- label: in
+  domain: message
+  optional: 0
+
+outputs:
+- label: out
+  domain: message
+  optional: 0
+
+documentation: |-
+  TC frame data field to CLTU (CCSDS 232.0-B / 231.0-B) in one block: TC Primary Header Adder, FECF (CRC-16/CCITT), TC Scrambler, TC BCH Encoder, TC CLTU Framer.
+
+  Everything CCSDS fixes is built in: the FECF CRC, the randomizer, the BCH (63,56) code, the CLTU start and tail sequences. SCID and VCID are used when the metadata carries none (the Key Database and Data Creator set them).
+
+  Ports:
+  - in: the frame's data field (e.g. from SDLS Apply), with vcid_counter (the frame sequence number) in the metadata.
+  - out: one CLTU per frame, for TC PLOP Modulator or TC CLTU Burst Builder.
+
+file_format: 1
