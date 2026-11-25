@@ -7,6 +7,10 @@
 # Entries are looked up by SCID + SPI; the entry names ("18", "5") are
 # labels only. Keys are AES-256 (32 bytes = 64 hex characters) and are
 # well-known test patterns: never use them with a real spacecraft.
+#
+# key_state: "active" or "inactive" for enc and auth (active if left out).
+# An inactive key is not handed out, so the SDLS step that needs it drops
+# the frame.
 
 entries:
   "18":
@@ -30,5 +34,5 @@ entries:
     sdls_counter: 120
     vcid_counter: 44
     key_state:
-      enc: standby
+      enc: active
       auth: active

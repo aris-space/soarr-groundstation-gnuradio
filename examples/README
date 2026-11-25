@@ -78,7 +78,9 @@ Each entry needs SCID and SPI; the other fields are:
     authentication_key  AES-256 key for sdls_authentication, 64 hex characters
     sdls_counter        starting SDLS counter (the IV sent in the SDLS header)
     vcid_counter        starting frame sequence number for the virtual channel
-    key_state           informational only; stored, not used by any block
+    key_state           enc and auth: "active" or "inactive" (active if left
+                        out); an inactive key is not handed out, so the SDLS
+                        step that needs it drops the frame
 
 Counters are served, then incremented in memory for as long as the block
 runs; the file itself is never written back.

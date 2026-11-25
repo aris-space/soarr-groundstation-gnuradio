@@ -91,14 +91,18 @@ parameters:
 
 - id: key_state_enc
   label: Dummy Key State Enc
-  dtype: string
-  default: active
+  dtype: enum
+  options: ['"active"', '"inactive"']
+  option_labels: [Active, Inactive]
+  default: '"active"'
   hide: ${ 'part' if type == '0' else 'all' }
 
 - id: key_state_auth
   label: Dummy Key State Auth
-  dtype: string
-  default: active
+  dtype: enum
+  options: ['"active"', '"inactive"']
+  option_labels: [Active, Inactive]
+  default: '"active"'
   hide: ${ 'part' if type == '0' else 'all' }
 
 asserts:
@@ -125,6 +129,8 @@ documentation: |-
   Ports:
   - db_call: queries from inject_db.
   - db_callback: the answers, to inject_db.
+
+  Key states: only an active key is handed out. An inactive one is answered as empty, so the SDLS step that needs it (encryption or MAC) drops the frame. In a YAML file, key_state takes the same two values, active if left out.
 
   The SDLS counter is 16 bits; once an entry has used all values, its requests are refused until a new key is loaded. The VCID counter (frame sequence number) wraps from 255 to 0. Auto Reset Counters reuses SDLS counters, so it is only allowed with the default test keys.
 

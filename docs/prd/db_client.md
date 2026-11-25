@@ -39,9 +39,20 @@ Confirmed via `python/soarr/qa_tx_chain.py`'s `msg_connect` wiring
 | `yaml_path` | str | `""` | Path to the YAML file for `type=1`. Missing file, missing PyYAML, a parse failure, a non-mapping root, or zero valid entries all fall back to dummy (logged at `error`). |
 | `forward_body` | bool | `True` | If `True` and the query's payload is a u8vector, echoes it back on `db_callback`; otherwise the response payload is `PMT_NIL`. Currently has no real effect on `inject_db`, the only consumer in this repo — it always uses its own independently-tracked pending payload instead (see Behavior). Kept for a future consumer that might not track its own pending payload. |
 | `auto_reset_counters` | bool | `False` | `type=0` only: if `True`, `sdls_counter` resets to `0` after its max value is served instead of the entry being refused — reusing AES-CTR counters, for long test runs. Only allowed with the built-in test keys (`TEST_CRYPT_KEY`/`TEST_AUTH_KEY`, the `crypt_key`/`auth_key` defaults); with any other key the constructor raises `ValueError`. Has no effect on `vcid_counter`, which always wraps. |
-| `scid`, `spi`, `vcid`, `crypt_key`, `auth_key`, `sdls_counter`, `vcid_counter`, `key_state_enc`, `key_state_auth` | — | see code | The dummy (`type=0`) entry's fields, each independently configurable. |
+| `scid`, `spi`, `vcid`, `crypt_key`, `auth_key`, `sdls_counter`, `vcid_counter` | — | see code | The dummy (`type=0`) entry's fields, each independently configurable. |
+| `key_state_enc`, `key_state_auth` | str | `"active"` | The dummy entry's key states: `"active"` or `"inactive"`, in any case (see Behavior); anything else raises `ValueError`. GRC offers them as a dropdown. |
 
 ## Behavior / edge cases / current error handling
+
+**Key states**: every entry has a state for its encryption key (`enc`)
+and its authentication key (`auth`), `"active"` or `"inactive"`. Only an
+active key is handed out; an inactive one is answered as `PMT_NIL`
+(logged at `info`), which `inject_db` passes on and the SDLS step that
+needs the key — encryption or MAC, on TX or RX — refuses, dropping the
+frame. The other key of the entry, and the counters, are served as
+usual. In a YAML file `key_state` holds `enc` and `auth`; either left out
+is active, and any other value makes the entry invalid, so it is not
+loaded (logged at `error`).
 
 **Lookup key resolution** (`_resolve_scid_spi`/`_resolve_bypass_control`):
 `scid`/`spi`/`bypass`/`control` are each resolved *independently* — top
@@ -139,16 +150,17 @@ None — this block is pure key/counter lookup, not a CCSDS-defined layer.
 
 ## Test coverage
 
-- `python/soarr/qa_db_client.py` — 27 test methods (`test_instance` +
-  `test_001`–`test_026`): a dummy-mode lookup returning every expected
+- `python/soarr/qa_db_client.py` — 29 test methods (`test_instance` +
+  `test_001`–`test_028`): a dummy-mode lookup returning every expected
   field and incrementing both counters across two calls, a missing
   `scid`/`spi` and an unknown `scid`/`spi` each emitting nothing, YAML
   mode loading a flat-layout entry and using it (`test_004`), an
   `sdls_counter` already at max being served once, then refused, while
   `vcid_counter` wraps to `0` (`auto_reset_counters` off, `test_005`), configurable dummy SCID/SPI/VCID,
   configurable dummy keys, configurable dummy initial counters,
-  configurable dummy key states, every dummy parameter combined in one
-  test, `forward_body=True` preserving a u8vector payload,
+  dummy key states accepted as `active`/`inactive` in any case and
+  anything else raising (`test_009`), every dummy parameter combined in
+  one test, `forward_body=True` preserving a u8vector payload,
   `forward_body=False` producing a `PMT_NIL` payload (this file only
   proves that behavior, not `inject_db`'s reaction to it — see
   [inject_db.md](inject_db.md) for that),
@@ -169,4 +181,9 @@ None — this block is pure key/counter lookup, not a CCSDS-defined layer.
   `auto_reset_counters` refused with a non-test `crypt_key` or
   `auth_key` (`test_024`), custom keys accepted with it off
   (`test_025`), and an RX lookup served without counting, even for an
-  exhausted entry (`test_026`).
+  exhausted entry (`test_026`), an inactive encryption and/or
+  authentication key answered as `PMT_NIL` while the other key is
+  served (`test_027`), and YAML key states: left out meaning active, an
+  inactive one not handed out, an unknown one keeping its entry from
+  loading (`test_028`). The YAML lookup in `test_004` also checks its
+  inactive authentication key comes back as `PMT_NIL`.

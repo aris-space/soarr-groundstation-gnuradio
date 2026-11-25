@@ -26,6 +26,11 @@ VCID_COUNTER_MAX = 0xFF
 TEST_CRYPT_KEY = "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
 TEST_AUTH_KEY = "FFEEDDCCBBAA99887766554433221100FFEEDDCCBBAA99887766554433221100"
 
+# Key states: only an active key is handed out; an inactive one is answered
+# as PMT_NIL, so the SDLS step that needs it drops the frame.
+KEY_STATE_ACTIVE = "active"
+KEY_STATES = (KEY_STATE_ACTIVE, "inactive")
+
 class db_client(gr.basic_block):
     """Database client for unified SDLS/TC material lookup.
 
@@ -74,15 +79,19 @@ class db_client(gr.basic_block):
             auth_key (str): dummy-mode entry's authentication key (hex string).
             sdls_counter (int): dummy-mode entry's initial SDLS counter.
             vcid_counter (int): dummy-mode entry's initial VCID counter.
-            key_state_enc (str): dummy-mode entry's encryption key state.
-            key_state_auth (str): dummy-mode entry's authentication key state.
+            key_state_enc (str): dummy-mode entry's encryption key state,
+                "active" or "inactive" (any case).
+            key_state_auth (str): dummy-mode entry's authentication key
+                state, "active" or "inactive" (any case).
 
         Raises:
             TypeError | ValueError: type or port isn't convertible to
                 int. Every other parameter is coerced defensively (via
                 _to_int/_to_bool or str()).
             ValueError: type=0 with auto_reset_counters=True and a
-                crypt_key or auth_key other than the built-in test keys.
+                crypt_key or auth_key other than the built-in test keys,
+                or key_state_enc/key_state_auth is not "active" or
+                "inactive".
         """
         gr.basic_block.__init__(self,
                 name="db_client",
@@ -111,8 +120,11 @@ class db_client(gr.basic_block):
         self.dummy_auth_key = str(auth_key)
         self.dummy_sdls_counter = self._to_int(sdls_counter, default=0)
         self.dummy_vcid_counter = self._to_int(vcid_counter, default=0)
-        self.dummy_key_state_enc = str(key_state_enc)
-        self.dummy_key_state_auth = str(key_state_auth)
+        self.dummy_key_state_enc = self._key_state(key_state_enc)
+        self.dummy_key_state_auth = self._key_state(key_state_auth)
+        if self.dummy_key_state_enc is None or self.dummy_key_state_auth is None:
+            raise ValueError(f"key_state_enc and key_state_auth must be one of {KEY_STATES}, "
+                             f"got {key_state_enc!r} and {key_state_auth!r}.")
 
         if self.type == 0 and self.auto_reset_counters and not self._uses_test_keys():
             raise ValueError(
@@ -193,6 +205,15 @@ class db_client(gr.basic_block):
         if scid_val < 0 or spi_val < 0:
             return None
 
+        states = item.get("key_state", {})
+        if not isinstance(states, dict):
+            states = {"enc": states, "auth": states}  # neither field: invalid below
+        key_state = {kind: self._key_state(states.get(kind, KEY_STATE_ACTIVE)) for kind in ("enc", "auth")}
+        if None in key_state.values():
+            self.logger.error(f"Entry SCID {scid_val} / SPI {spi_val}: key_state must be one of {KEY_STATES} "
+                              f"for enc and auth, got {item.get('key_state')!r}; entry not loaded.")
+            return None
+
         return {
             "SCID": scid_val,
             "SPI": spi_val,
@@ -201,8 +222,20 @@ class db_client(gr.basic_block):
             "auth_key": str(item.get("auth_key", item.get("authentication_key", ""))),
             "sdls_counter": self._to_int(item.get("sdls_counter"), default=0),
             "vcid_counter": self._to_int(item.get("vcid_counter"), default=0),
-            "key_state": item.get("key_state", {}),
+            "key_state": key_state,
         }
+
+    def _key_state(self, value):
+        """
+        Args:
+            value: a key state as configured, e.g. "Active".
+
+        Returns:
+            str or None: the state in lower case if it is one of
+                KEY_STATES, otherwise None.
+        """
+        state = str(value).strip().lower()
+        return state if state in KEY_STATES else None
 
     def _load_yaml_db(self):
         if yaml is None:
@@ -518,7 +551,8 @@ class db_client(gr.basic_block):
             "db_callback" (pmt_pair): metadata with the query's
                 `scid`/`spi`/`bypass`/`control` echoed back, plus the
                 looked-up `vcid`/`crypt_key`/`auth_key`/`sdls_counter`/
-                `vcid_counter`, and the query's `db_request_id` if it has
+                `vcid_counter` - `crypt_key`/`auth_key` as `PMT_NIL` if
+                that key is inactive -, and the query's `db_request_id` if it has
                 one (inject_db uses it to pair the response with its
                 request). Payload is the query's own payload if
                 `forward_body` is True and it's a u8vector, otherwise
@@ -579,8 +613,14 @@ class db_client(gr.basic_block):
 
             # New outputs
             response_meta = pmt.dict_add(response_meta, pmt.intern("vcid"), pmt.from_long(int(entry.get("VCID", 0))))
-            response_meta = pmt.dict_add(response_meta, pmt.intern("crypt_key"), pmt.intern(str(entry.get("crypt_key", ""))))
-            response_meta = pmt.dict_add(response_meta, pmt.intern("auth_key"), pmt.intern(str(entry.get("auth_key", ""))))
+            for key_name, state_name in (("crypt_key", "enc"), ("auth_key", "auth")):
+                if entry["key_state"][state_name] == KEY_STATE_ACTIVE:
+                    key = pmt.intern(str(entry.get(key_name, "")))
+                else:
+                    key = pmt.PMT_NIL
+                    self.logger.info(f"SCID {entry.get('SCID')} / SPI {entry.get('SPI')}: {key_name} is inactive; "
+                                     f"not handed out.")
+                response_meta = pmt.dict_add(response_meta, pmt.intern(key_name), key)
             response_meta = pmt.dict_add(response_meta, pmt.intern("sdls_counter"), pmt.from_uint64(sdls_counter))
             response_meta = pmt.dict_add(response_meta, pmt.intern("vcid_counter"), pmt.from_long(vcid_counter))
 

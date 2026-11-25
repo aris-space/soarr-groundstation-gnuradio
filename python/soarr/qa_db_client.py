@@ -13,7 +13,7 @@ from gnuradio import gr, gr_unittest
 import pmt
 
 from gnuradio.soarr import db_client
-from gnuradio.soarr.db_client import TEST_CRYPT_KEY
+from gnuradio.soarr.db_client import TEST_AUTH_KEY, TEST_CRYPT_KEY
 
 class qa_db_client(gr_unittest.TestCase):
 
@@ -128,7 +128,7 @@ entries:
     vcid_counter: 34
     key_state:
       enc: active
-      auth: standby
+      auth: inactive
 """
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -154,6 +154,8 @@ entries:
             pmt.symbol_to_string(pmt.dict_ref(out_meta, pmt.intern("crypt_key"), pmt.PMT_NIL)),
             "AAAA",
         )
+        # The inactive authentication key is not handed out.
+        self.assertTrue(pmt.eq(pmt.dict_ref(out_meta, pmt.intern("auth_key"), pmt.intern("absent")), pmt.PMT_NIL))
 
     def test_005_counter_max_served_once_then_refused(self):
         block = db_client(type=0)
@@ -279,24 +281,14 @@ entries:
         self.assertEqual(self._meta_int(out_meta_2, "vcid_counter"), custom_vcid_counter + 1)
 
     def test_009_dummy_mode_configurable_key_states(self):
-        """Test Dummy mode with custom key state enc and auth."""
-        custom_enc = "standby"
-        custom_auth = "inactive"
-        custom_scid = int(0x155)
-        custom_spi = int(1)
-        
-        block = db_client(
-            type=0,
-            scid=custom_scid,
-            spi=custom_spi,
-            key_state_enc=custom_enc,
-            key_state_auth=custom_auth,
-        )
-        
-        # Verify key states are stored in the DB
-        entry = block._db[str(custom_scid)][str(custom_spi)]
-        self.assertEqual(entry["key_state"]["enc"], custom_enc)
-        self.assertEqual(entry["key_state"]["auth"], custom_auth)
+        """Dummy key states are "active" or "inactive" (any case); anything else raises."""
+        block = db_client(type=0, key_state_enc="Inactive", key_state_auth="active")
+        entry = block._db["341"]["1"]
+        self.assertEqual(entry["key_state"], {"enc": "inactive", "auth": "active"})
+
+        for kwargs in ({"key_state_enc": "standby"}, {"key_state_auth": ""}, {"key_state_auth": "on"}):
+            with self.assertRaises(ValueError, msg=str(kwargs)):
+                db_client(type=0, **kwargs)
 
     def test_010_dummy_mode_all_custom_parameters(self):
         """Test Dummy mode with all custom parameters set simultaneously."""
@@ -317,7 +309,7 @@ entries:
             "auth_key": custom_auth,
             "sdls_counter": custom_sdls,
             "vcid_counter": custom_vcid_counter,
-            "key_state_enc": "standby",
+            "key_state_enc": "inactive",
             "key_state_auth": "active",
         }
         
@@ -337,10 +329,10 @@ entries:
         self.assertEqual(self._meta_int(out_meta, "sdls_counter"), custom_sdls)
         self.assertEqual(self._meta_int(out_meta, "vcid_counter"), custom_vcid_counter)
         
-        returned_crypt = pmt.symbol_to_string(pmt.dict_ref(out_meta, pmt.intern("crypt_key"), pmt.PMT_NIL))
+        returned_crypt = pmt.dict_ref(out_meta, pmt.intern("crypt_key"), pmt.intern("absent"))
         returned_auth = pmt.symbol_to_string(pmt.dict_ref(out_meta, pmt.intern("auth_key"), pmt.PMT_NIL))
-        
-        self.assertEqual(returned_crypt, custom_crypt)
+
+        self.assertTrue(pmt.eq(returned_crypt, pmt.PMT_NIL))  # inactive: not handed out
         self.assertEqual(returned_auth, custom_auth)
 
     def test_011_forward_body_enabled_preserves_u8vector(self):
@@ -698,6 +690,47 @@ entries:
         self.assertEqual(entry["vcid_counter"], 1)  # only the TX lookup advanced it
         crypt_key = pmt.dict_ref(pmt.car(published[2][1]), pmt.intern("crypt_key"), pmt.PMT_NIL)
         self.assertEqual(pmt.symbol_to_string(crypt_key), TEST_CRYPT_KEY)
+
+    def _keys(self, block, scid=341, spi=1):
+        """(crypt_key, auth_key) of one lookup: the hex string, or None for PMT_NIL."""
+        original_pub, published = self._capture_pub(block)
+        try:
+            block.make_db_call(self._build_query(scid, spi))
+        finally:
+            self._restore_pub(block, original_pub)
+        if not published:
+            return "no answer"
+        meta = pmt.car(published[0][1])
+        keys = [pmt.dict_ref(meta, pmt.intern(k), pmt.intern("absent")) for k in ("crypt_key", "auth_key")]
+        return tuple(None if pmt.eq(k, pmt.PMT_NIL) else pmt.symbol_to_string(k) for k in keys)
+
+    # An inactive key is not handed out: the answer carries it as PMT_NIL,
+    # so the SDLS step that needs it drops the frame. The other key is
+    # still served.
+    def test_027_inactive_keys_are_not_handed_out(self):
+        self.assertEqual(self._keys(db_client(type=0)), (TEST_CRYPT_KEY, TEST_AUTH_KEY))
+        self.assertEqual(self._keys(db_client(type=0, key_state_enc="inactive")), (None, TEST_AUTH_KEY))
+        self.assertEqual(self._keys(db_client(type=0, key_state_auth="inactive")), (TEST_CRYPT_KEY, None))
+        self.assertEqual(self._keys(db_client(type=0, key_state_enc="inactive", key_state_auth="inactive")),
+                         (None, None))
+
+    # In a YAML file a missing key_state means active; an unknown state
+    # makes the entry invalid, so it is not loaded.
+    def test_028_yaml_key_states(self):
+        yaml_content = """
+entries:
+  "a": {SCID: 341, SPI: 1, crypt_key: "AAAA", auth_key: "BBBB"}
+  "b": {SCID: 341, SPI: 2, crypt_key: "CCCC", auth_key: "DDDD", key_state: {enc: inactive}}
+  "c": {SCID: 341, SPI: 3, crypt_key: "EEEE", auth_key: "FFFF", key_state: {enc: standby, auth: active}}
+"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            yaml_path = Path(tmp_dir) / "db.yaml"
+            yaml_path.write_text(yaml_content, encoding="utf-8")
+            block = db_client(type=1, yaml_path=str(yaml_path))
+
+        self.assertEqual(self._keys(block, spi=1), ("AAAA", "BBBB"))
+        self.assertEqual(self._keys(block, spi=2), (None, "DDDD"))
+        self.assertEqual(self._keys(block, spi=3), "no answer")
 
 
 if __name__ == '__main__':
