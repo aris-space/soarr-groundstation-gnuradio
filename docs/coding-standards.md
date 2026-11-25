@@ -55,6 +55,7 @@ current name):
 | `systemTester` / `SystemTester` | `system_tester` (fixes the one existing file/class mismatch) |
 | `bchDecoder` | `bch_decoder` |
 | `lfsrDescrambler` | `lfsr_descrambler` |
+| `tm_frame_generator` (GRC label "TM Frame Generator") | `tm_frame_encoder` ("TM Frame Encoder"), the Encoder/Decoder verb pair of [ADR-0007](adr/0007-grc-block-tree-and-labels.md) |
 
 See [ADR-0001](adr/0001-block-naming-convention.md) for why.
 

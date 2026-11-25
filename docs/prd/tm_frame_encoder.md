@@ -1,18 +1,18 @@
-# tm_frame_generator
+# tm_frame_encoder
 
 ## Purpose
 
 Builds CCSDS TM Transfer Frames (CCSDS 132.0-B-3) of a fixed length from
 one packet per PDU: primary header, optional secondary header, data
 field, optional Operational Control Field (OCF) and Frame Error Control
-Field (FECF). GRC label **TM Frame Generator**, category
+Field (FECF). GRC label **TM Frame Encoder**, category
 `[Soarr]/TM (Telemetry)/Frame` — the TM counterpart of
 `tc_primary_header`, with the splitting into frames that TM needs.
 
 ## Pipeline position
 
 ```
-TX: encapsulation_header → tm_frame_generator → satellites.encode_rs (gr-satellites)
+TX: encapsulation_header → tm_frame_encoder → satellites.encode_rs (gr-satellites)
     → tm_randomizer → tm_cadu_framer → cltu_burst_builder (Burst Builder) → (modulator)
 ```
 
@@ -108,7 +108,7 @@ the one-byte Encapsulation Idle Packet.
 
 ## Test coverage
 
-- `python/soarr/qa_tm_frame_generator.py` — 14 test methods
+- `python/soarr/qa_tm_frame_encoder.py` — 14 test methods
   (`test_001`–`test_014`): the primary header fields decoded bit by bit
   (`test_001`), a short packet in one idle-filled frame (`test_002`),
   splitting with the First Header Pointer and `burst_more` per frame

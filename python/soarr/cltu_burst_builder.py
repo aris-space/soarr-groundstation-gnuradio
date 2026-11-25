@@ -24,7 +24,7 @@ class cltu_burst_builder(gr.basic_block):
     - Receive a PDU on `in` (a CLTU from cltu_framer, a CADU from
       tm_cadu_framer)
     - Hold it if its metadata has `burst_more` = True (set by
-      tm_frame_generator on every frame of a packet but the last)
+      tm_frame_encoder on every frame of a packet but the last)
     - Otherwise publish `acquisition sequence || held PDUs || PDU || idle
       tail` as one PDU on `out` - without the marker, one burst per PDU
 

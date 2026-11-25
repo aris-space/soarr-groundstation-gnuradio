@@ -8,13 +8,13 @@ across frames back together using the First Header Pointer and the
 packet's own length field, skips idle packets, and publishes one PDU per
 packet: encapsulation packets on one port, Space Packets on another. The
 Operational Control Field of every frame comes out on a third port. The
-RX counterpart of [tm_frame_generator](tm_frame_generator.md). GRC label
+RX counterpart of [tm_frame_encoder](tm_frame_encoder.md). GRC label
 **TM Frame Decoder**, category `[Soarr]/TM (Telemetry)/Frame`.
 
 ## Pipeline position
 
 ```
-TX: encapsulation_header → tm_frame_generator → satellites.encode_rs → tm_randomizer → tm_cadu_framer → …
+TX: encapsulation_header → tm_frame_encoder → satellites.encode_rs → tm_randomizer → tm_cadu_framer → …
 RX: (TM CADU Deframer) → tm_randomizer → satellites.decode_rs (gr-satellites) → tm_frame_decoder
     tm_frame_decoder.out → encapsulation_parser
     tm_frame_decoder.space_packets → (application)
@@ -37,7 +37,7 @@ Reed-Solomon decoder is in this repo.
 | `ocf` | output | One PDU per frame that carries an OCF, also when its data field holds no packet or only idle data: the frame's metadata plus `scid`, `vcid`, `mc_frame_count`, `vc_frame_count`, and the 4 OCF bytes as payload. | `pmt.cons({scid: 0, vcid: 2, mc_frame_count: 18, vc_frame_count: 6}, u8vector(01 00 00 2a))` |
 
 `scid`, `vcid`, `secondary_header` and `ocf` are the keys
-`tm_frame_generator` reads from its input metadata, so a round trip gives
+`tm_frame_encoder` reads from its input metadata, so a round trip gives
 them back.
 
 ## Parameters
@@ -147,7 +147,7 @@ None currently.
 - `python/soarr/qa_tm_frame_decoder.py` — test methods `test_001`–`test_014`:
   a short packet in one idle-filled frame with its metadata (`test_001`),
   several packets in one frame (`test_002`), a packet split across frames,
-  with an exact fit and with fill, from `tm_frame_generator` (`test_003`),
+  with an exact fit and with fill, from `tm_frame_encoder` (`test_003`),
   a packet header split across two frames (`test_004`), an idle-only
   (`11111111110`) frame and a continuation without its start dropped
   silently (`test_005`), a lost frame in the middle of a packet discarding
@@ -161,6 +161,6 @@ None currently.
   SCID and VCID filters each dropping a mismatched frame, OCF included,
   and out-of-range filter values raising (`test_012`), malformed input,
   wrong versions, sync flag `1` and an unknown packet version dropped
-  (`test_013`), and the round trip `tm_frame_generator` → `encode_rs` →
+  (`test_013`), and the round trip `tm_frame_encoder` → `encode_rs` →
   `decode_rs` → this block → `encapsulation_parser` returning the
   original payload (`test_014`, skipped without gr-satellites).

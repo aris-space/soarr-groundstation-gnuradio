@@ -8,7 +8,7 @@
 
 """The TM chain with SDLS, TX to RX in one flowgraph: the SDLS-protected
 data travels in an encapsulation packet, so the TM frame layer can
-delimit it. Between the frame generator and the frame decoder the
+delimit it. Between the frame encoder and the frame decoder the
 metadata is cleared, as on a real link: RX gets SCID, SPI and counter
 from the received bytes only."""
 
@@ -18,7 +18,7 @@ from gnuradio import blocks, gr, gr_unittest
 import pmt
 
 from gnuradio.soarr import (data_creator, encapsulation_header, encapsulation_parser, key_database, sdls_apply,
-                            sdls_header_parser, sdls_process, tm_frame_decoder, tm_frame_generator)
+                            sdls_header_parser, sdls_process, tm_frame_decoder, tm_frame_encoder)
 
 SCID = 0x155  # the Key Database's dummy entry
 SPI = 1
@@ -51,7 +51,7 @@ class qa_tm_sdls_chain(gr_unittest.TestCase):
         payloads that come out."""
         source = data_creator(data=PAYLOAD, scid=SCID, spi=SPI)
         chain = [source, key_database(role="tx", scid=SCID, spi=SPI), sdls_apply(mode=mode), encapsulation_header(),
-                 tm_frame_generator(scid=SCID, frame_length=223), _link(flip_at), tm_frame_decoder(),
+                 tm_frame_encoder(scid=SCID, frame_length=223), _link(flip_at), tm_frame_decoder(),
                  encapsulation_parser(), sdls_header_parser(), key_database(role="rx", scid=SCID, spi=SPI),
                  sdls_process(mode=mode)]
         sink = blocks.message_debug()

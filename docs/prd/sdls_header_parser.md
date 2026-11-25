@@ -16,7 +16,7 @@ TM chain, with the SDLS-protected data carried in an encapsulation packet
 so the TM frame layer can delimit it:
 
 ```
-TX: key_database (role "tx") → sdls_apply → encapsulation_header → tm_frame_generator → …
+TX: key_database (role "tx") → sdls_apply → encapsulation_header → tm_frame_encoder → …
 RX: … → tm_frame_decoder.out → encapsulation_parser → sdls_header_parser
     → key_database (role "rx") → sdls_process → (application)
 ```
@@ -80,6 +80,6 @@ None currently.
   dropped (`test_003`), and a publish failure caught (`test_004`).
 - `python/soarr/qa_tm_sdls_chain.py` — 2 test methods: the whole TM chain
   above, from `data_creator` to the decrypted data, with the metadata
-  cleared between the frame generator and the frame decoder as on a real
+  cleared between the frame encoder and the frame decoder as on a real
   link, returning the original payload in each SDLS mode (`test_001`),
   and a frame altered on the way dropped by the MAC check (`test_002`).

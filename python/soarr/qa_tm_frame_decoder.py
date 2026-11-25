@@ -12,7 +12,7 @@ import unittest
 from gnuradio import blocks, gr, gr_unittest
 import pmt
 
-from gnuradio.soarr import encapsulation_header, encapsulation_parser, tm_frame_decoder, tm_frame_generator
+from gnuradio.soarr import encapsulation_header, encapsulation_parser, tm_frame_decoder, tm_frame_encoder
 
 try:
     import satellites
@@ -39,7 +39,7 @@ def _crc16(data):
 def _frame(data_field, fhp, scid=0, vcid=0, mc_count=0, vc_count=0, ocf=None, secondary=None, fecf=False,
            sync=0, version=0, secondary_version=0):
     """A TM Transfer Frame built field by field (132.0-B-3 4.1), independent
-    of the TM Frame Generator."""
+    of the TM Frame Encoder."""
     first = (version << 14) | (scid << 4) | (vcid << 1) | int(ocf is not None)
     status = (int(secondary is not None) << 15) | (sync << 14) | (0b11 << 11) | fhp
     frame = first.to_bytes(2, "big") + bytes([mc_count, vc_count]) + status.to_bytes(2, "big")
@@ -104,11 +104,11 @@ class qa_tm_frame_decoder(gr_unittest.TestCase):
             block.decode_frame(self._pdu(frame) if isinstance(frame, bytes) else frame)
         return published
 
-    def _generate(self, generator, packet, meta=None):
-        """The frames the TM Frame Generator builds for one packet."""
+    def _encode(self, encoder, packet, meta=None):
+        """The frames the TM Frame Encoder builds for one packet."""
         frames = []
-        generator.message_port_pub = lambda port, m: frames.append(self._payload(m))
-        generator.build_frames(self._pdu(packet, meta))
+        encoder.message_port_pub = lambda port, m: frames.append(self._payload(m))
+        encoder.build_frames(self._pdu(packet, meta))
         return frames
 
     def _packets(self, published, port="out"):
@@ -118,7 +118,7 @@ class qa_tm_frame_decoder(gr_unittest.TestCase):
     # frame's metadata and its SCID, VCID and frame counts.
     def test_001_one_packet_in_one_frame(self):
         packet = _packet(10)
-        (frame,) = self._generate(tm_frame_generator(scid=0x2AB, vcid=5), packet)
+        (frame,) = self._encode(tm_frame_encoder(scid=0x2AB, vcid=5), packet)
         meta = pmt.dict_add(pmt.make_dict(), pmt.intern("frame_id"), pmt.from_long(7))
         published = self._decode(tm_frame_decoder(), [self._pdu(frame, meta)])
         self.assertEqual(self._packets(published), [packet])
@@ -139,9 +139,9 @@ class qa_tm_frame_decoder(gr_unittest.TestCase):
     # Packets split across frames come back whole: with idle fill in the
     # last frame and with an exact fit, one after the other.
     def test_003_packet_split_across_frames(self):
-        generator, decoder = tm_frame_generator(frame_length=223), tm_frame_decoder()
+        encoder, decoder = tm_frame_encoder(frame_length=223), tm_frame_decoder()
         p1, p2, p3 = _packet(500, 1), _packet(2 * 217, 2), _packet(217, 3)
-        frames = self._generate(generator, p1) + self._generate(generator, p2) + self._generate(generator, p3)
+        frames = self._encode(encoder, p1) + self._encode(encoder, p2) + self._encode(encoder, p3)
         self.assertEqual(len(frames), 6)
         published = self._decode(decoder, frames)
         self.assertEqual(self._packets(published), [p1, p2, p3])
@@ -167,15 +167,15 @@ class qa_tm_frame_decoder(gr_unittest.TestCase):
 
         # A decoder started in the middle of a packet waits for the next one.
         p2 = _packet(500, 2)
-        later = self._generate(tm_frame_generator(), p2)
+        later = self._encode(tm_frame_encoder(), p2)
         self.assertEqual(self._packets(self._decode(tm_frame_decoder(), later[1:] + later)), [p2])
 
     # A lost frame (a gap in the VC frame count) discards the packet in
     # progress; the next packet comes through.
     def test_006_lost_frame_discards_the_packet(self):
-        generator = tm_frame_generator(frame_length=223)
+        encoder = tm_frame_encoder(frame_length=223)
         p1, p2 = _packet(500, 1), _packet(300, 2)
-        f1, f2 = self._generate(generator, p1), self._generate(generator, p2)
+        f1, f2 = self._encode(encoder, p1), self._encode(encoder, p2)
         self.assertEqual(self._packets(self._decode(tm_frame_decoder(), [f1[0], f1[2]] + f2)), [p2])
 
         # Also across the count wrap: 255 -> 1 is a gap, 255 -> 0 isn't.
@@ -202,10 +202,10 @@ class qa_tm_frame_decoder(gr_unittest.TestCase):
     # The secondary header is read from its flag and published; with
     # fecf, a frame with a wrong FECF is dropped.
     def test_008_secondary_header_and_fecf(self):
-        generator = tm_frame_generator(frame_length=40, secondary_header=True, secondary_header_data="AABBCC",
+        encoder = tm_frame_encoder(frame_length=40, secondary_header=True, secondary_header_data="AABBCC",
                                        fecf=True)
         packet = _packet(60)
-        frames = self._generate(generator, packet)
+        frames = self._encode(encoder, packet)
         published = self._decode(tm_frame_decoder(fecf=True), frames)
         self.assertEqual(self._packets(published), [packet])
         self.assertEqual(self._meta(published["out"][0], "secondary_header"), bytes.fromhex("AABBCC"))
@@ -214,16 +214,16 @@ class qa_tm_frame_decoder(gr_unittest.TestCase):
         broken[20] ^= 0x01
         self.assertEqual(self._packets(self._decode(tm_frame_decoder(fecf=True), [frames[0], bytes(broken)])), [])
         short = _packet(5)
-        (frame,) = self._generate(generator, short)
+        (frame,) = self._encode(encoder, short)
         bad_crc = frame[:-1] + bytes([frame[-1] ^ 0xFF])
         self.assertEqual(self._packets(self._decode(tm_frame_decoder(fecf=True), [bad_crc])), [])
 
     # Every frame with an OCF publishes it, also without a packet start
     # or with only idle data; packets carry the OCF of their first frame.
     def test_009_ocf_of_every_frame(self):
-        generator = tm_frame_generator(frame_length=223, ocf=True, ocf_value=0xA1B2C3D4)
+        encoder = tm_frame_encoder(frame_length=223, ocf=True, ocf_value=0xA1B2C3D4)
         packet = _packet(500)
-        frames = self._generate(generator, packet)
+        frames = self._encode(encoder, packet)
         frames.append(_frame(bytes([IDLE]) * 10, fhp=ONLY_IDLE_DATA, vc_count=3, mc_count=3,
                              ocf=bytes.fromhex("01020304")))
         published = self._decode(tm_frame_decoder(), frames)
@@ -237,7 +237,7 @@ class qa_tm_frame_decoder(gr_unittest.TestCase):
     # skipped; a frame can mix them with encapsulation packets.
     def test_010_space_packets(self):
         packet = _space_packet(300)
-        published = self._decode(tm_frame_decoder(), self._generate(tm_frame_generator(), packet))
+        published = self._decode(tm_frame_decoder(), self._encode(tm_frame_encoder(), packet))
         self.assertEqual(self._packets(published, "space_packets"), [packet])
         self.assertEqual(published["out"], [])
 
@@ -249,10 +249,10 @@ class qa_tm_frame_decoder(gr_unittest.TestCase):
 
     # Each virtual channel keeps its own packet in progress and count.
     def test_011_interleaved_virtual_channels(self):
-        generator = tm_frame_generator(frame_length=223)
+        encoder = tm_frame_encoder(frame_length=223)
         p1, p2 = _packet(500, 1), _packet(400, 2)
-        f1 = self._generate(generator, p1, pmt.dict_add(pmt.make_dict(), pmt.intern("vcid"), pmt.from_long(1)))
-        f2 = self._generate(generator, p2, pmt.dict_add(pmt.make_dict(), pmt.intern("vcid"), pmt.from_long(2)))
+        f1 = self._encode(encoder, p1, pmt.dict_add(pmt.make_dict(), pmt.intern("vcid"), pmt.from_long(1)))
+        f2 = self._encode(encoder, p2, pmt.dict_add(pmt.make_dict(), pmt.intern("vcid"), pmt.from_long(2)))
         interleaved = [f1[0], f2[0], f1[1], f2[1], f1[2]]
         published = self._decode(tm_frame_decoder(), interleaved)
         self.assertEqual(self._packets(published), [p2, p1])
@@ -313,7 +313,7 @@ class qa_tm_frame_decoder(gr_unittest.TestCase):
     def test_014_round_trip_through_reed_solomon(self):
         payloads = [bytes(range(200)) * 3, b"short", bytes(217)]
         tb = gr.top_block()
-        chain = [encapsulation_header(), tm_frame_generator(frame_length=223), satellites.encode_rs(True, 1),
+        chain = [encapsulation_header(), tm_frame_encoder(frame_length=223), satellites.encode_rs(True, 1),
                  satellites.decode_rs(True, 1), tm_frame_decoder(), encapsulation_parser()]
         sink = blocks.message_debug()
         for a, b in zip(chain, chain[1:]):

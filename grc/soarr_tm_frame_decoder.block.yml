@@ -62,7 +62,7 @@ documentation: |-
   A gap in the virtual channel frame count (a lost frame, e.g. a codeblock the Reed-Solomon decoder couldn't correct) discards the packet in progress, as does a First Header Pointer contradicting its length. Each SCID and VCID is decoded separately.
   The OCF flag and the secondary header come from the frame itself.
 
-  FECF: frames end with a CRC-16/CCITT, checked and removed; must match the TM Frame Generator's setting.
+  FECF: frames end with a CRC-16/CCITT, checked and removed; must match the TM Frame Encoder's setting.
   SCID / VCID Filter: keep only frames of this spacecraft / virtual channel; others give nothing, not even their OCF.
 
   Ports:

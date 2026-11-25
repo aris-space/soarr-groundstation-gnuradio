@@ -112,7 +112,7 @@ description.
 | `encapsulation_parser` | Encapsulation Parser | Common / Encapsulation | Strips the encapsulation packet header after decryption, header fields into the metadata |
 | `bch_decoder` | TC BCH Decoder | TC / BCH | Standalone BCH (63,56) decoder (corrects 1 bit error, drops codewords with more) |
 | `lfsr_descrambler` | TC Descrambler | TC / Randomizer | Standalone de-randomizer |
-| `tm_frame_generator` | TM Frame Generator | TM / Frame | Builds fixed-length TM transfer frames from one packet per PDU, splits and idle-fills it, marks the frames of one burst |
+| `tm_frame_encoder` | TM Frame Encoder | TM / Frame | Builds fixed-length TM transfer frames from one packet per PDU, splits and idle-fills it, marks the frames of one burst |
 | `tm_frame_decoder` | TM Frame Decoder | TM / Frame | Extracts encapsulation packets and Space Packets from TM transfer frames, joining packets split across frames; publishes every frame's OCF |
 | `tm_cadu_framer` | TM CADU Framer | TM / CADU | Prepends the CCSDS Attached Sync Marker to a codeblock: one CADU |
 | `tm_randomizer` | TM Randomizer | TM / Randomizer | CCSDS TM pseudo-randomizer (17-bit LFSR, or legacy 8-bit LFSR), randomizes on TX and derandomizes on RX |

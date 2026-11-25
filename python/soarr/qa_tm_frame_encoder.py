@@ -12,7 +12,7 @@ import unittest
 from gnuradio import blocks, gr, gr_unittest
 import pmt
 
-from gnuradio.soarr import tm_frame_generator
+from gnuradio.soarr import tm_frame_encoder
 
 try:
     import satellites
@@ -67,7 +67,7 @@ def _header(frame):
     }
 
 
-class qa_tm_frame_generator(gr_unittest.TestCase):
+class qa_tm_frame_encoder(gr_unittest.TestCase):
 
     def _run(self, block, msg):
         published = []
@@ -99,7 +99,7 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
     # for packets: synchronization flag 0, packet order flag 0, segment
     # length identifier 11 (4.1.2.7.3-4.1.2.7.5).
     def test_001_primary_header(self):
-        (frame,) = self._run(tm_frame_generator(scid=0x2AB, vcid=5), self._pdu(_packet(10)))
+        (frame,) = self._run(tm_frame_encoder(scid=0x2AB, vcid=5), self._pdu(_packet(10)))
         self.assertEqual(_header(self._payload(frame)), {
             "version": 0, "scid": 0x2AB, "vcid": 5, "ocf_flag": 0, "mc_count": 0, "vc_count": 0,
             "secondary_header_flag": 0, "sync_flag": 0, "packet_order_flag": 0,
@@ -110,7 +110,7 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
     # bytes, the rest filled with Encapsulation Idle Packets (4.2.2.5).
     def test_002_one_frame_filled_with_idle_packets(self):
         packet = _packet(10)
-        (frame,) = self._run(tm_frame_generator(frame_length=223), self._pdu(packet))
+        (frame,) = self._run(tm_frame_encoder(frame_length=223), self._pdu(packet))
         payload = self._payload(frame)
         self.assertEqual(len(payload), 223)
         self.assertEqual(payload[6:], packet + bytes([IDLE]) * (217 - len(packet)))
@@ -122,7 +122,7 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
     # the last frame (4.1.2.7.6). burst_more marks every frame but the last.
     def test_003_split_across_frames(self):
         packet = _packet(500)
-        frames = self._run(tm_frame_generator(frame_length=223), self._pdu(packet))
+        frames = self._run(tm_frame_encoder(frame_length=223), self._pdu(packet))
         self.assertEqual(len(frames), 3)
         payloads = [self._payload(f) for f in frames]
         self.assertTrue(all(len(p) == 223 for p in payloads))
@@ -134,18 +134,18 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
     # packet starts in the last frame.
     def test_004_exact_fit_has_no_fill(self):
         packet = _packet(2 * 217)
-        frames = self._run(tm_frame_generator(frame_length=223), self._pdu(packet))
+        frames = self._run(tm_frame_encoder(frame_length=223), self._pdu(packet))
         payloads = [self._payload(f) for f in frames]
         self.assertEqual([_header(p)["fhp"] for p in payloads], [0, NO_PACKET_START])
         self.assertEqual(b"".join(p[6:] for p in payloads), packet)
-        (single,) = self._run(tm_frame_generator(frame_length=223), self._pdu(_packet(217)))
+        (single,) = self._run(tm_frame_encoder(frame_length=223), self._pdu(_packet(217)))
         self.assertEqual(self._payload(single)[6:], _packet(217))
 
     # Both counts run modulo 256 over all frames of the block (4.1.2.5,
     # 4.1.2.6); the VC count is kept per virtual channel, the MC count per
     # spacecraft.
     def test_005_frame_counts(self):
-        block = tm_frame_generator(frame_length=20)  # 14-byte data field
+        block = tm_frame_encoder(frame_length=20)  # 14-byte data field
         headers = [_header(self._payload(f)) for f in self._run(block, self._pdu(_packet(30)))]
         self.assertEqual([(h["mc_count"], h["vc_count"]) for h in headers], [(0, 0), (1, 1), (2, 2)])
 
@@ -165,7 +165,7 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
     # passed on, with burst_more added.
     def test_006_metadata_overrides_scid_vcid_and_is_kept(self):
         meta = self._meta(scid=0x3FF, vcid=7, frame=12)
-        (frame,) = self._run(tm_frame_generator(scid=1, vcid=1), self._pdu(_packet(5), meta))
+        (frame,) = self._run(tm_frame_encoder(scid=1, vcid=1), self._pdu(_packet(5), meta))
         header = _header(self._payload(frame))
         self.assertEqual((header["scid"], header["vcid"]), (0x3FF, 7))
         self.assertTrue(pmt.equal(pmt.dict_delete(pmt.car(frame), pmt.intern("burst_more")), meta))
@@ -173,7 +173,7 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
     # The OCF is 4 bytes right after the data field (4.1.5.1), flagged in
     # the header (4.1.2.4); the metadata may carry a new value per PDU.
     def test_007_operational_control_field(self):
-        block = tm_frame_generator(frame_length=30, ocf=True, ocf_value=0x01020304)
+        block = tm_frame_encoder(frame_length=30, ocf=True, ocf_value=0x01020304)
         packet = _packet(5)
         (frame,) = self._run(block, self._pdu(packet))
         payload = self._payload(frame)
@@ -190,7 +190,7 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
     # minus one) and its data, right after the primary header (4.1.3); the
     # metadata may carry new data of the same length per PDU.
     def test_008_secondary_header(self):
-        block = tm_frame_generator(frame_length=30, secondary_header=True, secondary_header_data="AABBCC")
+        block = tm_frame_encoder(frame_length=30, secondary_header=True, secondary_header_data="AABBCC")
         packet = _packet(3)
         (frame,) = self._run(block, self._pdu(packet))
         payload = self._payload(frame)
@@ -205,7 +205,7 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
     # before it (4.1.6), here with every optional field in its place.
     def test_009_fecf_and_field_order(self):
         self.assertEqual(_crc16(b"123456789"), 0x29B1)  # the CRC's check value
-        block = tm_frame_generator(frame_length=40, fecf=True, ocf=True, ocf_value=0x11223344,
+        block = tm_frame_encoder(frame_length=40, fecf=True, ocf=True, ocf_value=0x11223344,
                                    secondary_header=True, secondary_header_data="55")
         packet = _packet(40)
         frames = self._run(block, self._pdu(packet))
@@ -221,7 +221,7 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
         self.assertEqual([_header(self._payload(f))["fhp"] for f in frames], [0, 14])
 
     def test_010_malformed_input_is_dropped(self):
-        block = tm_frame_generator(ocf=True, secondary_header=True, secondary_header_data="0000")
+        block = tm_frame_encoder(ocf=True, secondary_header=True, secondary_header_data="0000")
         for msg in (pmt.intern("not a pdu"), pmt.cons(pmt.intern("no dict"), pmt.init_u8vector(1, [0])),
                     pmt.cons(pmt.make_dict(), pmt.intern("not bytes")), self._pdu(b""),
                     self._pdu(_packet(2), self._meta(scid=0x400)), self._pdu(_packet(2), self._meta(vcid=8)),
@@ -233,7 +233,7 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
         self.assertEqual(_header(self._payload(frame))["mc_count"], 0)  # dropped PDUs used no counts
 
     def test_011_publish_failure_is_dropped_not_raised(self):
-        block = tm_frame_generator()
+        block = tm_frame_encoder()
 
         def _raise(port, msg):
             raise RuntimeError("simulated publish failure")
@@ -249,22 +249,22 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
                        {"secondary_header": True, "secondary_header_data": "00" * 64},
                        {"secondary_header": True, "secondary_header_data": "XY"}):
             with self.assertRaises(ValueError, msg=str(kwargs)):
-                tm_frame_generator(**kwargs)
-        tm_frame_generator(frame_length=7)  # one data byte is enough
-        tm_frame_generator(frame_length=2048)
+                tm_frame_encoder(**kwargs)
+        tm_frame_encoder(frame_length=7)  # one data byte is enough
+        tm_frame_encoder(frame_length=2048)
 
     # A 223-byte frame is one full RS(255,223) codeword through
     # gr-satellites' encoder, burst marker included.
     @unittest.skipIf(satellites is None, "gr-satellites is not installed (needed for TM Reed-Solomon)")
     def test_013_frames_fit_the_reed_solomon_encoder(self):
-        generator = tm_frame_generator(frame_length=223)
+        encoder = tm_frame_encoder(frame_length=223)
         rs = satellites.encode_rs(True, 1)
         sink = blocks.message_debug()
         tb = gr.top_block()
-        tb.msg_connect((generator, "out"), (rs, "in"))
+        tb.msg_connect((encoder, "out"), (rs, "in"))
         tb.msg_connect((rs, "out"), (sink, "store"))
         tb.start()
-        generator.to_basic_block()._post(pmt.intern("in"), self._pdu(_packet(300)))
+        encoder.to_basic_block()._post(pmt.intern("in"), self._pdu(_packet(300)))
         deadline = time.time() + 2.0
         while sink.num_messages() < 2 and time.time() < deadline:
             time.sleep(0.01)
@@ -278,13 +278,13 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
     # so the payload must be one encapsulation packet or Space Packet whose
     # length field gives the PDU length; anything else is dropped.
     def test_014_only_one_delimitable_packet_is_accepted(self):
-        block = tm_frame_generator(frame_length=223)
+        block = tm_frame_encoder(frame_length=223)
         for packet in (_packet(2), _packet(255), _packet(256), _packet(0x10000), _space_packet(1),
                        _space_packet(300)):
             frames = self._run(block, self._pdu(packet))
             self.assertEqual(b"".join(self._payload(f)[6:] for f in frames)[:len(packet)], packet, len(packet))
 
-        block = tm_frame_generator(frame_length=223)
+        block = tm_frame_encoder(frame_length=223)
         for payload in (bytes(10),                      # version 000, length field gives 7
                         bytes([0x40]) + bytes(9),       # version 010: no known length field
                         _packet(10)[:-1],               # shorter than its length field
@@ -299,4 +299,4 @@ class qa_tm_frame_generator(gr_unittest.TestCase):
 
 
 if __name__ == '__main__':
-    gr_unittest.run(qa_tm_frame_generator)
+    gr_unittest.run(qa_tm_frame_encoder)

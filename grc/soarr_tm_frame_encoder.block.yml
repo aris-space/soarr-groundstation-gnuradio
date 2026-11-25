@@ -1,10 +1,10 @@
-id: soarr_tm_frame_generator
-label: TM Frame Generator
+id: soarr_tm_frame_encoder
+label: TM Frame Encoder
 category: '[Soarr]/TM (Telemetry)/Frame'
 
 templates:
   imports: from gnuradio import soarr
-  make: soarr.tm_frame_generator(${scid}, ${vcid}, ${frame_length}, ${secondary_header}, ${secondary_header_data},
+  make: soarr.tm_frame_encoder(${scid}, ${vcid}, ${frame_length}, ${secondary_header}, ${secondary_header_data},
     ${ocf}, ${ocf_value}, ${fecf})
 
 parameters:

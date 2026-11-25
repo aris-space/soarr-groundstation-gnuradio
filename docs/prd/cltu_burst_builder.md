@@ -11,7 +11,7 @@ removing its latency. On TM it is a CADU from
 [tm_cadu_framer](tm_cadu_framer.md): CCSDS 131.0-B allows no bits between
 consecutive CADUs (9.4.2), so a preamble belongs to the burst, not the
 CADU; the CADUs of one packet, marked by
-[tm_frame_generator](tm_frame_generator.md), go out together as one
+[tm_frame_encoder](tm_frame_encoder.md), go out together as one
 burst. GRC label **Burst Builder**, category `[Soarr]/Common/Burst`; the
 id stays `soarr_cltu_burst_builder`. See [architecture.md](../architecture.md).
 
@@ -59,7 +59,7 @@ nothing held gives one burst, its metadata unchanged — every TC CLTU.
 The next PDU without it closes the burst: acquisition bytes, all held
 PDUs and that PDU back to back, tail — one burst with the closing PDU's
 metadata, `burst_more` removed. On TM these are the CADUs of one packet,
-whose frames `tm_frame_generator` marks. If `max_burst_pdus` PDUs are
+whose frames `tm_frame_encoder` marks. If `max_burst_pdus` PDUs are
 held and the marker is still set, they go out as a burst, logged at
 `warn`, and the PDUs after them start the next burst; nothing is held
 forever. A marker that is not a PMT boolean counts as absent.
@@ -120,5 +120,5 @@ lab, not by the test suite.
   `max_burst_pdus` sending a burst while the marker is still set
   (`test_011`), a malformed PDU leaving the held burst intact
   (`test_012`), a publish failure clearing it (`test_013`), and a packet
-  through `tm_frame_generator` and `tm_cadu_framer` leaving as one burst
+  through `tm_frame_encoder` and `tm_cadu_framer` leaving as one burst
   of three CADUs (`test_014`).

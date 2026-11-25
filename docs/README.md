@@ -48,7 +48,7 @@ development setup, and the decision records and PRDs that back them.
    - [sdls_process](prd/sdls_process.md) (hierarchical: the two SDLS steps above)
    - [encapsulation_parser](prd/encapsulation_parser.md)
    - [system_tester](prd/system_tester.md)
-   - [tm_frame_generator](prd/tm_frame_generator.md) (TM)
+   - [tm_frame_encoder](prd/tm_frame_encoder.md) (TM)
    - [tm_randomizer](prd/tm_randomizer.md) (TM)
    - [tm_cadu_framer](prd/tm_cadu_framer.md) (TM)
    - [tm_frame_decoder](prd/tm_frame_decoder.md) (TM)

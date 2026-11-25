@@ -68,7 +68,7 @@ def packet_length(header: bytes):
     return total if total >= needed else None
 
 
-class tm_frame_generator(gr.basic_block):
+class tm_frame_encoder(gr.basic_block):
     """
     Build CCSDS TM Transfer Frames (132.0-B-3) of a fixed length from one
     packet per PDU: primary header, optional secondary header, data field,
@@ -111,7 +111,7 @@ class tm_frame_generator(gr.basic_block):
                 secondary header data isn't 1-63 bytes of hexadecimal, or
                 frame_length leaves no data byte or exceeds 2048.
         """
-        gr.basic_block.__init__(self, name="TM Frame Generator", in_sig=None, out_sig=None)
+        gr.basic_block.__init__(self, name="TM Frame Encoder", in_sig=None, out_sig=None)
 
         if not 0 <= scid <= SCID_MAX:
             raise ValueError(f"scid must be 0-{SCID_MAX}, got {scid}.")

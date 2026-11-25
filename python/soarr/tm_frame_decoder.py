@@ -11,7 +11,7 @@ import pmt
 
 from .encapsulation_packet import PACKET_VERSION_NUMBER, PROTOCOL_ID_IDLE
 from .tc_frame_encoder import FECF_CRC
-from .tm_frame_generator import (FECF_BYTES, FHP_NO_PACKET_START, OCF_BYTES, PRIMARY_HEADER_BYTES, SCID_MAX,
+from .tm_frame_encoder import (FECF_BYTES, FHP_NO_PACKET_START, OCF_BYTES, PRIMARY_HEADER_BYTES, SCID_MAX,
                                  SPACE_PACKET_VERSION, VCID_MAX, packet_header_length, packet_length)
 
 FHP_ONLY_IDLE_DATA = 0x7FE  # 132.0-B-3 4.1.2.7.6.5

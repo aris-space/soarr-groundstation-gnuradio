@@ -11,7 +11,7 @@ import time
 from gnuradio import blocks, gr, gr_unittest, pdu
 import pmt
 
-from gnuradio.soarr import cltu_burst_builder, tm_cadu_framer, tm_frame_generator
+from gnuradio.soarr import cltu_burst_builder, tm_cadu_framer, tm_frame_encoder
 
 BURST_MORE = pmt.intern("burst_more")
 CLTU = bytes.fromhex("eb90") + bytes(range(16)) + bytes.fromhex("c5c5c5c5c5c5c579")
@@ -183,10 +183,10 @@ class qa_cltu_burst_builder(gr_unittest.TestCase):
     # The TM chain: a packet split into three frames leaves the CADU framer
     # as three CADUs and goes out as one burst.
     def test_014_tm_frames_of_one_packet_are_one_burst(self):
-        generator, framer = tm_frame_generator(frame_length=223), tm_cadu_framer()
+        encoder, framer = tm_frame_encoder(frame_length=223), tm_cadu_framer()
         frames = []
-        generator.message_port_pub = lambda port, m: frames.append(m)
-        generator.build_frames(self._pdu(bytes.fromhex("fe0001f4") + bytes(496)))  # a 500-byte encapsulation packet
+        encoder.message_port_pub = lambda port, m: frames.append(m)
+        encoder.build_frames(self._pdu(bytes.fromhex("fe0001f4") + bytes(496)))  # a 500-byte encapsulation packet
         cadus = []
         framer.message_port_pub = lambda port, m: cadus.append(m)
         for frame in frames:

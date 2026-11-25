@@ -20,7 +20,7 @@ documentation: |-
   Reads and strips the CCSDS 355.0-B-1 SDLS security header at the start of the payload: SPI (2 bytes) + IV (the 2-byte sdls_counter), as SDLS Header Adder builds it. The fields go into the metadata under sdls.security_header (spi, security_param_index, sdls_counter, initialization_vector), where Key Database (RX) and SDLS Process look for them.
 
   On TC, CCSDS Reader parses the security header itself; this block is for chains without it, such as TM:
-  TX: Key Database (TX) -> SDLS Apply -> Encapsulation Header Adder -> TM Frame Generator
+  TX: Key Database (TX) -> SDLS Apply -> Encapsulation Header Adder -> TM Frame Encoder
   RX: TM Frame Decoder -> Encapsulation Parser -> SDLS Header Parser -> Key Database (RX) -> SDLS Process
   The encapsulation header after SDLS Apply gives the TM frame layer the length of the protected data.
 
