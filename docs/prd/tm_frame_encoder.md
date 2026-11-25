@@ -62,8 +62,13 @@ gives the PDU length: an encapsulation packet (version `111`, CCSDS
 133.0-B-2, the 6-byte primary header plus the packet data length field
 plus 1). The receiver finds where a packet ends only from that field, so
 any other payload is dropped: another version, a length field that
-doesn't match, a header cut short, or several packets back to back,
-since the First Header Pointer would mark only the first.
+doesn't match, a header cut short, an encapsulation header without a
+length field (length of length `00`, allowed only for the 1-byte idle
+packet), or several packets back to back, since the First Header Pointer
+would mark only the first. An idle packet (encapsulation protocol ID
+`000`, Space Packet APID all ones) is dropped too: it carries nothing,
+and a frame of only idle data would need the idle-data First Header
+Pointer.
 The length rules are `tm_packets.packet_header_length` and
 `tm_packets.packet_length`, shared with `tm_frame_decoder`, so both
 delimit packets the same way.
@@ -125,5 +130,6 @@ the one-byte Encapsulation Idle Packet.
   raising (`test_012`), and 223-byte frames through gr-satellites'
   Reed-Solomon encoder with the burst marker kept (`test_013`, skipped
   without gr-satellites), and only one encapsulation packet or Space
-  Packet as long as its length field accepted, every other payload
-  dropped without using counts (`test_014`).
+  Packet as long as its length field accepted, every other payload —
+  idle packets and a length of length `00` with data included — dropped
+  without using counts (`test_014`).

@@ -15,6 +15,8 @@ The first 3 bits of a packet are its version:
 
     111  Encapsulation Packet (CCSDS 133.1-B), header 1, 2, 4 or 8 bytes
          (encapsulation_packet); packet_length counts the whole packet.
+         The 1-byte header (length of length 00) has no length field and
+         is allowed only for the 1-byte idle packet.
     000  Space Packet (CCSDS 133.0-B-2), 6-byte primary header; the packet
          data length field (bytes 4-5) counts the data field minus 1.
 
@@ -65,8 +67,9 @@ def packet_length(header: bytes):
 
     Returns:
         int or None: the packet's total length in bytes, header included;
-            None if its version has no known length field or the length is
-            shorter than the header.
+            None if its version has no known length field, it is an
+            encapsulation packet with length of length 00 other than the
+            1-byte idle packet, or the length is shorter than the header.
     """
     needed = packet_header_length(header[0])
     if needed is None:
@@ -74,7 +77,9 @@ def packet_length(header: bytes):
     if is_space_packet(header[0]):
         total = SPACE_PACKET_HEADER_BYTES + int.from_bytes(header[4:6], "big") + 1
     else:
-        total = parse_header(header[:needed])["packet_length"] or 1  # the 1-byte idle packet has no length field
+        total = parse_header(header[:needed])["packet_length"]
+        if total is None:  # length of length 00: no length field
+            return 1 if is_idle(header) else None
     return total if total >= needed else None
 
 

@@ -113,8 +113,9 @@ even its header, that runs past the end of the data field becomes the
 packet in progress.
 
 **Packets that can't be delimited**: a version other than `111` or
-`000`, or an encapsulation `packet_length` shorter than its header, gives
-no usable length. The rest of the data field is dropped and logged, and
+`000`, an encapsulation header without a length field (length of length
+`00`) other than the 1-byte idle packet, or an encapsulation
+`packet_length` shorter than its header, gives no usable length. The rest of the data field is dropped and logged, and
 decoding resumes at the next frame's First Header Pointer. A First Header
 Pointer beyond the data field drops the data field and any packet in
 progress (logged).

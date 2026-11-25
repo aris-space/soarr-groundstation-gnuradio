@@ -10,7 +10,7 @@ from gnuradio import gr
 import pmt
 
 from .fecf import FECF_BYTES, fecf_crc
-from .tm_packets import packet_header_length, packet_length
+from .tm_packets import is_idle, packet_header_length, packet_length
 
 SCID_MAX = 0x3FF  # 10 bits
 VCID_MAX = 0x7    # 3 bits
@@ -154,6 +154,7 @@ class tm_frame_encoder(gr.basic_block):
             - msg is not a pair, its metadata not a dict, or its payload not a u8vector (error - malformed input at the TX boundary, not raw RF noise)
             - the payload is empty (error - same, nothing to send)
             - the payload isn't one encapsulation packet or Space Packet exactly as long as its length field (error - same; the receiver couldn't find where it ends)
+            - the payload is an idle packet (error - same; it carries nothing, and a frame of only idle data needs the idle-data First Header Pointer)
             - a metadata override is out of range or of the wrong type or length (error - same)
             - building or publishing fails (error - same); frames already published stay sent
         """
@@ -170,6 +171,9 @@ class tm_frame_encoder(gr.basic_block):
             if needed is None or len(packet) < needed or packet_length(packet) != len(packet):
                 self.logger.error(f"Payload ({len(packet)} bytes) is not one encapsulation packet or Space Packet "
                                   f"as long as its length field; dropped.")
+                return
+            if is_idle(packet):
+                self.logger.error("Payload is an idle packet, which carries nothing to send; dropped.")
                 return
 
             scid = self._metadata_int(meta, "scid", self.scid, SCID_MAX)

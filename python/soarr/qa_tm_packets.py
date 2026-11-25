@@ -30,6 +30,7 @@ class qa_tm_packets(gr_unittest.TestCase):
         self.assertEqual(packet_length(bytes.fromhex("0864C000000F")), 6 + 15 + 1)
         self.assertIsNone(packet_length(bytes([0x40, 0, 0, 0, 0, 0])))  # unknown version
         self.assertIsNone(packet_length(bytes([0xFD, 1])))  # shorter than its own header
+        self.assertIsNone(packet_length(bytes([0xFC])))  # length of length 00, but not the idle packet
 
     def test_003_idle_and_space_packets(self):
         self.assertTrue(is_idle(bytes([0xE0])))

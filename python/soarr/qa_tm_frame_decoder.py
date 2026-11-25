@@ -288,7 +288,8 @@ class qa_tm_frame_decoder(gr_unittest.TestCase):
                     self._pdu(_frame(b"", fhp=0, ocf=bytes(4))[:8]),           # too short for its OCF
                     self._pdu(_frame(bytes(10), fhp=100)),                      # pointer beyond the data field
                     self._pdu(_frame(bytes([0x40]) + bytes(9), fhp=0)),          # version 010: no length field
-                    self._pdu(_frame(bytes([0xFD, 0x01]) + bytes(8), fhp=0))):  # length shorter than its header
+                    self._pdu(_frame(bytes([0xFD, 0x01]) + bytes(8), fhp=0)),   # length shorter than its header
+                    self._pdu(_frame(bytes([0xFC]) + bytes(9), fhp=0))):          # length of length 00, not idle
             published = self._decode(tm_frame_decoder(), [msg])
             self.assertEqual(sum(len(v) for v in published.values()), 0, str(msg))
 

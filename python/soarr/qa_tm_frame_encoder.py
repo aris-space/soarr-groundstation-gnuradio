@@ -292,7 +292,11 @@ class qa_tm_frame_encoder(gr_unittest.TestCase):
                         _packet(10) + _packet(5),       # two packets: the second would start unmarked
                         bytes([0xFE, 0x00, 0x00]),      # header cut short
                         _space_packet(4)[:-1], _space_packet(4) + bytes(1),
-                        _space_packet(4)[:5]):          # Space Packet header cut short
+                        _space_packet(4)[:5],           # Space Packet header cut short
+                        bytes([0xFC]),                  # length of length 00 is for the idle packet only
+                        bytes([IDLE]),                  # an idle packet carries nothing to send
+                        bytes([0xE1, 0x05]) + bytes(3), # an idle packet with a length field
+                        bytes([0x0F, 0xFF, 0xC0, 0x00, 0x00, 0x00, 0x00])):  # an idle Space Packet (APID all ones)
             self.assertEqual(len(self._run(block, self._pdu(payload))), 0, payload.hex())
         (frame,) = self._run(block, self._pdu(_packet(2)))
         self.assertEqual(_header(self._payload(frame))["mc_count"], 0)  # dropped PDUs used no counts
